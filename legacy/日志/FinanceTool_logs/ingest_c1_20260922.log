@@ -1,0 +1,28 @@
+批次 231
+=== 扫描 sh/sz/bj ===
+  stock              5,571
+  index              174
+  sector             1,120
+  bond               363
+  fund               2,231
+  bshare             78
+  pseudo             3
+  files              9,540
+  bars               8,280,473
+  seconds            142.4
+  missing_in_ref     7
+  registered         7
+  missing_sample     ['158022.SZ', '158031.SZ', '158049.SZ', '158050.SZ', '301686.SZ', '516040.SH', '920229.BJ']
+
+=== 合并进正式表（只补空洞） ===
+  [口径] 暂存表里 15 行 amount/vol 越出价格区间，不并入
+  md.stock_daily   16,660 行  35.6s
+  md.index_daily   516 行  0.7s
+  md.fund_daily    6,608 行  5.7s
+
+=== 验收 ===
+  md.stock_daily   6369062
+    其中北交所          261302
+  md.index_daily   213453
+  md.fund_daily    1697949
+  日期区间             2021-08-02 .. 2026-09-22

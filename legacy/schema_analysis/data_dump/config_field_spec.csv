@@ -1,0 +1,66 @@
+86	md.stock_minute	open	开盘价	yuan	numeric	[0, null]	[0.01, 10000]	float32，已是元，不需 ÷100	vipdoc_lc1	{"decimals": 2}	2026-08-31 20:38:51.746384+08
+89	md.stock_minute	close	收盘价	yuan	numeric	[0, null]	[0.01, 10000]	\N	vipdoc_lc1	{"decimals": 2}	2026-08-31 20:38:51.746384+08
+92	md.index_daily	ts_code	指数代码	text	text	\N	\N	\N	vipdoc_day	{}	2026-08-31 20:38:51.746384+08
+96	md.sector_daily	sector_code	板块代码	text	text	\N	\N	通达信板块伪代码 880*/881*	vipdoc_day	{}	2026-08-31 20:38:51.746384+08
+97	md.sector_daily	pct_chg	板块涨幅	pct	numeric	[-100, 1000]	[-20, 20]	\N	derived	{"suffix": "%", "decimals": 2}	2026-08-31 20:38:51.746384+08
+98	md.sector_daily	up_count	上涨家数	count	int	[0, null]	\N	\N	derived	{}	2026-08-31 20:38:51.746384+08
+99	md.sector_daily	down_count	下跌家数	count	int	[0, null]	\N	\N	derived	{}	2026-08-31 20:38:51.746384+08
+100	md.sector_daily	member_count	成分数	count	int	[0, null]	\N	\N	derived	{}	2026-08-31 20:38:51.746384+08
+105	md.stock_snapshot	float_mv_yuan	流通市值	yuan	numeric	[0, null]	\N	单位元	tqcenter_snapshot	{"scale": 100000000, "suffix": "亿"}	2026-08-31 20:38:51.746384+08
+106	md.stock_snapshot	eps	每股收益	yuan	numeric	\N	[-100, 100]	\N	tqcenter_snapshot	{"decimals": 4}	2026-08-31 20:38:51.746384+08
+107	md.stock_snapshot	roe_pct	ROE	pct	numeric	\N	[-200, 200]	\N	tqcenter_snapshot	{"suffix": "%", "decimals": 2}	2026-08-31 20:38:51.746384+08
+108	ref.security	ts_code	证券代码	text	text	\N	\N	\N	\N	{}	2026-08-31 20:38:51.746384+08
+109	ref.security	symbol	股票代码	text	text	\N	\N	6 位数字	tdx_tnf	{}	2026-08-31 20:38:51.746384+08
+132	fct.indicator_value	value	指标值	none	numeric	\N	\N	由 config.indicator.expr 经受限求值器计算	derived	{"decimals": 4}	2026-08-31 20:38:51.746384+08
+67	md.stock_daily	ts_code	证券代码	text	text	\N	\N	6位数字.市场后缀，如 600367.SH	vipdoc_day	{}	2026-08-31 20:38:51.746384+08
+68	md.stock_daily	trade_date	交易日期	date	date	\N	\N	来自 .day 第1字段 uint32(20260825)，转 date	vipdoc_day	{}	2026-08-31 20:38:51.746384+08
+69	md.stock_daily	open	开盘价	yuan	numeric	[0, null]	[0.01, 10000]	.day 第2字段 uint32(分) ÷ 100	vipdoc_day	{"decimals": 2}	2026-08-31 20:38:51.746384+08
+70	md.stock_daily	high	最高价	yuan	numeric	[0, null]	[0.01, 10000]	.day 第3字段 ÷ 100	vipdoc_day	{"decimals": 2}	2026-08-31 20:38:51.746384+08
+71	md.stock_daily	low	最低价	yuan	numeric	[0, null]	[0.01, 10000]	.day 第4字段 ÷ 100	vipdoc_day	{"decimals": 2}	2026-08-31 20:38:51.746384+08
+72	md.stock_daily	close	收盘价	yuan	numeric	[0, null]	[0.01, 10000]	.day 第5字段 ÷ 100	vipdoc_day	{"decimals": 2}	2026-08-31 20:38:51.746384+08
+73	md.stock_daily	pre_close	前收盘价	yuan	numeric	[0, null]	[0.01, 10000]	上一交易日 close（除权日按 adj_factor 调整）	derived	{"decimals": 2}	2026-08-31 20:38:51.746384+08
+74	md.stock_daily	change_yuan	涨跌额	yuan	numeric	\N	[-1000, 1000]	close - pre_close	derived	{"decimals": 2}	2026-08-31 20:38:51.746384+08
+75	md.stock_daily	pct_chg	涨跌幅	pct	numeric	[-100, 1000]	[-31, 31]	(close - pre_close) / pre_close * 100	derived	{"suffix": "%", "decimals": 2}	2026-08-31 20:38:51.746384+08
+76	md.stock_daily	vol_shares	成交量	shares	bigint	[0, 10000000000000]	[0, 1000000000000]	.day 第7字段 uint32，原始单位即股；显示为手时 ÷100	vipdoc_day	{"scale": 100, "suffix": "手"}	2026-08-31 20:38:51.746384+08
+77	md.stock_daily	amount_yuan	成交额	yuan	numeric	[0, 10000000000000]	[10000, 1000000000000]	.day 第6字段 float32，原始单位即元，不做任何换算	vipdoc_day	{"scale": 100000000, "suffix": "亿", "decimals": 2}	2026-08-31 20:38:51.746384+08
+78	md.stock_daily	turnover_rate_pct	换手率	pct	numeric	[0, 10000]	[0, 100]	vol_shares / ref.security.float_share * 100	derived	{"suffix": "%", "decimals": 2}	2026-08-31 20:38:51.746384+08
+79	md.stock_daily	limit_up	涨停价	yuan	numeric	[0, null]	\N	pre_close * (1 + ref.board_limit_ratio(board, is_st))；NULL 表示 board 未知	derived	{"decimals": 2}	2026-08-31 20:38:51.746384+08
+80	md.stock_daily	limit_down	跌停价	yuan	numeric	[0, null]	\N	pre_close * (1 - ref.board_limit_ratio(board, is_st))	derived	{"decimals": 2}	2026-08-31 20:38:51.746384+08
+81	md.stock_daily	adj_factor	后复权因子	ratio	numeric	[0, null]	[0.01, 1000]	由 ref.dividend 从最新交易日往前累乘；NULL 表示未计算	derived	{"decimals": 6}	2026-08-31 20:38:51.746384+08
+82	md.stock_daily	src_batch_id	来源批次	count	bigint	\N	\N	→ ops.ingest_batch，强制血缘，NOT NULL	derived	{}	2026-08-31 20:38:51.746384+08
+83	md.stock_minute	ts_code	证券代码	text	text	\N	\N	\N	vipdoc_lc1	{}	2026-08-31 20:38:51.746384+08
+84	md.stock_minute	dt	时间戳	date	timestamptz	\N	\N	由 packed 高16位(当日分钟数) + 低16位(1899-12-30 起算日序) 解出	vipdoc_lc1	{}	2026-08-31 20:38:51.746384+08
+85	md.stock_minute	period	周期	count	smallint	[1, 5]	\N	1=lc1 5=lc5	vipdoc_lc1	{}	2026-08-31 20:38:51.746384+08
+90	md.stock_minute	vol_shares	成交量	shares	bigint	[0, null]	\N	原始单位股	vipdoc_lc1	{"scale": 100, "suffix": "手"}	2026-08-31 20:38:51.746384+08
+91	md.stock_minute	amount_yuan	成交额	yuan	numeric	[0, null]	\N	float32，单位元	vipdoc_lc1	{"scale": 10000, "suffix": "万"}	2026-08-31 20:38:51.746384+08
+93	md.index_daily	close	收盘点位	none	numeric	[0, null]	[1, 100000]	\N	vipdoc_day	{"decimals": 2}	2026-08-31 20:38:51.746384+08
+94	md.index_daily	pct_chg	涨跌幅	pct	numeric	[-100, 1000]	[-15, 15]	\N	derived	{"suffix": "%", "decimals": 2}	2026-08-31 20:38:51.746384+08
+95	md.index_daily	amount_yuan	成交额	yuan	numeric	[0, null]	\N	单位元	vipdoc_day	{"scale": 100000000, "suffix": "亿"}	2026-08-31 20:38:51.746384+08
+101	md.sector_daily	amount_yuan	成交额	yuan	numeric	[0, null]	\N	单位元	derived	{"scale": 100000000, "suffix": "亿"}	2026-08-31 20:38:51.746384+08
+102	md.stock_snapshot	pe_ttm	PE(TTM)	ratio	numeric	\N	[-1000, 1000]	\N	tqcenter_snapshot	{"decimals": 2}	2026-08-31 20:38:51.746384+08
+103	md.stock_snapshot	pb	PB	ratio	numeric	\N	[0, 100]	\N	tqcenter_snapshot	{"decimals": 2}	2026-08-31 20:38:51.746384+08
+104	md.stock_snapshot	total_mv_yuan	总市值	yuan	numeric	[0, null]	\N	单位元	tqcenter_snapshot	{"scale": 100000000, "suffix": "亿"}	2026-08-31 20:38:51.746384+08
+110	ref.security	market	市场	text	text	\N	\N	以文件所在市场目录为唯一判据：sh→SH sz→SZ bj→BJ	vipdoc_day	{}	2026-08-31 20:38:51.746384+08
+111	ref.security	name	名称	text	text	\N	\N	.tnf offset 31，GBK 解码	tdx_tnf	{}	2026-08-31 20:38:51.746384+08
+112	ref.security	pinyin	全拼	text	text	\N	\N	pypinyin.lazy_pinyin(name)	tdx_tnf	{}	2026-08-31 20:38:51.746384+08
+113	ref.security	pinyin_abbr	拼音首字母	text	text	\N	\N	全拼各字首字母拼接	tdx_tnf	{}	2026-08-31 20:38:51.746384+08
+114	ref.security	board	板块	text	text	\N	\N	主板|创业板|科创板|北交所。决定涨跌停幅度 10/20/20/30%	tqcenter_sector	{}	2026-08-31 20:38:51.746384+08
+115	ref.security	asset_type	资产类型	text	text	\N	\N	stock|index|etf|sector|other，按代码前缀判定	derived	{}	2026-08-31 20:38:51.746384+08
+116	ref.security	is_st	是否ST	none	boolean	\N	\N	ST 主板涨跌停限 5%	derived	{}	2026-08-31 20:38:51.746384+08
+117	ref.security	total_share	总股本	shares	bigint	[0, null]	\N	单位股	tqcenter_gb	{"scale": 100000000, "suffix": "亿股"}	2026-08-31 20:38:51.746384+08
+118	ref.security	float_share	流通股本	shares	bigint	[0, null]	\N	单位股，换手率分母	tqcenter_gb	{"scale": 100000000, "suffix": "亿股"}	2026-08-31 20:38:51.746384+08
+119	ref.trade_calendar	cal_date	日期	date	date	\N	\N	\N	tqcenter_calendar	{}	2026-08-31 20:38:51.746384+08
+120	ref.trade_calendar	is_open	是否交易日	none	boolean	\N	\N	表驱动，认节假日。旧系统用 weekday()<5 是错的	tqcenter_calendar	{}	2026-08-31 20:38:51.746384+08
+121	ref.dividend	cash_per_share	每股现金红利	yuan	numeric	[0, null]	\N	税前	tqcenter_divid	{"decimals": 6}	2026-08-31 20:38:51.746384+08
+122	ref.dividend	bonus_ratio	每股送股比	ratio	numeric	[0, null]	\N	\N	tqcenter_divid	{"decimals": 6}	2026-08-31 20:38:51.746384+08
+123	ref.dividend	rights_ratio	每股配股比	ratio	numeric	[0, null]	\N	\N	tqcenter_divid	{"decimals": 6}	2026-08-31 20:38:51.746384+08
+124	fct.score	cap_key	功能点	text	text	\N	\N	→ config.capability	derived	{}	2026-08-31 20:38:51.746384+08
+125	fct.score	value	评分	none	numeric	[-100, 100]	\N	按 config.v_effective_binding 归一化权重加权合成	derived	{"decimals": 2}	2026-08-31 20:38:51.746384+08
+126	fct.score	quadrant	象限	text	text	\N	\N	Q1买入 Q2持有 Q3试探 Q4回避	derived	{}	2026-08-31 20:38:51.746384+08
+127	fct.score	is_stale	结果过期	none	boolean	\N	\N	脚本 checksum 或权重变更后自动置 true	derived	{}	2026-08-31 20:38:51.746384+08
+128	fct.score_detail	part_value	子项分值	none	numeric	[-100, 100]	\N	\N	derived	{"decimals": 2}	2026-08-31 20:38:51.746384+08
+129	fct.score_detail	weight	权重	ratio	numeric	[0, 1]	\N	来自 config.binding，按 enabled 归一化	derived	{"decimals": 4}	2026-08-31 20:38:51.746384+08
+130	fct.score_detail	contribution	贡献值	none	numeric	\N	\N	part_value * weight	derived	{"decimals": 2}	2026-08-31 20:38:51.746384+08
+131	fct.indicator_value	ind_key	指标	text	text	\N	\N	→ config.indicator	derived	{}	2026-08-31 20:38:51.746384+08
+87	md.stock_minute	high	最高价	yuan	numeric	[0, null]	[0.01, 10000]	\N	vipdoc_lc1	{"decimals": 2}	2026-08-31 20:38:51.746384+08
+88	md.stock_minute	low	最低价	yuan	numeric	[0, null]	[0.01, 10000]	\N	vipdoc_lc1	{"decimals": 2}	2026-08-31 20:38:51.746384+08

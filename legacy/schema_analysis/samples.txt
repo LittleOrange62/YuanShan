@@ -1,0 +1,96 @@
+Output format is unaligned.
+Field separator is "|".
+psql:D:/FinanceTool/var/schema_analysis/samples.sql:3: ERROR:  aggregate functions are not allowed in GROUP BY
+LINE 1: ...ect 'ignition.stage='||stage||' | scope='||scope, count(*) f...
+                                                             ^
+?column?|n_parts|count
+heat.src=sector|4|416132
+heat.src=sector|3|262563
+heat.src=member_agg||2856
+heat.src=sector|1|463
+heat.src=sector|2|148
+(5 rows)
+?column?|count
+trend.win=1|678640
+trend.win=11|678640
+trend.win=15|678640
+trend.win=21|678640
+trend.win=3|678640
+trend.win=5|678640
+trend.win=7|678640
+trend.win=9|678640
+(8 rows)
+?column?|count
+(0 rows)
+?column?|count
+ds.layer=assist role=vipdoc 兜底 kind=package active=true|1
+ds.layer=assist role=资讯补充 kind=http active=true|1
+ds.layer=assist role=辅助校准 kind=package active=true|7
+ds.layer=assist role=随手查 kind=mcp active=true|1
+ds.layer=base role=历史底座 kind=package active=true|1
+ds.layer=main role=AI智能查询 kind=http active=true|1
+ds.layer=main role=历史K线补充 kind=http active=true|1
+ds.layer=main role=日常生产主力 kind=package active=true|11
+ds.layer=p0 role=本地市值与估值 kind=local active=true|1
+ds.layer=p0 role=本地权威源 kind=http active=true|1
+ds.layer=p0 role=本地权威源 kind=local active=true|1
+ds.layer=p0 role=本地板块与分组 kind=local active=true|3
+(12 rows)
+?column?|count
+popup.match=title action=alert|4
+popup.match=title action=ignore|3
+popup.match=class action=button|1
+popup.match=title action=close|5
+(4 rows)
+?column?|count
+help.scope=card|92
+help.scope=page|12
+help.scope=snippet|5
+(3 rows)
+?column?|count
+alias.src=行业|18
+alias.src=概念|268
+alias.src=风格|154
+(3 rows)
+?column?|health|count
+probe.msg=|ok|76
+probe.msg=环境变量 FT_TUSHARE_TOKEN 未设置|down|19
+probe.msg=ConnectionError: ('Connection aborted.',|down|18
+probe.msg=HTTP 200|ok|14
+probe.msg=版本 1.18.88|ok|10
+probe.msg=版本 00.9.30|ok|9
+probe.msg=版本 0.11.7|ok|9
+probe.msg=FT_ALPHAFEED_KEY 已配置|ok|8
+(8 rows)
+?column?
+lhb.reason=日跌幅达到15%的前5只证券
+lhb.reason=连续3个交易日内日收盘价格跌幅偏离值达到
+lhb.reason=连续三个交易日内，涨幅偏离值累计达到12
+lhb.reason=日换手率达到30%的前5只证券
+lhb.reason=连续10个交易日内4次出现同正向异常波动
+lhb.reason=当日价格振幅达到30%的前5只股票
+lhb.reason=退市整理期
+lhb.reason=当日换手率达到20%的前5只股票
+(8 rows)
+?column?
+
+
+
+(3 rows)
+?column?
+mff.dates=2026-03-27~2026-09-17 rows=120
+(1 row)
+?column?|count
+etf.type=-|110912
+etf.type=其他|5193
+etf.type=单市|33439
+etf.type=跨境|20111
+etf.type=跨市|84437
+(5 rows)
+psql:D:/FinanceTool/var/schema_analysis/samples.sql:16: ERROR:  invalid input syntax for type json
+LINE 1: select 'ign.sample='||to_jsonb(t) from (select * from fct.ig...
+               ^
+DETAIL:  Token "ign" is invalid.
+CONTEXT:  JSON data, line 1: ign...
+?column?
+(0 rows)

@@ -1,0 +1,13 @@
+keep_tq_setting	title	TQ数据设置	ignore	\N	1	t	**千万不能关**：手动下载的主对话框，关掉整条链路就断	2026-08-31 20:38:51.759391+08
+keep_download	title	数据下载	ignore	\N	1	t	下载进度窗口，它自己消失是完成判据之一	2026-08-31 20:38:51.759391+08
+keep_main	title	通达信金融终端	ignore	\N	2	t	主窗口。注意登录框标题跟主窗口一样（都是 通达信金融终端Vx.xx），所以这条也会盖住登录框 —— 正合意，登录框由 s2_login 自己处理	2026-08-31 20:38:51.759391+08
+login_elsewhere	title	别处登录	alert	\N	5	t	账号在别的机器登录了，关掉行情也不恢复，必须重新登录	2026-08-31 20:38:51.759391+08
+disk_full	title	空间不足	alert	\N	5	t	磁盘满了，关掉下载照样失败	2026-08-31 20:38:51.759391+08
+net_broken	title	连接失败	alert	\N	6	t	行情连不上，下载必然失败	2026-08-31 20:38:51.759391+08
+pwd_hint	title	密码	alert	\N	6	t	口令相关提示，可能是密码错了，交给 s2_login 判断	2026-08-31 20:38:51.759391+08
+tdx_info	title	通达信信息	close	\N	10	t	登录后的公告窗口，每次都有	2026-08-31 20:38:51.759391+08
+notice	title	公告	close	\N	10	t	\N	2026-08-31 20:38:51.759391+08
+news	title	资讯	close	\N	20	t	\N	2026-08-31 20:38:51.759391+08
+upgrade	title	升级	close	\N	10	t	版本升级提示，不升	2026-08-31 20:38:51.759391+08
+tips	title	提示	close	\N	30	t	兜底的宽泛规则，priority 必须排在所有 ignore/alert 之后	2026-08-31 20:38:51.759391+08
+modal_ok	class	#32770	button	确定	80	f	默认关闭；只有当某个模态框连着 3 次 WM_CLOSE 都关不掉时才靠它，默认 is_active=false 是因为它太宽泛，会误点到别的对话框上	2026-08-31 20:38:51.759391+08

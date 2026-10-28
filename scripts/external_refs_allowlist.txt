@@ -1,0 +1,16 @@
+# 外部路径引用豁免清单（`manage.py doctor` 的「外部路径引用」项读它）
+#
+# 为什么要有这个文件：正则猜不出"这行是叙述还是依赖"。docstring 里写
+# 「那套口径来自 FinanceTool」是允许保留的教训叙述，而 `sys.path.insert(r'D:\FinanceTool')`
+# 是删除当天会变废铁的运行时引用 —— 两者行长得很像。所以不靠启发式，靠人审过的清单。
+#
+# 格式：相对路径:行号<TAB或空格>理由            （# 开头是注释，空行忽略；每条形如"一行一个键"，
+#   续行必须以 # 开头，否则会被当成一个假的键名读进来）
+# 不在清单里的命中 → doctor 第 9 项报红（advisory，不拦启动）。
+# 归档区（docs/参考、legacy、ingest/legacy、.local）按目录豁免，不进这里；
+# 但 docs/ 下的**指南正文**现在是要把关的（用户裁定"说明文件里不要再体现引用参考项目的内容"）。
+
+ingest/jobs/__init__.py:4           模块 docstring 里的叙述："那边从此只读"，不是路径引用
+ingest/legacy/_不可跑/recon_p2_1.py:4   已隔离的一次性重勘脚本，目录名即声明不可跑；参考项目删除时一并清
+ingest/legacy/_不可跑/recon_p2_1.py:8   同上
+ingest/legacy/_不可跑/recon_p2_2.py:4   同上

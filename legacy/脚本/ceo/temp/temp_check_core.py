@@ -1,0 +1,10 @@
+import sqlite3
+conn = sqlite3.connect(r'D:\finance\data\tq_core.db')
+cur = conn.cursor()
+cur.execute('SELECT COUNT(*) FROM watchlist_groups')
+print('watchlist_groups:', cur.fetchone()[0])
+cur.execute('SELECT COUNT(*) FROM focus_stocks')
+print('focus_stocks:', cur.fetchone()[0])
+cur.execute('SELECT COUNT(*) FROM stock_info')
+print('stock_info:', cur.fetchone()[0])
+conn.close()

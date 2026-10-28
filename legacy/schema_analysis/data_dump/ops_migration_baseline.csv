@@ -1,0 +1,68 @@
+1	2026-08-26 12:52:35.525999+08	fin_config.db	config	0	\N
+2	2026-08-26 12:52:35.525999+08	fin_config.db	mcp_config	0	\N
+3	2026-08-26 12:52:35.525999+08	fin_config.db	mcp_logs	0	\N
+4	2026-08-26 12:52:35.525999+08	fin_config.db	mcp_tools	0	\N
+5	2026-08-26 12:52:35.525999+08	fin_config.db	softwares	0	\N
+6	2026-08-26 12:52:35.525999+08	fin_config.db	watchlist_filter_cache	0	\N
+7	2026-08-26 12:52:35.525999+08	fin_config.db	watchlist_filter_presets	0	\N
+8	2026-08-26 12:52:35.525999+08	fin_data.db	data_sync_config	0	\N
+9	2026-08-26 12:52:35.525999+08	fin_data.db	divid_factors	0	\N
+10	2026-08-26 12:52:35.525999+08	fin_data.db	ipo_info	0	\N
+11	2026-08-26 12:52:35.525999+08	fin_data.db	sector_list	0	\N
+12	2026-08-26 12:52:35.525999+08	fin_data.db	share_capital	0	\N
+13	2026-08-26 12:52:35.525999+08	fin_data.db	stock_basic	0	\N
+14	2026-08-26 12:52:35.525999+08	fin_data.db	stock_sector	0	\N
+15	2026-08-26 12:52:35.525999+08	fin_factor.db	daily_run_config	0	\N
+16	2026-08-26 12:52:35.525999+08	fin_factor.db	reminders	0	\N
+17	2026-08-26 12:52:35.525999+08	fin_factor.db	score_results	0	\N
+18	2026-08-26 12:52:35.525999+08	fin_factor.db	scoring_factors	0	\N
+19	2026-08-26 12:52:35.525999+08	fin_factor.db	scoring_plans	0	\N
+20	2026-08-26 12:52:35.525999+08	fin_watchlist.db	focus_stocks	0	\N
+21	2026-08-26 12:52:35.525999+08	fin_watchlist.db	watchlist_groups	0	\N
+22	2026-08-26 12:52:35.525999+08	fin_watchlist.db	watchlist_stocks	0	\N
+23	2026-08-26 12:52:35.525999+08	tq_computed.db	kline_factors	0	\N
+24	2026-08-26 12:52:35.525999+08	tq_computed.db	meta_tables	1	\N
+25	2026-08-26 12:52:35.525999+08	tq_core.db	focus_stocks	5	\N
+26	2026-08-26 12:52:35.525999+08	tq_core.db	index_info	10	\N
+27	2026-08-26 12:52:35.525999+08	tq_core.db	meta_tables	13	\N
+28	2026-08-26 12:52:35.525999+08	tq_core.db	sector_info	1417	\N
+29	2026-08-26 12:52:35.525999+08	tq_core.db	sector_member	128590	\N
+30	2026-08-26 12:52:35.525999+08	tq_core.db	security_info	9468	\N
+31	2026-08-26 12:52:35.525999+08	tq_core.db	stock_info	9458	\N
+32	2026-08-26 12:52:35.525999+08	tq_core.db	watchlist_groups	24	\N
+33	2026-08-26 12:52:35.525999+08	tq_core.db	watchlist_stocks	0	\N
+34	2026-08-26 12:52:35.525999+08	tq_daily_2021.db	index_daily	412	{"date_max": "20211231", "date_min": "20210802", "distinct_dates": 103}
+35	2026-08-26 12:52:35.525999+08	tq_daily_2021.db	meta_tables	2	\N
+36	2026-08-26 12:52:35.525999+08	tq_daily_2021.db	stock_daily	670367	{"date_max": "20211231", "date_min": "20210802", "distinct_dates": 103}
+37	2026-08-26 12:52:35.525999+08	tq_daily_2022.db	index_daily	968	{"date_max": "20221230", "date_min": "20220104", "distinct_dates": 242}
+38	2026-08-26 12:52:35.525999+08	tq_daily_2022.db	meta_tables	2	\N
+39	2026-08-26 12:52:35.525999+08	tq_daily_2022.db	stock_daily	1690073	{"date_max": "20221230", "date_min": "20220104", "distinct_dates": 242}
+40	2026-08-26 12:52:35.525999+08	tq_daily_2023.db	index_daily	968	{"date_max": "20231229", "date_min": "20230103", "distinct_dates": 242}
+41	2026-08-26 12:52:35.525999+08	tq_daily_2023.db	meta_tables	2	\N
+42	2026-08-26 12:52:35.525999+08	tq_daily_2023.db	stock_daily	1824374	{"date_max": "20231229", "date_min": "20230103", "distinct_dates": 242}
+43	2026-08-26 12:52:35.525999+08	tq_daily_2024.db	index_daily	968	{"date_max": "20241231", "date_min": "20240102", "distinct_dates": 242}
+44	2026-08-26 12:52:35.525999+08	tq_daily_2024.db	meta_tables	2	\N
+45	2026-08-26 12:52:35.525999+08	tq_daily_2024.db	stock_daily	1925839	{"date_max": "20241231", "date_min": "20240102", "distinct_dates": 242}
+46	2026-08-26 12:52:35.525999+08	tq_daily_2025.db	index_daily	972	{"date_max": "20251231", "date_min": "20250102", "distinct_dates": 243}
+47	2026-08-26 12:52:35.525999+08	tq_daily_2025.db	meta_tables	2	\N
+48	2026-08-26 12:52:35.525999+08	tq_daily_2025.db	stock_daily	2039888	{"date_max": "20251231", "date_min": "20250102", "distinct_dates": 243}
+49	2026-08-26 12:52:35.525999+08	tq_daily_2026.db	index_daily	608	{"date_max": "20260819", "date_min": "20260105", "distinct_dates": 152}
+50	2026-08-26 12:52:35.525999+08	tq_daily_2026.db	meta_tables	3	\N
+51	2026-08-26 12:52:35.525999+08	tq_daily_2026.db	sector_daily	716577	{"date_max": "20260821", "date_min": "20210802", "distinct_dates": 1226}
+52	2026-08-26 12:52:35.525999+08	tq_daily_2026.db	stock_daily	1380792	{"date_max": "20260825", "date_min": "20260105", "distinct_dates": 156}
+53	2026-08-26 12:52:35.525999+08	tq_daily_2026.db	stock_daily_bak_20260823_clean	493864	{"date_max": "20260819", "date_min": "20260105", "distinct_dates": 152}
+54	2026-08-26 12:52:35.525999+08	tq_financial.db	adjust_factor	0	\N
+55	2026-08-26 12:52:35.525999+08	tq_financial.db	meta_tables	3	\N
+56	2026-08-26 12:52:35.525999+08	tq_financial.db	stock_fundamentals	0	\N
+57	2026-08-26 12:52:35.525999+08	tq_financial.db	stock_gbbq	0	\N
+58	2026-08-26 12:52:35.525999+08	tq_internet.db	announcement	0	\N
+59	2026-08-26 12:52:35.525999+08	tq_internet.db	dividend	0	\N
+60	2026-08-26 12:52:35.525999+08	tq_internet.db	holder	0	\N
+61	2026-08-26 12:52:35.525999+08	tq_internet.db	margin	0	\N
+62	2026-08-26 12:52:35.525999+08	tq_internet.db	meta_tables	6	\N
+63	2026-08-26 12:52:35.525999+08	tq_internet.db	moneyflow	0	\N
+64	2026-08-26 12:52:35.525999+08	tq_internet.db	stock_basic_extra	0	\N
+65	2026-08-26 12:52:35.525999+08	tq_minline_2026.db	meta_tables	2	\N
+66	2026-08-26 12:52:35.525999+08	tq_minline_2026.db	stock_minline	\N	{"error": "database disk image is malformed"}
+67	2026-08-26 12:52:35.525999+08	trend_research.db	meta_tables	1	\N
+68	2026-08-26 12:52:35.525999+08	trend_research.db	size_divergence	1224	{"date_max": "20260819", "date_min": "20210802", "distinct_dates": 1224}

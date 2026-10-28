@@ -1,0 +1,41 @@
+=== 通达信板块成分（TQ）===
+  待取板块 1120 个
+TQ数据接口初始化成功，使用路径: D:\new_tdx64\PYPlugins\user\_ft_tq_bridge.py
+TQ数据连接已关闭
+__FT_TQ_JSON__{"sectors": 1116, "members": 147933, "empty": 4, "ok": true}
+  接口回显：板块 1116 个有成分，共 147933 条(板块,成员)对，空板块 4 个
+  解析出 147933 条成员关系
+=== 结果 ===
+  reference_data.sector_member 现有 351144 行 / 2584 个板块
+  其中 TDX_ 板块成员 205040 行 / 1335 个板块
+=== 通达信除权除息（TQ）===
+  标的 9543 只
+TQ数据接口初始化成功，使用路径: D:\new_tdx64\PYPlugins\user\_ft_tq_bridge.py
+TQ数据连接已关闭
+__FT_TQ_JSON__{"rows": 61985, "stocks": 9543, "ok": true}
+  接口回显：9543 只票，共 61985 条除权记录
+=== 结果 ===
+  解析 61985 条，新增 9 行（其余为东财已有同日记录，跳过）
+  reference_data.dividend 现覆盖最早除权日 1990-03-01
+=== 通达信个股档案（TQ get_more_info）===
+  标的 9543 只
+TQ数据接口初始化成功，使用路径: D:\new_tdx64\PYPlugins\user\_ft_tq_bridge.py
+TQ数据连接已关闭
+__FT_TQ_JSON__{"rows": 9508, "stocks": 9543, "ok": true}
+  接口回显：9543 只票，取到 9508 条档案
+error ignored terminating <psycopg.Pipeline [INERROR, pipeline=ON] (host=127.0.0.1 user=ft_etl database=financetool) at 0x1ec1496e270>: pipeline aborted
+Traceback (most recent call last):
+  File "D:\FinanceTool\scripts\ingest\c20_tdx_profile.py", line 182, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "D:\FinanceTool\scripts\ingest\c20_tdx_profile.py", line 162, in main
+    engine.executemany(UPSERT, rows, role='etl')
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\FinanceTool\app\db\engine.py", line 102, in executemany
+    cur.executemany(sql, rows)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\site-packages\psycopg\cursor.py", line 148, in executemany
+    raise ex.with_traceback(None)
+psycopg.errors.UndefinedColumn: column "ts_code" of relation "stock_profile" does not exist
+LINE 3:     (ts_code, hq_date, main_business, limit_up, limit_down, ...
+             ^

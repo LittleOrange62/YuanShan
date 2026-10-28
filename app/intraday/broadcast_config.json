@@ -1,0 +1,20 @@
+{
+  "_说明": "观澜竞价榜/概念热度 参数。改这里就行，脚本不用碰。",
+  "min_pct": 5.0,
+  "top_n": 60,
+  "sector_top": 10,
+  "max_members": 1500,
+  "channel": "feishu-main",
+  "wx_push": {
+    "enabled": true,
+    "api": "http://127.0.0.1:8910/api/wxpush/send",
+    "max_chars": 1150,
+    "chunk_gap_s": 21,
+    "timeout_s": 90,
+    "note": "个人微信镜像：走 YuanShan wxpush 桌面自动化（收件人=其 default_to）。执行体是模拟按键，需要可用桌面会话+微信客户端在登录；RDP 最小化/断开时预检拒发属常态，只记 wx_warn 不影响飞书主渠道。长文按行切块，块间等 chunk_gap_s（wxpush 有20秒冷却闸）。"
+  },
+  "heat_min_n": 3,
+  "heat_top": 25,
+  "yizi_pool_retries": 3,
+  "yizi_pool_wait_s": 5
+}

@@ -1,0 +1,13 @@
+1	2026-09-22 12:59:00.119433+08	sync_daily	\N	skip	\N	调度器总开关未打开（scheduler_enabled=false）	f
+2	2026-09-22 12:59:00.125963+08	sync_minute	\N	skip	\N	调度器总开关未打开（scheduler_enabled=false）	f
+3	2026-09-22 12:59:00.1306+08	quality_audit	\N	skip	\N	调度器总开关未打开（scheduler_enabled=false）	f
+4	2026-09-22 12:59:00.135208+08	calc_base	\N	skip	\N	调度器总开关未打开（scheduler_enabled=false）	f
+5	2026-09-22 12:59:00.140196+08	calc_breadth	\N	skip	\N	调度器总开关未打开（scheduler_enabled=false）	f
+6	2026-09-22 12:59:00.145217+08	calc_ignition	\N	skip	\N	调度器总开关未打开（scheduler_enabled=false）	f
+7	2026-09-22 12:59:00.149442+08	calc_score_trend	\N	skip	\N	调度器总开关未打开（scheduler_enabled=false）	f
+8	2026-09-22 12:59:00.153373+08	calc_scores	\N	skip	\N	调度器总开关未打开（scheduler_enabled=false）	f
+9	2026-09-22 12:59:00.157356+08	calc_scores_fallback	\N	skip	\N	调度器总开关未打开（scheduler_enabled=false）	f
+10	2026-09-22 12:59:00.161201+08	calc_sector_trend	\N	skip	\N	调度器总开关未打开（scheduler_enabled=false）	f
+11	2026-09-22 12:59:00.165093+08	calc_vol_double	\N	skip	\N	调度器总开关未打开（scheduler_enabled=false）	f
+12	2026-09-22 12:59:00.168959+08	build_review	\N	skip	\N	调度器总开关未打开（scheduler_enabled=false）	f
+13	2026-09-22 12:59:00.17299+08	daily_digest	\N	skip	\N	调度器总开关未打开（scheduler_enabled=false）	f

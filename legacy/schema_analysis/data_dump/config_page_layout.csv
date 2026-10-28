@@ -1,0 +1,43 @@
+275	scores	5	12	380	table	q_hot_sector_stats	前 666 只票的板块出现次数 Top10（最热板块 ／ 其它板块）	{"params": {"limit": 10, "top_n": 666, "sectors": 3}, "page_size": 10}	t
+276	scores	6	12	620	table	q_hot_sector_cross	两榜前三交叉：最热板块 × 其它板块（9 种组合 · 各自的票）	{"color": {"pct": ["cross_avg_chg"]}, "params": {"top_k": 3, "top_n": 666, "sectors": 3}, "page_size": 9}	t
+1	home	1	2	130	stat	k_mood	大盘温度	{"unit": "", "color": "primary"}	t
+2	home	2	2	130	stat	k_up_count	上涨家数	{"unit": "家"}	t
+1375	scores	8	12	1070	table	q_quadrant_trend	四象限趋势分（近 10 个交易日 · 按趋势分从高到低）	{"color": {"dim": {"cols": ["r2"], "below": 0.5}, "pct": ["trend_score", "gap_from_max", "pred_oper", "oper_score", "x_score", "y_score", "xy_total"], "flag": {"cols": ["quad_up"], "value": "↑"}}, "params": {"win": 10, "limit": 300, "min_n": 8}, "page_size": 40}	t
+3	home	3	2	130	stat	k_limit_up	涨停家数	{"unit": "家"}	t
+4	home	4	2	130	stat	k_amount	成交额	{}	t
+5	home	5	2	130	stat	k_score_avg	平均操作分	{}	t
+6	home	6	2	130	stat	k_health	系统健康	{"kind": "health"}	t
+7	home	7	6	340	chart	pct_hist	涨跌幅分布	{}	t
+769	home	8	6	340	chart	mood_series	情绪时序（近两个月趋势）	{}	t
+1016	home	9	6	320	chart	mood_7d	大盘温度（近 7 个交易日）	{}	t
+1017	home	10	6	320	chart	mood_20d	大盘温度（近 20 个交易日）	{}	t
+773	home	14	12	420	chart	sector_rotation_heat	板块轮动	{}	t
+267	screen	1	12	120	markdown	\N	怎么用	{"text": "筛选器分两层：**条件类型**登记在 config.screen_rule（5 种语义），**方案**存在 config.screen_preset。下面两张表就是这两层的当前内容。加条件类型属于改注册表，加方案属于存自己的组合。"}	t
+268	screen	2	6	320	table	q_screen_rules	条件类型（config.screen_rule）	{}	t
+269	screen	3	6	320	table	q_screen_presets	我的方案（config.screen_preset）	{}	t
+270	screen	4	12	420	table	q_top_movers	当日涨幅前列（快速筛选）	{}	t
+271	watchlist	1	12	460	table	q_group_heat	自选组热度（加权分 · 趋势 · 振幅）	{}	t
+272	watchlist	2	12	420	chart	group_score_trend	自选组趋势（加权操作分）	{}	t
+973	watchlist	3	12	1040	table	q_watchlist	自选池明细	{"page_size": 100}	t
+273	scores	1	8	460	chart	quadrant_scatter	四象限散点	{}	t
+277	jobs	1	12	300	task_list	\N	最近任务	{"limit": 20}	t
+1377	sector	1	4	260	table	q_sector_stage_dist	板块阶段分布（{d} · 与上一交易日比）	{"color": {"pct": ["变化"]}, "page_size": 5}	t
+1378	sector	2	8	420	chart	sector_rank_bar	板块热度榜（{d}）	{}	t
+1379	sector	3	12	420	table	q_sector_ignite	启动候选：① 点火 ／ ② 延续 ／ ③ 蓄势（{d}）	{"color": {"pct": ["pct_chg", "日趋势"], "flag": {"cols": ["阶段"], "value": "① 点火"}}, "page_size": 20}	t
+1380	sector	4	12	360	chart	sector_heat_trend	板块热度趋势（前6名近10日 · 截至{d}）	{}	t
+1381	sector	5	12	460	table	q_sector_parts	热度四分项拆解（{d}）	{}	t
+1382	sector	6	12	440	chart	sector_rotation_heat	板块轮动（近15日 · 截至{d}）	{}	t
+770	home	11	12	300	table	q_mood_recent	近期情绪震荡（最近 7 个交易日）	{"params": {"days": 7}}	t
+771	home	12	12	400	table	q_sector_heat	板块热度榜（含趋势列）	{"drilldown": "sector"}	t
+772	home	13	12	360	chart	sector_heat_trend	板块热度趋势（前6名近20日）	{}	t
+774	home	15	12	460	chart	quadrant_scatter	四象限散点	{}	t
+253	home	16	12	340	chart	index_line	指数走势	{}	t
+254	home	17	6	340	table	q_etf_flow	ETF 净申赎（仅股票型）	{}	t
+255	home	18	6	320	table	q_margin_trend	两融余额趋势（亿元）	{}	t
+256	home	19	12	320	table	q_lhb_recent	龙虎榜	{}	t
+777	home	20	12	300	task_list	\N	今日任务	{"limit": 10}	t
+776	scores	4	12	840	table	q_stock_scan	个股扫描（明细 ＋ 操作分排行 · 一张表）	{"color": {"amp": ["turnover_rate_pct"], "pct": ["oper", "x_quality", "y_env", "pct_chg"]}, "params": {"limit": 666, "sectors": 3}, "drilldown": "stock", "page_size": 30}	t
+1383	sector	7	12	420	table	q_sector_heat	板块明细（含阶段与趋势列 · {d}）	{}	t
+274	scores	2	4	460	table	q_vol_stage_dist	量能阶段分布	{}	t
+1291	scores	7	12	560	table	q_effective_binding	当前有效权重（config.binding）· 含每个脚本的内容说明	{"page_size": 20}	t
+1387	scores	9	12	1300	table	q_vol_double	倍量震荡（近 40 日频繁倍量 ＋ 沿 60 日线震荡 · 按倍量次数前 50）	{"color": {"amp": ["dev_med", "dev_max", "ma60_chg"], "pct": ["dbl_count", "dbl_prev_count", "cross_count"]}, "drilldown": "stock", "page_size": 50}	t

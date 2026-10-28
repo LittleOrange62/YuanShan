@@ -1,0 +1,168 @@
+Output format is unaligned.
+Field separator is "|".
+tbl|attname|description
+fct.indicator_value|ts_code|证券代码
+fct.indicator_value|trade_date|交易日
+fct.indicator_value|ind_key|指标键
+fct.indicator_value|value|指标值，单位见 config.indicator.output_unit
+fct.indicator_value|task_id|产出它的任务号，外键 ops.task
+fct.score|ts_code|证券代码
+fct.score|trade_date|评分日
+fct.score|cap_key|功能点键
+fct.score|value|得分
+fct.score|rank_in_market|全市场排名
+fct.score|pct_rank|百分位排名（0~1）
+fct.score|quadrant|象限归属，如个股质量与环境共振交叉出的四象限
+fct.score|task_id|产出它的任务号
+fct.score|is_stale|是否为陈旧结果。从旧系统迁入的 227,985 行全部标真：算法已改，不能与新结果混着比
+fct.score|calculated_at|计算时间
+fct.score_detail|ts_code|证券代码
+fct.score_detail|trade_date|评分日
+fct.score_detail|cap_key|功能点键
+fct.score_detail|part_key|分项键
+fct.score_detail|part_label|分项中文名
+fct.score_detail|part_value|分项原始值
+fct.score_detail|weight|分项生效权重
+fct.score_detail|contribution|分项对总分的贡献 = part_value × weight
+fct.score_detail|script_key|算它的脚本键
+fct.score_detail|script_ver|算它的脚本版本，脚本改版后旧结果仍可解释
+md.fund_daily|ts_code|基金代码
+md.fund_daily|trade_date|交易日
+md.fund_daily|open|开盘价（元）
+md.fund_daily|high|最高价（元）
+md.fund_daily|low|最低价（元）
+md.fund_daily|close|收盘价（元）
+md.fund_daily|pre_close|前收盘价（元）
+md.fund_daily|pct_chg|涨跌幅（%）
+md.fund_daily|vol_units|成交量（份）。命名上刻意区别于个股表的 vol_shares，防止以后混用
+md.fund_daily|amount_yuan|成交额（元）
+md.fund_daily|src_batch_id|写入批次号
+md.fund_daily|updated_at|本行最后更新时间
+md.index_daily|ts_code|指数代码，如 000001.SH 上证指数
+md.index_daily|trade_date|交易日
+md.index_daily|open|开盘点位
+md.index_daily|high|最高点位
+md.index_daily|low|最低点位
+md.index_daily|close|收盘点位
+md.index_daily|pre_close|前收盘点位
+md.index_daily|pct_chg|涨跌幅（%）
+md.index_daily|vol_shares|成分股合计成交量（股）
+md.index_daily|amount_yuan|成分股合计成交额（元）
+md.index_daily|src_batch_id|写入批次号
+md.index_daily|updated_at|本行最后更新时间
+md.sector_daily|sector_code|板块代码
+md.sector_daily|trade_date|交易日
+md.sector_daily|open|板块开盘点位
+md.sector_daily|high|板块最高点位
+md.sector_daily|low|板块最低点位
+md.sector_daily|close|板块收盘点位
+md.sector_daily|pre_close|板块前收盘点位
+md.sector_daily|pct_chg|板块涨跌幅（%）
+md.sector_daily|vol_shares|板块成交量（股）
+md.sector_daily|amount_yuan|板块成交额（元）
+md.sector_daily|up_count|板块内上涨家数
+md.sector_daily|down_count|板块内下跌家数
+md.sector_daily|member_count|板块内成员总数
+md.sector_daily|src_batch_id|写入批次号
+md.sector_daily|updated_at|本行最后更新时间
+md.stock_daily|ts_code|证券代码
+md.stock_daily|trade_date|交易日，同时是分区键
+md.stock_daily|open|开盘价（元，未复权）
+md.stock_daily|high|最高价（元，未复权）
+md.stock_daily|low|最低价（元，未复权）
+md.stock_daily|close|收盘价（元，未复权）
+md.stock_daily|pre_close|前收盘价（元），按交易日历的上一交易日收盘回算；每只票在库内首日为空
+md.stock_daily|change_yuan|涨跌额（元）= close - pre_close
+md.stock_daily|pct_chg|涨跌幅（%）= change_yuan / pre_close × 100
+md.stock_daily|vol_shares|成交量（股）。旧库该字段单位是「手」，迁移时已 ×100；通达信 .day 原生即为股
+md.stock_daily|amount_yuan|成交额（元）。与 vol_shares 的比值必须落在当日价格区间内，由 md.trg_daily_sanity() 逐行强制
+md.stock_daily|turnover_rate_pct|换手率（%）= vol_shares / ref.security.float_share × 100。缺流通股本的留空而不填 0
+md.stock_daily|limit_up|涨停价（元），按 ref.board_limit_ratio(board, is_st) 分档回算：主板 10% / ST 主板 5% / 创业板与科创板 20% / 北交所 30%。旧系统一刀切 1.1 是错的
+md.stock_daily|limit_down|跌停价（元），同 limit_up 的比例反向计算
+md.stock_daily|adj_factor|复权因子，由 ref.dividend 自最新交易日向前累乘。缺分红数据时留空，不填 1.0 假装已复权
+md.stock_daily|src_batch_id|写入批次号，外键 ops.ingest_batch。NOT NULL 是硬要求，任何一行都能回答「谁、何时、从哪写入」
+md.stock_daily|updated_at|本行最后更新时间
+md.stock_snapshot|ts_code|证券代码
+md.stock_snapshot|trade_date|交易日
+md.stock_snapshot|pe_ttm|市盈率（滚动近四季），亏损时为空而非负数占位
+md.stock_snapshot|pb|市净率
+md.stock_snapshot|total_mv_yuan|总市值（元）= close × 当期总股本
+md.stock_snapshot|float_mv_yuan|流通市值（元）= close × 当期流通股本
+md.stock_snapshot|eps|每股收益（元）
+md.stock_snapshot|bps|每股净资产（元）
+md.stock_snapshot|roe_pct|净资产收益率（%）
+md.stock_snapshot|extra|其他指标，键值对形式，新增指标不必改表结构
+md.stock_snapshot|src_batch_id|写入批次号
+ops.ingest_batch|batch_id|批次自增主键
+ops.ingest_batch|source|来源标识，如 legacy_sqlite、tdx_vipdoc
+ops.ingest_batch|source_path|来源路径
+ops.ingest_batch|source_mtime|来源文件的修改时间，用于判断数据是否更新过
+ops.ingest_batch|target|写入目标表
+ops.ingest_batch|row_count|本批写入行数
+ops.ingest_batch|actor|执行者
+ops.ingest_batch|started_at|开始时间
+ops.ingest_batch|finished_at|结束时间
+ops.ingest_batch|status|状态：running 进行中 / ok 成功 / failed 失败。失败批次留下的行要清理，按 src_batch_id 分组即可发现
+ops.ingest_batch|message|失败原因或备注
+ops.quality_result|id|自增主键
+ops.quality_result|run_at|执行时间
+ops.quality_result|trade_date|被检查的交易日，与具体日期无关的检查为空
+ops.quality_result|rule_key|规则键
+ops.quality_result|target|检查对象
+ops.quality_result|severity|级别：info / warn / error
+ops.quality_result|passed|是否通过
+ops.quality_result|actual|实测值。写入前统一把 Decimal 与日期转成可序列化类型，否则留不下痕迹
+ops.quality_result|expected|期望值或判据说明
+ops.quality_result|sample|不通过的样本，便于直接定位到具体行
+ops.quality_result|batch_id|关联的入库批次
+ops.task|task_id|任务自增主键
+ops.task|job_key|来自哪个任务配置
+ops.task|cap_key|执行的功能点键
+ops.task|script_id|执行的脚本主键
+ops.task|trade_date|处理的交易日
+ops.task|scope|作用范围
+ops.task|params|运行参数
+ops.task|state|状态：pending 待跑 / running 运行中 / ok 成功 / failed 失败 / canceled 已取消
+ops.task|progress|进度百分比
+ops.task|message|进度或结果说明
+ops.task|attempt|当前第几次尝试
+ops.task|max_retry|最大重试次数
+ops.task|cancel_requested|是否已请求取消，执行器在检查点响应
+ops.task|concurrency_key|并发键，同键任务串行
+ops.task|depends_on|依赖的任务号
+ops.task|actor|触发者
+ops.task|created_at|创建时间
+ops.task|started_at|开始时间
+ops.task|finished_at|结束时间
+ops.task|result_meta|结果摘要，如影响行数、产出对象
+ops.task|error|错误信息
+ref.dividend|ts_code|证券代码
+ref.dividend|ex_date|除权除息日
+ref.dividend|cash_per_share|每股现金分红（元，税前）
+ref.dividend|bonus_ratio|每股送股比例，10 送 3 记 0.3
+ref.dividend|rights_ratio|每股配股比例，10 配 2 记 0.2
+ref.dividend|rights_price|配股价（元）
+ref.security|ts_code|标准代码，六位数字加交易所后缀，如 600519.SH
+ref.security|symbol|六位数字代码，不含交易所后缀
+ref.security|market|交易所：SH 上交所 / SZ 深交所 / BJ 北交所
+ref.security|name|证券简称，来自通达信 hq_cache\*.tnf（旧库没有名称数据）
+ref.security|pinyin|简称全拼，供搜索框按拼音匹配
+ref.security|pinyin_abbr|简称拼音首字母缩写，如 GZMT
+ref.security|board|板块归属：主板 / 创业板 / 科创板 / 北交所。决定涨跌停比例，按代码段判定
+ref.security|asset_type|品种：stock 个股 / index 指数 / etf 基金 / sector 通达信板块 / other 其他
+ref.security|is_st|是否 ST/*ST/S*ST。ST 股主板涨跌停为 5% 而非 10%，由简称前缀判定
+ref.security|list_date|上市日期
+ref.security|delist_date|退市日期，仍在市为空
+ref.security|total_share|总股本（股）。旧库该列 9,064 行全为 0，故一律留空不填 0，避免下游算出无穷大换手率
+ref.security|float_share|流通股本（股）。换手率的分母，仅个股填充；旧库按六位代码抓数不分交易所，非个股的值不可信已清空
+ref.security|is_active|是否仍在有效清单内，退市或代码回收后置假
+ref.security|updated_at|本行最后更新时间
+ref.share_capital|ts_code|证券代码
+ref.share_capital|change_date|变动生效日
+ref.share_capital|total_share|变动后总股本（股）
+ref.share_capital|float_share|变动后流通股本（股）
+ref.trade_calendar|cal_date|自然日
+ref.trade_calendar|is_open|是否交易日
+ref.trade_calendar|prev_open|上一个交易日，用于回算 pre_close
+ref.trade_calendar|next_open|下一个交易日
+(164 rows)

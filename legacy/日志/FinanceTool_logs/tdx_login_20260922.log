@@ -1,0 +1,24 @@
+会话自检：通过 —— session=2
+输入桌面：可用 —— 输入桌面可用（光标在 2,311）
+[22:01:25] 目标交易日 2026-09-22；只跑 s1_launch,s2_login
+[22:01:25] 弹窗看门狗已启动（规则来源：config.popup_rule（12 条））
+[22:01:25] ——— s1_launch · 启动/复用通达信
+[22:01:26]   act：已启动 D:\new_tdx64\TdxW.exe
+[22:01:30]   verify 通过：登录框已出现（pid=38428）
+[22:01:30] ——— s2_login · 填账号口令并登录
+[22:01:30]   登录框：'通达信金融终端V7.73' (678, 306, 1242, 734)
+[22:01:30]   按控件 ID 认出：账号 #1443 (777, 553, 971, 574)，口令 #1058 (777, 598, 971, 617)
+[22:01:30]     SafeEdit：跳过 WM_SETTEXT（已证明拒收且无法回读核实）
+[22:01:30]     输入桌面可用（输入桌面可用（光标在 2,311）），走前台 + 真实按键
+[22:01:31]     真实按键这条没成（SendInput 第 1 个字符被拒），退回 SetFocus + WM_CHAR
+[22:01:33]     回读不可用（Win32 空串，UIA：$ErrorActionPreference='Stop'
+Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
+$root=[System.Windows.Automati…）—— SafeEdit 双向都封，改由登录结果判定
+[22:01:33]   账号 189****9696 → SetFocus + WM_CHAR（SetFocus 成功（attach=True）；已投递 11 个字符的 WM_CHAR（清空：EM_SETSEL+WM_CLEAR、选中退格、64 次退格与 Delete 各一轮））；内容不可回读，交给 verify 按登录结果判定
+[22:01:33]     SafeEdit：跳过 WM_SETTEXT（已证明拒收且无法回读核实）
+[22:01:33]     输入桌面可用（输入桌面可用（光标在 874,563）），走前台 + 真实按键
+[22:01:33]     真实按键这条没成（SendInput 第 1 个字符被拒），退回 SetFocus + WM_CHAR
+[22:01:34]   口令 (11 位) → SetFocus + WM_CHAR（SetFocus 成功（attach=True）；已投递 11 个字符的 WM_CHAR（清空：EM_SETSEL+WM_CLEAR、选中退格、64 次退格与 Delete 各一轮））；口令框按设计不回读
+[22:01:34]   act：已点击 '登录'（Button#1）
+[22:01:49]   verify 通过：登录框已消失，主窗口 '通达信金融终端V7.73 - [行情报价-自选股]'
+

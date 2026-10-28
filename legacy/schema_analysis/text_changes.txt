@@ -1,0 +1,531 @@
+config.chart.encoding | ('kline_vol',) | {'x': 'trade_date', 'low': 'low', 'high': 'high', 'open': 'open', 'close': 'close', 'volume': 'vol_shares'} | {'x': 'trade_date', 'low': 'low', 'high': 'high', 'open': 'open', 'close': 'close', 'volume': 'volume_shares'}
+config.chart.encoding | ('index_line',) | {'x': 'trade_date', 'y': ['close'], 'color': 'ts_code'} | {'x': 'trade_date', 'y': ['close'], 'color': 'security_code'}
+config.chart.encoding | ('sector_rotation_heat',) | {'x': 'trade_date', 'y': 'name', 'z': 'pct_chg'} | {'x': 'trade_date', 'y': 'name', 'z': 'pct_change'}
+config.chart.encoding | ('quadrant_scatter',) | {'x': 'x_value', 'y': 'y_value', 'size': 'float_mv_yuan', 'color': 'quadrant'} | {'x': 'x_value', 'y': 'y_value', 'size': 'float_market_value_yuan', 'color': 'quadrant'}
+config.data_source.note | ('tqcenter_divid',) | 用于计算真实 adj_factor，替代旧系统硬编码 1.0 | 用于计算真实 adjustment_factor，替代旧系统硬编码 1.0
+config.data_source.note | ('tqcenter_calendar',) | 灌 ref.trade_calendar，让调度器真正认节假日 | 灌 reference_data.trade_calendar，让调度器真正认节假日
+config.data_source.note | ('tqcenter_sector',) | 市场码同时用于填 ref.security.board | 市场码同时用于填 reference_data.security.board
+config.dataset.dataset_key | ('md.stock_daily',) | md.stock_daily | market_data.stock_daily
+config.dataset.dataset_key | ('md.index_daily',) | md.index_daily | market_data.index_daily
+config.dataset.dataset_key | ('md.sector_daily',) | md.sector_daily | market_data.sector_daily
+config.dataset.dataset_key | ('md.stock_minute',) | md.stock_minute | market_data.stock_minute
+config.dataset.dataset_key | ('md.stock_snapshot',) | md.stock_snapshot | market_data.stock_snapshot
+config.dataset.dataset_key | ('ref.security',) | ref.security | reference_data.security
+config.datasource.note | ('ak_etf_sse',) | 897 只，含 跨市/单市/跨境/其他 分类；→ md.etf_share | 897 只，含 跨市/单市/跨境/其他 分类；→ market_data.etf_share
+config.datasource.note | ('ak_margin_sse',) | 1999 只 9 列，给偿还额不给融券余额；→ md.margin_detail | 1999 只 9 列，给偿还额不给融券余额；→ market_data.margin_detail
+config.datasource.note | ('ak_lhb_inst',) | 16 列；只统计机构专用席位；→ md.lhb_inst | 16 列；只统计机构专用席位；→ market_data.dragon_tiger_institution
+config.datasource.note | ('ts_pkg',) | trade_cal 有权限，可用来回补 ref.trade_calendar | trade_cal 有权限，可用来回补 reference_data.trade_calendar
+config.datasource.note | ('ak_lhb_detail',) | 21 列；一票一天可多条原因；→ md.lhb_detail | 21 列；一票一天可多条原因；→ market_data.dragon_tiger_detail
+config.datasource.note | ('ak_margin_sum_szse',) | akshare 1.18.88 内部抛 Length mismatch，接口自身 bug，不要接；用 md.margin_detail 求和代替 | akshare 1.18.88 内部抛 Length mismatch，接口自身 bug，不要接；用 market_data.margin_detail 求和代替
+config.field_spec.column_name | (92,) | ts_code | security_code
+config.field_spec.column_name | (97,) | pct_chg | pct_change
+config.field_spec.column_name | (105,) | float_mv_yuan | float_market_value_yuan
+config.field_spec.column_name | (107,) | roe_pct | roe_percent
+config.field_spec.column_name | (108,) | ts_code | security_code
+config.field_spec.column_name | (67,) | ts_code | security_code
+config.field_spec.column_name | (75,) | pct_chg | pct_change
+config.field_spec.column_name | (76,) | vol_shares | volume_shares
+config.field_spec.column_name | (78,) | turnover_rate_pct | turnover_rate_percent
+config.field_spec.column_name | (81,) | adj_factor | adjustment_factor
+config.field_spec.column_name | (82,) | src_batch_id | source_batch_id
+config.field_spec.column_name | (83,) | ts_code | security_code
+config.field_spec.column_name | (90,) | vol_shares | volume_shares
+config.field_spec.column_name | (94,) | pct_chg | pct_change
+config.field_spec.column_name | (104,) | total_mv_yuan | total_market_value_yuan
+config.field_spec.column_name | (119,) | cal_date | calendar_date
+config.field_spec.column_name | (124,) | cap_key | capability_key
+config.field_spec.column_name | (128,) | part_value | component_value
+config.field_spec.column_name | (131,) | ind_key | indicator_key
+config.field_spec.formula | (73,) | 上一交易日 close（除权日按 adj_factor 调整） | 上一交易日 close（除权日按 adjustment_factor 调整）
+config.field_spec.formula | (79,) | pre_close * (1 + ref.board_limit_ratio(board, is_st))；NULL 表示 board 未知 | pre_close * (1 + reference_data.board_limit_ratio(board, is_st))；NULL 表示 board 未知
+config.field_spec.formula | (80,) | pre_close * (1 - ref.board_limit_ratio(board, is_st)) | pre_close * (1 - reference_data.board_limit_ratio(board, is_st))
+config.field_spec.formula | (78,) | vol_shares / ref.security.float_share * 100 | volume_shares / reference_data.security.float_share * 100
+config.field_spec.formula | (81,) | 由 ref.dividend 从最新交易日往前累乘；NULL 表示未计算 | 由 reference_data.dividend 从最新交易日往前累乘；NULL 表示未计算
+config.field_spec.formula | (82,) | → ops.ingest_batch，强制血缘，NOT NULL | → operations.ingest_batch，强制血缘，NOT NULL
+config.field_spec.formula | (130,) | part_value * weight | component_value * weight
+config.field_spec.table_name | (92,) | md.index_daily | market_data.index_daily
+config.field_spec.table_name | (97,) | md.sector_daily | market_data.sector_daily
+config.field_spec.table_name | (105,) | md.stock_snapshot | market_data.stock_snapshot
+config.field_spec.table_name | (107,) | md.stock_snapshot | market_data.stock_snapshot
+config.field_spec.table_name | (108,) | ref.security | reference_data.security
+config.field_spec.table_name | (86,) | md.stock_minute | market_data.stock_minute
+config.field_spec.table_name | (89,) | md.stock_minute | market_data.stock_minute
+config.field_spec.table_name | (96,) | md.sector_daily | market_data.sector_daily
+config.field_spec.table_name | (98,) | md.sector_daily | market_data.sector_daily
+config.field_spec.table_name | (99,) | md.sector_daily | market_data.sector_daily
+config.field_spec.table_name | (100,) | md.sector_daily | market_data.sector_daily
+config.field_spec.table_name | (106,) | md.stock_snapshot | market_data.stock_snapshot
+config.field_spec.table_name | (109,) | ref.security | reference_data.security
+config.field_spec.table_name | (132,) | fct.indicator_value | analytics.indicator_value
+config.field_spec.table_name | (68,) | md.stock_daily | market_data.stock_daily
+config.field_spec.table_name | (69,) | md.stock_daily | market_data.stock_daily
+config.field_spec.table_name | (70,) | md.stock_daily | market_data.stock_daily
+config.field_spec.table_name | (71,) | md.stock_daily | market_data.stock_daily
+config.field_spec.table_name | (72,) | md.stock_daily | market_data.stock_daily
+config.field_spec.table_name | (74,) | md.stock_daily | market_data.stock_daily
+config.field_spec.table_name | (77,) | md.stock_daily | market_data.stock_daily
+config.field_spec.table_name | (84,) | md.stock_minute | market_data.stock_minute
+config.field_spec.table_name | (85,) | md.stock_minute | market_data.stock_minute
+config.field_spec.table_name | (67,) | md.stock_daily | market_data.stock_daily
+config.field_spec.table_name | (75,) | md.stock_daily | market_data.stock_daily
+config.field_spec.table_name | (76,) | md.stock_daily | market_data.stock_daily
+config.field_spec.table_name | (83,) | md.stock_minute | market_data.stock_minute
+config.field_spec.table_name | (73,) | md.stock_daily | market_data.stock_daily
+config.field_spec.table_name | (79,) | md.stock_daily | market_data.stock_daily
+config.field_spec.table_name | (80,) | md.stock_daily | market_data.stock_daily
+config.field_spec.table_name | (78,) | md.stock_daily | market_data.stock_daily
+config.field_spec.table_name | (81,) | md.stock_daily | market_data.stock_daily
+config.field_spec.table_name | (82,) | md.stock_daily | market_data.stock_daily
+config.field_spec.table_name | (90,) | md.stock_minute | market_data.stock_minute
+config.field_spec.table_name | (94,) | md.index_daily | market_data.index_daily
+config.field_spec.table_name | (104,) | md.stock_snapshot | market_data.stock_snapshot
+config.field_spec.table_name | (91,) | md.stock_minute | market_data.stock_minute
+config.field_spec.table_name | (93,) | md.index_daily | market_data.index_daily
+config.field_spec.table_name | (95,) | md.index_daily | market_data.index_daily
+config.field_spec.table_name | (101,) | md.sector_daily | market_data.sector_daily
+config.field_spec.table_name | (102,) | md.stock_snapshot | market_data.stock_snapshot
+config.field_spec.table_name | (103,) | md.stock_snapshot | market_data.stock_snapshot
+config.field_spec.table_name | (110,) | ref.security | reference_data.security
+config.field_spec.table_name | (111,) | ref.security | reference_data.security
+config.field_spec.table_name | (112,) | ref.security | reference_data.security
+config.field_spec.table_name | (113,) | ref.security | reference_data.security
+config.field_spec.table_name | (119,) | ref.trade_calendar | reference_data.trade_calendar
+config.field_spec.table_name | (124,) | fct.score | analytics.score
+config.field_spec.table_name | (128,) | fct.score_detail | analytics.score_detail
+config.field_spec.table_name | (131,) | fct.indicator_value | analytics.indicator_value
+config.field_spec.table_name | (130,) | fct.score_detail | analytics.score_detail
+config.field_spec.table_name | (114,) | ref.security | reference_data.security
+config.field_spec.table_name | (115,) | ref.security | reference_data.security
+config.field_spec.table_name | (116,) | ref.security | reference_data.security
+config.field_spec.table_name | (117,) | ref.security | reference_data.security
+config.field_spec.table_name | (118,) | ref.security | reference_data.security
+config.field_spec.table_name | (120,) | ref.trade_calendar | reference_data.trade_calendar
+config.field_spec.table_name | (121,) | ref.dividend | reference_data.dividend
+config.field_spec.table_name | (122,) | ref.dividend | reference_data.dividend
+config.field_spec.table_name | (123,) | ref.dividend | reference_data.dividend
+config.field_spec.table_name | (125,) | fct.score | analytics.score
+config.field_spec.table_name | (126,) | fct.score | analytics.score
+config.field_spec.table_name | (127,) | fct.score | analytics.score
+config.field_spec.table_name | (129,) | fct.score_detail | analytics.score_detail
+config.field_spec.table_name | (87,) | md.stock_minute | market_data.stock_minute
+config.field_spec.table_name | (88,) | md.stock_minute | market_data.stock_minute
+config.help_note.caveat | ('snip.score_gap',) | `fct.score` 目前只回算了最近一段（`sector_heat` 从 2026-07-29 起），再往前是空的 —— 曲线左端断掉是**缺数据**，不是分数为 0。 | `analytics.score` 目前只回算了最近一段（`sector_heat` 从 2026-07-29 起），再往前是空的 —— 曲线左端断掉是**缺数据**，不是分数为 0。
+config.help_note.caveat | ('page.sector',) | 板块成员名单只覆盖 `ref.sector_member` 的一部分（418/652，**行业板块的成员全缺**）—— 缺成员的板块算不出热度，进不了榜。 | 板块成员名单只覆盖 `reference_data.sector_member` 的一部分（418/652，**行业板块的成员全缺**）—— 缺成员的板块算不出热度，进不了榜。
+config.help_note.caveat | ('card.stock.lhb',) | `md.lhb_detail` 现在只有 **10 个交易日**（2026-08-17 ~ 08-28），705 行 —— "近期没有记录"多半是库里没那么多历史，不是这只票没上榜。 | `market_data.dragon_tiger_detail` 现在只有 **10 个交易日**（2026-08-17 ~ 08-28），705 行 —— "近期没有记录"多半是库里没那么多历史，不是这只票没上榜。
+config.help_note.caveat | ('card.datasource.manage',) | **故意不给改的**：`health`（那是探测的结论，手改会掩盖真实状态）、`endpoint` / `probe_spec` / `auth_ref`（改了要连带改探测代码，属于改代码不是改配置）。可写列的白名单在 `app/datas | **故意不给改的**：`health`（那是探测的结论，手改会掩盖真实状态）、`endpoint` / `probe_spec` / `auth_env_name`（改了要连带改探测代码，属于改代码不是改配置）。可写列的白名单在 `app/
+config.help_note.caveat | ('card.sector_rotation_heat',) | ⚠️ 行业板块目前**没有成员名单**（`ref.sector_member` 只覆盖 418/652），所以行业那几行没法用成分股自查，只能信通达信的指数值本身。 | ⚠️ 行业板块目前**没有成员名单**（`reference_data.sector_member` 只覆盖 418/652），所以行业那几行没法用成分股自查，只能信通达信的指数值本身。
+config.help_note.caveat | ('card.q_sector_stage_dist',) | ⚠️ 两天都取 `fct.ignition` 里**真有数据的交易日**，不是日历日减一，所以长假之后比较的仍然是相邻两个交易日。 | ⚠️ 两天都取 `analytics.ignition` 里**真有数据的交易日**，不是日历日减一，所以长假之后比较的仍然是相邻两个交易日。
+config.help_note.caveat | ('card.q_sector_ignite',) | ⚠️ **`③ 蓄势` 不是买入清单**：它样本外 T+5 超额 **−0.107**、胜率 46.3%（对照组 +0.074 / 48.7%）——"只蓄势没点火"本身是负期望。它唯一的用途是当 `① 点火` 的前置、把名字提前放进视野。当 | ⚠️ **`③ 蓄势` 不是买入清单**：它样本外 T+5 超额 **−0.107**、胜率 46.3%（对照组 +0.074 / 48.7%）——"只蓄势没点火"本身是负期望。它唯一的用途是当 `① 点火` 的前置、把名字提前放进视野。当
+config.help_note.caveat | ('card.q_quadrant_trend',) | 窗口内至少 `min_n`＝8 天有分才出行 —— **新股和长停票会整片缺席**，3 天数据拟合出来的斜率没有意义。另外 `fct.score` 只回算了最近一段，越往前的日期能算的票越少。
+
+基准日走"最近一个**有评分**的交易日"并 | 窗口内至少 `min_n`＝8 天有分才出行 —— **新股和长停票会整片缺席**，3 天数据拟合出来的斜率没有意义。另外 `analytics.score` 只回算了最近一段，越往前的日期能算的票越少。
+
+基准日走"最近一个**有评分**
+config.help_note.caveat | ('card.sector_heat_trend',) | ⚠️ 板块是**按当天热度选**的，所以左边那几天它们可能还很低 ——曲线整体往上翘是选择效应，要比的是**彼此之间**谁翘得更早、更陡。
+
+⚠️ `fct.score[sector_heat]` 目前只有 2026-07-29 起的数据， | ⚠️ 板块是**按当天热度选**的，所以左边那几天它们可能还很低 ——曲线整体往上翘是选择效应，要比的是**彼此之间**谁翘得更早、更陡。
+
+⚠️ `analytics.score[sector_heat]` 目前只有 2026-07-29
+config.help_note.caveat | ('card.sector_rank_bar',) | ⚠️ 只统计有评分成员的板块 —— 行业板块的成员名单目前只覆盖 `ref.sector_member` 的一部分（418/652），缺成员的板块进不了这张榜。 | ⚠️ 只统计有评分成员的板块 —— 行业板块的成员名单目前只覆盖 `reference_data.sector_member` 的一部分（418/652），缺成员的板块进不了这张榜。
+config.help_note.content | ('card.q_stock_scan',) | **个股扫描**：当天该看的票一屏拉完 —— 五个评分 + 量能阶段 + 行情 + 板块三列，按操作分从高到低，默认一页 30 行、取前 300 只。
+
+这张表是原来「个股明细」和「操作分排行」的合并：同一天、同一批票、同一个排序键，区别只 | **个股扫描**：当天该看的票一屏拉完 —— 五个评分 + 量能阶段 + 行情 + 板块三列，按操作分从高到低，默认一页 30 行、取前 300 只。
+
+这张表是原来「个股明细」和「操作分排行」的合并：同一天、同一批票、同一个排序键，区别只
+config.help_note.content | ('page.jobs',) | 作业清单来自 `config.job`，执行历史是 `ops.task`。「无执行器」的作业按钮是灰的 —— 缺对应脚本，不是坏了。 | 作业清单来自 `config.job`，执行历史是 `operations.task`。「无执行器」的作业按钮是灰的 —— 缺对应脚本，不是坏了。
+config.help_note.content | ('card.q_pattern_streak',) | **前 N 到前 M 个交易日这段窗口里，涨停若干次的票。**
+
+`涨停次数`＝**窗口内涨停的天数**（用户 2026-09-01 定的口径）：窗口里 D1、D2、D3 连着涨停，隔一天 D5、D6 又连着，算 **5 次** —— 不是 | **前 N 到前 M 个交易日这段窗口里，涨停若干次的票。**
+
+`涨停次数`＝**窗口内涨停的天数**（用户 2026-09-01 定的口径）：窗口里 D1、D2、D3 连着涨停，隔一天 D5、D6 又连着，算 **5 次** —— 不是
+config.help_note.content | ('card.q_etf_flow',) | **ETF 净申赎**：用份额变动折算的资金流，单位亿元，默认近 30 个交易日。
+
+取数 `q_etf_flow` → `md.etf_share`（沪深两所官方每日**存量总份额**，`scripts/ingest/c4_etf_sha | **ETF 净申赎**：用份额变动折算的资金流，单位亿元，默认近 30 个交易日。
+
+取数 `q_etf_flow` → `market_data.etf_share`（沪深两所官方每日**存量总份额**，`scripts/ingest/c
+config.help_note.content | ('card.q_margin_trend',) | **两融余额趋势**：全市场合计，单位亿元，默认近 30 个交易日。
+
+取数 `q_margin_trend` → `md.margin_detail` 按交易日汇总（`scripts/ingest/c5_margin.py` 采集，源头是 | **两融余额趋势**：全市场合计，单位亿元，默认近 30 个交易日。
+
+取数 `q_margin_trend` → `market_data.margin_detail` 按交易日汇总（`scripts/ingest/c5_margin.p
+config.help_note.content | ('card.q_sector_parts',) | 把板块热度拆成四个分项，回答"这个板块凭什么热"。
+
+涨幅高但广度低 = 少数票拉起来的；成交分高而动量低 = 放量但没走出来。
+
+取数 `q_sector_parts` → `fct.score_detail`（`part_key` =  | 把板块热度拆成四个分项，回答"这个板块凭什么热"。
+
+涨幅高但广度低 = 少数票拉起来的；成交分高而动量低 = 放量但没走出来。
+
+取数 `q_sector_parts` → `analytics.score_detail`（`compon
+config.help_note.content | ('card.quality.stat.最近一次',) | 只报时间会骗人：2026-08-30 之前这里显示的「2026-08-26 17:54」其实是**迁移对账**的时间戳，那时 24 条规则一次都没按交易日跑过（`ops.quality_result` 里只有 2 行、`trade_date | 只报时间会骗人：2026-08-30 之前这里显示的「2026-08-26 17:54」其实是**迁移对账**的时间戳，那时 24 条规则一次都没按交易日跑过（`operations.quality_result` 里只有 2 行、`tra
+config.help_note.content | ('card.quadrant_scatter',) | **四象限**：横轴 X 个股质量，纵轴 Y 环境共振，一点一只票。
+
+- Q1 右上（X≥0, Y≥0）：自己好 + 风口上，主攻区
+- Q2 右下（X≥0, Y<0）：自己好但没风口，等板块
+- Q3 左上（X<0, Y≥0）：风口热但 | **四象限**：横轴 X 个股质量，纵轴 Y 环境共振，一点一只票。
+
+- Q1 右上（X≥0, Y≥0）：自己好 + 风口上，主攻区
+- Q2 右下（X≥0, Y<0）：自己好但没风口，等板块
+- Q3 左上（X<0, Y≥0）：风口热但
+config.help_note.content | ('card.q_quadrant_strong',) | **X 和 Y 同时 > 30 的票**，也就是散点图右上角 Q1 里最靠外的那一簇，按 `X+Y 合计` 从高到低。
+
+两条线是「且」不是「或」：X 高 Y 低 = 好票在冷板块，Y 高 X 低 = 热板块里的差票，都不在这张表里。
+
+` | **X 和 Y 同时 > 30 的票**，也就是散点图右上角 Q1 里最靠外的那一簇，按 `X+Y 合计` 从高到低。
+
+两条线是「且」不是「或」：X 高 Y 低 = 好票在冷板块，Y 高 X 低 = 热板块里的差票，都不在这张表里。
+
+`
+config.help_note.content | ('card.q_pattern_box',) | **断板之后走箱体、当日又跌破均线的票。**
+
+三段判据，缺一段都不算：
+
+1. `最后涨停日` / `断板日` —— 回看窗口内最后一个涨停日，它的**次日**就是断板日。窗口内没涨停过的票根本不参与：这个形态的前提是"曾经有过板"。`连 | **断板之后走箱体、当日又跌破均线的票。**
+
+三段判据，缺一段都不算：
+
+1. `最后涨停日` / `断板日` —— 回看窗口内最后一个涨停日，它的**次日**就是断板日。窗口内没涨停过的票根本不参与：这个形态的前提是"曾经有过板"。`连
+config.help_note.content | ('card.q_hot_sector_cross',) | **上一张卡两列各取前 3 名，交叉成 9 种组合，逐个把票列出来。**
+
+上一张卡只说"智能家居 32 次、机器人概念 23 次"，看不出这两个概念**是不是同一批票撑起来的** —— 而这正是"今天是一个板块在动，还是两个概念叠在一起动 | **上一张卡两列各取前 3 名，交叉成 9 种组合，逐个把票列出来。**
+
+上一张卡只说"智能家居 32 次、机器人概念 23 次"，看不出这两个概念**是不是同一批票撑起来的** —— 而这正是"今天是一个板块在动，还是两个概念叠在一起动
+config.help_note.content | ('card.q_hot_sector_stats',) | **前 100 只票里哪些板块反复出现**，两列各取前 10 名。
+
+- `最热板块` —— 每只票**那一个**最热板块的出现次数，所以这一列的次数加起来 ≤ 100；
+- `其它板块` —— 每只票的第 2、第 3 个板块**逐个计数* | **前 100 只票里哪些板块反复出现**，两列各取前 10 名。
+
+- `最热板块` —— 每只票**那一个**最热板块的出现次数，所以这一列的次数加起来 ≤ 100；
+- `其它板块` —— 每只票的第 2、第 3 个板块**逐个计数*
+config.help_note.content | ('card.q_sector_heat',) | **板块热度** = 0.30 × 涨幅 + 0.30 × 广度 + 0.25 × 动量 + 0.15 × 成交额，取值 −100 ~ +100。
+
+广度指板块内上涨家数占比 —— 三只票拉涨停带起来的板块，涨幅高但广度低，热度不会给高分。 | **板块热度** = 0.30 × 涨幅 + 0.30 × 广度 + 0.25 × 动量 + 0.15 × 成交额，取值 −100 ~ +100。
+
+广度指板块内上涨家数占比 —— 三只票拉涨停带起来的板块，涨幅高但广度低，热度不会给高分。
+config.help_note.content | ('card.mood_7d',) | **大盘温度近 7 个交易日**。和右边那张近 20 日的图**共用同一个 y 轴范围（−100 ~ +100）并画了 0 线**，所以两张可以直接对着比 —— 自动缩放会让同样 20 分的波动在 7 日图上看着剧烈震荡、在 20 日图上看 | **大盘温度近 7 个交易日**。和右边那张近 20 日的图**共用同一个 y 轴范围（−100 ~ +100）并画了 0 线**，所以两张可以直接对着比 —— 自动缩放会让同样 20 分的波动在 7 日图上看着剧烈震荡、在 20 日图上看
+config.help_note.content | ('card.q_vol_stage_dist',) | **量能阶段分布**：当天全市场每个量能阶段各有多少只票，附该档的平均量能温度。
+
+取数 `q_vol_stage_dist` → `fct.score` 的两个 cap：`vol_stage`（1~5 的**离散阶段码**，不是分数，不能 | **量能阶段分布**：当天全市场每个量能阶段各有多少只票，附该档的平均量能温度。
+
+取数 `q_vol_stage_dist` → `analytics.score` 的两个 cap：`vol_stage`（1~5 的**离散阶段码**，不
+config.help_note.content | ('card.sector_rotation_heat',) | **板块轮动**：行 = 板块，列 = 交易日，格子里是当天涨跌幅%。
+
+### 格子里的数怎么来的
+
+**这张图不打分**，格子里就是原始涨跌幅，没有归一化、没有权重、没有任何映射：
+
+`md.sector_daily.pct_chg = | **板块轮动**：行 = 板块，列 = 交易日，格子里是当天涨跌幅%。
+
+### 格子里的数怎么来的
+
+**这张图不打分**，格子里就是原始涨跌幅，没有归一化、没有权重、没有任何映射：
+
+`market_data.sector_daily.
+config.help_note.content | ('card.q_mood_recent',) | 最近 7 个交易日的情绪**震荡**明细，最近的在最上面。
+
+取数 `q_mood_recent` → 直接复用 `q_market_mood`（`fct.score[market_mood]`，没算过的日子退回 `md.stock_dai | 最近 7 个交易日的情绪**震荡**明细，最近的在最上面。
+
+取数 `q_mood_recent` → 直接复用 `q_market_mood`（`analytics.score[market_mood]`，没算过的日子退回 `market
+config.help_note.content | ('card.mood_20d',) | **大盘温度近 20 个交易日**。y 轴固定 −100 ~ +100 且带 0 线，和左边近 7 日那张图可比。20 日看的是**这一轮情绪的位置**：一直在 0 以上是持续赚钱，翻到 0 以下就是环境变了。
+
+取数 `q_market_ | **大盘温度近 20 个交易日**。y 轴固定 −100 ~ +100 且带 0 线，和左边近 7 日那张图可比。20 日看的是**这一轮情绪的位置**：一直在 0 以上是持续赚钱，翻到 0 以下就是环境变了。
+
+取数 `q_market_
+config.help_note.content | ('card.k_amount',) | **成交额**：当天全部个股 `amount_yuan` 之和，换成亿元。
+
+取数 `k_amount` → `md.stock_daily`，**只算个股**，不含指数和板块（那两类在 `md.index_daily` / `md.sec | **成交额**：当天全部个股 `amount_yuan` 之和，换成亿元。
+
+取数 `k_amount` → `market_data.stock_daily`，**只算个股**，不含指数和板块（那两类在 `market_data.inde
+config.help_note.content | ('card.k_health',) | **系统健康**：一句话回答"这套库现在能不能信"。
+
+取数 `k_health` → `md.stock_daily` 的最新交易日 + `ops.quality_result`近两天失败的规则数。**不看时钟看数据日期** —— 这条链 | **系统健康**：一句话回答"这套库现在能不能信"。
+
+取数 `k_health` → `market_data.stock_daily` 的最新交易日 + `operations.quality_result`近两天失败的规则数。**不看
+config.help_note.content | ('card.index_line',) | **指数走势**：默认上证综指（`000001.SH`）近 250 个交易日收盘价。
+
+取数 `q_index_daily` → `md.index_daily`（通达信指数日线，`c1_day.py` / `c12_tq_day.py`  | **指数走势**：默认上证综指（`000001.SH`）近 250 个交易日收盘价。
+
+取数 `q_index_daily` → `market_data.index_daily`（通达信指数日线，`c1_day.py` / `c12_tq
+config.help_note.content | ('card.k_up_count',) | **上涨家数**：当天 `pct_chg > 0` 的个股只数，副标题给下跌家数。
+
+取数 `k_up_count` → `md.stock_daily`（通达信日线，`c1_day.py` / `c12_tq_day.py` 采集），** | **上涨家数**：当天 `pct_change > 0` 的个股只数，副标题给下跌家数。
+
+取数 `k_up_count` → `market_data.stock_daily`（通达信日线，`c1_day.py` / `c12_tq_da
+config.help_note.content | ('card.q_task_recent',) | **任务执行历史**：`ops.task` 倒序，最近的在最上面。
+
+取数 `q_task_recent` → `ops.task ⋈ config.job`。一行 = 一次执行，状态 `pending / running / succee | **任务执行历史**：`operations.task` 倒序，最近的在最上面。
+
+取数 `q_task_recent` → `operations.task ⋈ config.job`。一行 = 一次执行，状态 `pending / ru
+config.help_note.content | ('card.q_lhb_recent',) | **龙虎榜**：所选交易日的上榜明细，按净买额从大到小，默认 100 条。
+
+取数 `q_lhb_recent` → `md.lhb_detail ⋈ ref.security`。数据由 `scripts/ingest/c6_lhb.py` | **龙虎榜**：所选交易日的上榜明细，按净买额从大到小，默认 100 条。
+
+取数 `q_lhb_recent` → `market_data.dragon_tiger_detail ⋈ reference_data.security`。数
+config.help_note.content | ('page.sector',) | 五张卡的分工：**热度榜**看量级 → **热度趋势**看这几天的方向 → **四分项拆解**看它凭什么热 → **板块轮动**看跨日的横向比较 → **板块明细**是带趋势列的全表。
+
+**排序依据**：`ORDER BY 当日热度 DE | 五张卡的分工：**热度榜**看量级 → **热度趋势**看这几天的方向 → **四分项拆解**看它凭什么热 → **板块轮动**看跨日的横向比较 → **板块明细**是带趋势列的全表。
+
+**排序依据**：`ORDER BY 当日热度 DE
+config.help_note.content | ('card.q_top_movers',) | **当日涨幅前列**：所选交易日按 `pct_chg` 降序的前 20 只个股，给筛选器一个"不设条件也先有东西看"的落点。
+
+取数 `q_top_movers` → `md.stock_daily ⋈ ref.security`，只取 ` | **当日涨幅前列**：所选交易日按 `pct_change` 降序的前 20 只个股，给筛选器一个"不设条件也先有东西看"的落点。
+
+取数 `q_top_movers` → `market_data.stock_daily ⋈ refere
+config.help_note.content | ('card.k_mood',) | **大盘温度**：当天的市场情绪分，取值 **−100 ~ +100**，0 分 ≈ 上涨占比 50% / 涨停 70 家 / 中位涨幅 0% / 成交额与 5 日均量持平。
+
+取数 `k_mood`（`app/web/queries.py | **大盘温度**：当天的市场情绪分，取值 **−100 ~ +100**，0 分 ≈ 上涨占比 50% / 涨停 70 家 / 中位涨幅 0% / 成交额与 5 日均量持平。
+
+取数 `k_mood`（`app/web/queries.py
+config.help_note.content | ('card.k_limit_up',) | **涨停家数**：当天收盘触及涨停价的只数（`close >= limit_up − 0.001`），副标题给跌停家数。
+
+取数 `k_limit_up` → `md.stock_daily` 的 `limit_up` / `limit_d | **涨停家数**：当天收盘触及涨停价的只数（`close >= limit_up − 0.001`），副标题给跌停家数。
+
+取数 `k_limit_up` → `market_data.stock_daily` 的 `limit_up` /
+config.help_note.content | ('card.k_score_avg',) | **平均操作分**：当天全市场 `oper_score` 的算术平均，副标题给已评分只数。
+
+取数 `k_score_avg` → `fct.score[cap_key=oper_score]`。**二次加工**：`d2_scores.py | **平均操作分**：当天全市场 `oper_score` 的算术平均，副标题给已评分只数。
+
+取数 `k_score_avg` → `analytics.score[capability_key=oper_score]`。**二次加工**：
+config.help_note.content | ('card.q_sector_stage_dist',) | **板块阶段分布**：四档各有几个板块，以及**与上一交易日的差**。
+
+取数 `q_sector_stage_dist` → `fct.ignition`（`scope='sector'`，由 `scripts/compute/d4_ig | **板块阶段分布**：四档各有几个板块，以及**与上一交易日的差**。
+
+取数 `q_sector_stage_dist` → `analytics.ignition`（`scope='sector'`，由 `scripts/compute
+config.help_note.content | ('card.watchlist.members',) | **组内成员维护**：当前组里的票 + 近 5 日收盘 + 多窗口涨跌与振幅 + 明日振幅预测 + 操作分。代码在 `watchlist.py` 的 `members_table()`。
+
+**取数**：一条 CTE 取完四张表 —— `c | **组内成员维护**：当前组里的票 + 近 5 日收盘 + 多窗口涨跌与振幅 + 明日振幅预测 + 操作分。代码在 `watchlist.py` 的 `members_table()`。
+
+**取数**：一条 CTE 取完四张表 —— `c
+config.help_note.content | ('card.q_score_rank',) | **操作分排行**：按“操作分”从高到低排的候选票清单。
+
+操作分 = 0.40 × X个股质量 + 0.60 × Y环境共振，取值 −100 ~ +100，**不是涨幅预测，是排序用的相对分**。
+
+- X 个股质量：形态、趋势、位置、筹 | **操作分排行**：按“操作分”从高到低排的候选票清单。
+
+操作分 = 0.40 × X个股质量 + 0.60 × Y环境共振，取值 −100 ~ +100，**不是涨幅预测，是排序用的相对分**。
+
+- X 个股质量：形态、趋势、位置、筹
+config.help_note.content | ('card.q_sector_ignite',) | **启动候选**：把"哪个板块刚起来"单独摆出来 —— **热度榜回答不了这件事**。热度是当日横截面分位，榜首永远是"已经涨完的那几个"；启动是**状态转变**。
+
+取数 `q_sector_ignite` → `fct.ignition | **启动候选**：把"哪个板块刚起来"单独摆出来 —— **热度榜回答不了这件事**。热度是当日横截面分位，榜首永远是"已经涨完的那几个"；启动是**状态转变**。
+
+取数 `q_sector_ignite` → `analytics.ig
+config.help_note.content | ('card.sector_rank_bar',) | **板块热度榜（横条）**：当天热度前 20 的板块，条长就是热度分。
+
+取数 `q_sector_heat` → `fct.sector_heat_daily`（板块日热度预聚合表）。**这是二次加工的分，不是涨幅**：`d2_score | **板块热度榜（横条）**：当天热度前 20 的板块，条长就是热度分。
+
+取数 `q_sector_heat` → `analytics.sector_heat_daily`（板块日热度预聚合表）。**这是二次加工的分，不是涨幅**：`d2
+config.help_note.content | ('card.group_score_trend',) | 上面那张表给的是**今天这一个点**和一条斜率，这张图给的是**这 20 个交易日到底怎么走过来的** —— 斜率一样的两个组，一个稳步爬升、一个暴涨后回落，只看数字分不出来。
+
+**纵轴 = 组的加权操作分**（口径和表里的 `加权操作分 | 上面那张表给的是**今天这一个点**和一条斜率，这张图给的是**这 20 个交易日到底怎么走过来的** —— 斜率一样的两个组，一个稳步爬升、一个暴涨后回落，只看数字分不出来。
+
+**纵轴 = 组的加权操作分**（口径和表里的 `加权操作分
+config.help_note.content | ('card.q_effective_binding',) | **当前有效权重**：每个功能点（`cap_key`）下挂了哪些计算脚本、各占多少权重 —— 这张表就是"评分现在是按什么口径算的"的唯一事实来源。
+
+取数 `q_effective_binding` → 视图 `config.v_effe | **当前有效权重**：每个功能点（`capability_key`）下挂了哪些计算脚本、各占多少权重 —— 这张表就是"评分现在是按什么口径算的"的唯一事实来源。
+
+取数 `q_effective_binding` → 视图 `config
+config.help_note.content | ('card.q_vol_double',) | **倍量震荡**：近 40 个交易日里**成交量反复翻倍**、但价格**一直贴着 60 日均线上下摆**的票，按倍量次数从高到低取前 50。
+
+找的是"主力在 60 线附近反复进出"这一种形态：量能一次次翻倍说明有资金在动，而价格既没突破也 | **倍量震荡**：近 40 个交易日里**成交量反复翻倍**、但价格**一直贴着 60 日均线上下摆**的票，按倍量次数从高到低取前 50。
+
+找的是"主力在 60 线附近反复进出"这一种形态：量能一次次翻倍说明有资金在动，而价格既没突破也
+config.help_note.content | ('card.q_review_stocks',) | **个股明细**：当天该看的票一屏拉完，五个评分 + 量能阶段 + 行情，按操作分降序，默认 200 行。
+
+取数 `q_review_stocks` → `fct.score` ⋈ `md.stock_daily` ⋈ `ref.secu | **个股明细**：当天该看的票一屏拉完，五个评分 + 量能阶段 + 行情，按操作分降序，默认 200 行。
+
+取数 `q_review_stocks` → `analytics.score` ⋈ `market_data.stock_dai
+config.help_note.content | ('card.pct_hist',) | **涨跌幅分布**：全市场当日涨跌幅落在各个区间的**只数**。
+
+取数 `q_daily_pct` → `app/db/repo/quote.py::pct_distribution()` → `md.stock_daily ⋈ ref. | **涨跌幅分布**：全市场当日涨跌幅落在各个区间的**只数**。
+
+取数 `q_daily_pct` → `app/db/repo/quote.py::pct_distribution()` → `market_data.stock_dai
+config.help_note.content | ('card.mood_series',) | **情绪时序**，窗口 **40 个交易日 ≈ 两个月**（`config.chart.mood_series.params`）。
+
+取数 `q_market_mood`（`app/web/queries.py`），图里两条线：`数值` 是 | **情绪时序**，窗口 **40 个交易日 ≈ 两个月**（`config.chart.mood_series.params`）。
+
+取数 `q_market_mood`（`app/web/queries.py`），图里两条线：`数值` 是
+config.help_note.content | ('card.q_watchlist',) | **自选池明细**：自选组里每只票的当日行情 + 多日聚合 + 当日评分。
+
+取数 `q_watchlist` → `config.watchlist_stock` / `config.watchlist_group`（组和成员）⋈ `md | **自选池明细**：自选组里每只票的当日行情 + 多日聚合 + 当日评分。
+
+取数 `q_watchlist` → `config.watchlist_stock` / `config.watchlist_group`（组和成员）⋈ `ma
+config.help_note.content | ('card.sector_heat_trend',) | **板块热度趋势**：当天热度前 6 名板块的**近 10 个交易日**热度曲线。
+
+线往上抬 = 热度还在积累；掉头向下 = 已经在退潮。只看当天的热度榜看不出这个区别。
+
+**窗口 2026-09-01 从 20 日改成 10 日**（ | **板块热度趋势**：当天热度前 6 名板块的**近 10 个交易日**热度曲线。
+
+线往上抬 = 热度还在积累；掉头向下 = 已经在退潮。只看当天的热度榜看不出这个区别。
+
+**窗口 2026-09-01 从 20 日改成 10 日**（
+config.help_note.content | ('card.watchlist.groups',) | **自选组**：一行一个组，回答"先翻哪个组的票"。
+
+这张表是**维护台的左栏**，不是配置卡 —— 代码在 `app/web/pages/watchlist.py` 的 `group_rows()` / `groups_table()` | **自选组**：一行一个组，回答"先翻哪个组的票"。
+
+这张表是**维护台的左栏**，不是配置卡 —— 代码在 `app/web/pages/watchlist.py` 的 `group_rows()` / `groups_table()`
+config.help_note.derive | ('card.quality.gap',) | 目标日判定与 /jobs 的「一键追平」共用 `app/orchestrator/tradeday.py`：当前北京时间 → 收盘线 15:30（早于它退到昨天）→ `ref.trade_calendar` 里 `is_open` 且 ≤  | 目标日判定与 /jobs 的「一键追平」共用 `app/orchestrator/tradeday.py`：当前北京时间 → 收盘线 15:30（早于它退到昨天）→ `reference_data.trade_calendar` 里 `is
+config.help_note.derive | ('card.q_quadrant_trend',) | （六、数据基础与实现）`fct.score` 每行自带 `quadrant`，评分覆盖 2026-01-27 起共 142 个交易日、每日约 5,547 只 —— 10 日窗口约 5.5 万行，全在 PG 里聚合。
+
+窗口按**有评分的交易 | （六、数据基础与实现）`analytics.score` 每行自带 `quadrant`，评分覆盖 2026-01-27 起共 142 个交易日、每日约 5,547 只 —— 10 日窗口约 5.5 万行，全在 PG 里聚合。
+
+窗口按**
+config.help_note.derive | ('card.datasource.gaps',) | 取 health ∈ (no_permission, broken) 的启用源；「为什么算缺口」「怎么消除」按 health 与 auth_ref 推出来，不是逐个源写死的（见 app/datasource/registry.py 的 ga | 取 health ∈ (no_permission, broken) 的启用源；「为什么算缺口」「怎么消除」按 health 与 auth_env_name 推出来，不是逐个源写死的（见 app/datasource/registry.py
+config.help_note.derive | ('page.sector',) | 四段链路：① `md.sector_daily` ← 通达信 vipdoc 板块日线（719,825 行，含涨跌幅/成交额/上涨家数/成员数）→ ② `ref.sector_member` 板块成员名单 → ③ `scripts/compu | 四段链路：① `market_data.sector_daily` ← 通达信 vipdoc 板块日线（719,825 行，含涨跌幅/成交额/上涨家数/成员数）→ ② `reference_data.sector_member` 板块成员名
+config.help_note.formula | ('snip.sector_heat',) | **板块热度** = 0.30 × 板块涨幅 + 0.30 × 上涨广度 + 0.25 × 动量 + 0.15 × 成交，四项各自映射到 −100 ~ +100，再按 `ref.sector_member` 取成员均值落到板块。广度低而涨幅 | **板块热度** = 0.30 × 板块涨幅 + 0.30 × 上涨广度 + 0.25 × 动量 + 0.15 × 成交，四项各自映射到 −100 ~ +100，再按 `reference_data.sector_member` 取成员均值
+config.help_note.formula | ('card.stock.sectors',) | 只取 `out_date IS NULL` 的在册关系；涨幅取 `md.sector_daily` **最新一天**的值，不随页面上的交易日走。 | 只取 `out_date IS NULL` 的在册关系；涨幅取 `market_data.sector_daily` **最新一天**的值，不随页面上的交易日走。
+config.help_note.purpose | ('card.quality.stat.校验记录',) | `ops.quality_result` 累计跑了多少条校验。 | `operations.quality_result` 累计跑了多少条校验。
+config.help_note.source_tables | ('page.stock',) | ['md.stock_daily', 'fct.score', 'fct.score_detail', 'fct.indicator_value', 'ref.sector_member', 'md.lhb_detail'] | ['market_data.stock_daily', 'analytics.score', 'analytics.score_detail', 'analytics.indicator_value', 'reference_data.se
+config.help_note.source_tables | ('page.blocks',) | ['config.page_layout', 'config.chart', 'config.binding', 'config.capability', 'ops.config_history'] | ['config.page_layout', 'config.chart', 'config.binding', 'config.capability', 'operations.config_history']
+config.help_note.source_tables | ('page.scores',) | ['fct.score', 'fct.score_detail', 'md.stock_daily'] | ['analytics.score', 'analytics.score_detail', 'market_data.stock_daily']
+config.help_note.source_tables | ('page.jobs',) | ['config.job', 'ops.task'] | ['config.job', 'operations.task']
+config.help_note.source_tables | ('card.stock.score_line',) | ['fct.score'] | ['analytics.score']
+config.help_note.source_tables | ('card.stock.ind_line',) | ['fct.indicator_value', 'config.indicator'] | ['analytics.indicator_value', 'config.indicator']
+config.help_note.source_tables | ('card.screen.result',) | ['fct.score', 'md.stock_daily'] | ['analytics.score', 'market_data.stock_daily']
+config.help_note.source_tables | ('card.jobs.fill',) | ['ref.trade_calendar', 'ops.task'] | ['reference_data.trade_calendar', 'operations.task']
+config.help_note.source_tables | ('card.jobs.history',) | ['ops.task'] | ['operations.task']
+config.help_note.source_tables | ('card.stock.lhb',) | ['md.lhb_detail'] | ['market_data.dragon_tiger_detail']
+config.help_note.source_tables | ('page.sql',) | ['md.stock_daily', 'fct.score', 'ref.security', 'ops.task'] | ['market_data.stock_daily', 'analytics.score', 'reference_data.security', 'operations.task']
+config.help_note.source_tables | ('card.blocks.history',) | ['ops.config_history'] | ['operations.config_history']
+config.help_note.source_tables | ('card.sql.samples',) | ['md.stock_daily', 'fct.score'] | ['market_data.stock_daily', 'analytics.score']
+config.help_note.source_tables | ('card.jobs.stat.成功',) | ['ops.task'] | ['operations.task']
+config.help_note.source_tables | ('card.jobs.stat.历史失败',) | ['ops.task'] | ['operations.task']
+config.help_note.source_tables | ('card.datasource.history',) | ['ops.datasource_probe'] | ['operations.datasource_probe']
+config.help_note.source_tables | ('card.quality.recent',) | ['ops.quality_result'] | ['operations.quality_result']
+config.help_note.source_tables | ('card.quality.fields',) | ['ops.v_field_dict', 'config.field_spec'] | ['operations.v_field_dict', 'config.field_spec']
+config.help_note.source_tables | ('card.quality.stat.未通过',) | ['ops.quality_result'] | ['operations.quality_result']
+config.help_note.source_tables | ('card.data.coverage',) | ['md.stock_daily'] | ['market_data.stock_daily']
+config.help_note.source_tables | ('card.data.baseline',) | ['ops.migration_baseline'] | ['operations.migration_baseline']
+config.help_note.source_tables | ('page.watchlist',) | ['config.watchlist_group', 'config.watchlist_stock', 'fct.score', 'md.stock_daily'] | ['config.watchlist_group', 'config.watchlist_stock', 'analytics.score', 'market_data.stock_daily']
+config.help_note.source_tables | ('page.home',) | ['md.stock_daily', 'fct.score', 'fct.indicator_value', 'md.index_daily', 'md.margin_detail', 'md.lhb_detail'] | ['market_data.stock_daily', 'analytics.score', 'analytics.indicator_value', 'market_data.index_daily', 'market_data.marg
+config.help_note.source_tables | ('card.home.20',) | ['ops.task'] | ['operations.task']
+config.help_note.source_tables | ('card.jobs.1',) | ['ops.task'] | ['operations.task']
+config.help_note.source_tables | ('card.stock.kline',) | ['md.stock_daily'] | ['market_data.stock_daily']
+config.help_note.source_tables | ('page.data',) | ['ops.sync_batch', 'ops.migration_baseline', 'pg_stat_user_tables', 'config.quality_rule', 'ops.quality_result', 'config | ['ops.sync_batch', 'operations.migration_baseline', 'pg_stat_user_tables', 'config.quality_rule', 'operations.quality_re
+config.help_note.source_tables | ('page.datasource',) | ['config.datasource', 'ops.datasource_probe'] | ['config.datasource', 'operations.datasource_probe']
+config.help_note.source_tables | ('card.stock.stat',) | ['md.stock_daily', 'fct.score'] | ['market_data.stock_daily', 'analytics.score']
+config.help_note.source_tables | ('card.stock.parts',) | ['fct.score_detail', 'config.v_effective_binding'] | ['analytics.score_detail', 'config.v_effective_binding']
+config.help_note.source_tables | ('card.scores.result',) | ['fct.score', 'md.stock_daily'] | ['analytics.score', 'market_data.stock_daily']
+config.help_note.source_tables | ('card.datasource.collect',) | ['config.job', 'ops.task'] | ['config.job', 'operations.task']
+config.help_note.source_tables | ('card.quality.stat.最近一次',) | ['ops.quality_result'] | ['operations.quality_result']
+config.help_note.source_tables | ('card.watchlist.groups',) | ['config.watchlist_group', 'config.watchlist_stock', 'fct.score', 'md.stock_daily'] | ['config.watchlist_group', 'config.watchlist_stock', 'analytics.score', 'market_data.stock_daily']
+config.help_note.source_tables | ('card.watchlist.members',) | ['config.watchlist_stock', 'ref.security', 'md.stock_daily', 'fct.score', 'fct.indicator_value'] | ['config.watchlist_stock', 'reference_data.security', 'market_data.stock_daily', 'analytics.score', 'analytics.indicator
+config.help_note.source_tables | ('card.quality.gap',) | ['ops.quality_result', 'ref.trade_calendar', 'md.stock_daily'] | ['operations.quality_result', 'reference_data.trade_calendar', 'market_data.stock_daily']
+config.help_note.source_tables | ('card.q_quadrant_trend',) | ['fct.score', 'ref.security'] | ['analytics.score', 'reference_data.security']
+config.help_note.source_tables | ('page.sector',) | ['md.sector_daily', 'ref.sector_member', 'fct.sector_heat_daily', 'fct.sector_trend'] | ['market_data.sector_daily', 'reference_data.sector_member', 'analytics.sector_heat_daily', 'analytics.sector_trend']
+config.help_note.source_tables | ('card.stock.sectors',) | ['ref.sector_member', 'ref.sector_info', 'md.sector_daily'] | ['reference_data.sector_member', 'reference_data.sector_info', 'market_data.sector_daily']
+config.help_note.source_tables | ('card.quality.stat.校验记录',) | ['ops.quality_result'] | ['operations.quality_result']
+config.indicator.expr | ('vol_ratio',) | vol_shares / MA(vol_shares, 5) | volume_shares / MA(volume_shares, 5)
+config.indicator.expr | ('std20',) | STD(pct_chg, 20) | STD(pct_change, 20)
+config.indicator.expr | ('chg10_avg',) | MA(pct_chg, 10) | MA(pct_change, 10)
+config.indicator.expr | ('chg20_avg',) | MA(pct_chg, 20) | MA(pct_change, 20)
+config.indicator.expr | ('avg_price',) | amount_yuan / vol_shares | amount_yuan / volume_shares
+config.indicator.expr | ('chg_rank',) | RANK(pct_chg, desc) | RANK(pct_change, desc)
+config.indicator.expr | ('rel_sector',) | pct_chg - MEAN(pct_chg BY sector) | pct_change - MEAN(pct_change BY sector)
+config.job.ready_on | (4,) | ['md.stock_daily'] | ['market_data.stock_daily']
+config.job.ready_on | (5,) | ['md.stock_daily'] | ['market_data.stock_daily']
+config.job.ready_on | (521,) | ['md.stock_daily'] | ['market_data.stock_daily']
+config.job.ready_on | (546,) | ['md.stock_daily'] | ['market_data.stock_daily']
+config.quality_rule.check_body | ('daily_row_count',) | SELECT count(*) >= 4800 FROM md.stock_daily WHERE trade_date = :d | SELECT count(*) >= 4800 FROM market_data.stock_daily WHERE trade_date = :d
+config.quality_rule.check_body | ('date_is_trading_day',) | SELECT exists(SELECT 1 FROM ref.trade_calendar WHERE cal_date = :d AND is_open) | SELECT exists(SELECT 1 FROM reference_data.trade_calendar WHERE calendar_date = :d AND is_open)
+config.quality_rule.check_body | ('daily_source_is_tdx',) | SELECT coalesce(bool_or(source IN ('通达信vipdoc', '通达信TQ接口', '旧库迁移')), false)
+     FROM md.v_daily_source WHERE trade_dat | SELECT coalesce(bool_or(source IN ('通达信vipdoc', '通达信TQ接口', '旧库迁移')), false)
+     FROM market_data.view_daily_source WHE
+config.quality_rule.check_body | ('score_stale_check',) | SELECT count(*) = 0 FROM fct.score WHERE trade_date = :d AND is_stale | SELECT count(*) = 0 FROM analytics.score WHERE trade_date = :d AND is_stale
+config.quality_rule.check_body | ('index_present',) | SELECT count(*) = 2 FROM md.index_daily WHERE trade_date = :d AND ts_code IN ('000001.SH','399001.SZ') | SELECT count(*) = 2 FROM market_data.index_daily WHERE trade_date = :d AND security_code IN ('000001.SH','399001.SZ')
+config.quality_rule.check_body | ('null_rate',) | SELECT coalesce(count(*) FILTER (WHERE close IS NULL)::numeric / nullif(count(*),0), 0) < 0.001
+     FROM md.stock_dail | SELECT coalesce(count(*) FILTER (WHERE close IS NULL)::numeric / nullif(count(*),0), 0) < 0.001
+     FROM market_data.s
+config.quality_rule.check_body | ('board_coverage',) | SELECT count(*) = 0 FROM md.stock_daily d LEFT JOIN ref.security s USING (ts_code)
+     WHERE d.trade_date = :d AND s.b | SELECT count(*) = 0 FROM market_data.stock_daily d LEFT JOIN reference_data.security s USING (security_code)
+     WHERE
+config.quality_rule.check_body | ('pre_close_chain',) | SELECT count(*) = 0 FROM md.stock_daily d
+     JOIN ref.trade_calendar c ON c.cal_date = d.trade_date
+     JOIN md.sto | SELECT count(*) = 0 FROM market_data.stock_daily d
+     JOIN reference_data.trade_calendar c ON c.calendar_date = d.tra
+config.quality_rule.check_body | ('no_gap',) | SELECT count(*) = 0 FROM ref.trade_calendar c
+     WHERE c.is_open AND c.cal_date < :d AND c.cal_date >= :d - interval  | SELECT count(*) = 0 FROM reference_data.trade_calendar c
+     WHERE c.is_open AND c.calendar_date < :d AND c.calendar_d
+config.quality_rule.check_body | ('sector_member_valid',) | SELECT count(*) = 0 FROM ref.sector_member m
+     LEFT JOIN ref.security s USING (ts_code) WHERE s.ts_code IS NULL | SELECT count(*) = 0 FROM reference_data.sector_member m
+     LEFT JOIN reference_data.security s USING (security_code) 
+config.quality_rule.check_body | ('score_coverage',) | SELECT coalesce(
+        (SELECT count(DISTINCT ts_code) FROM fct.score WHERE trade_date = :d)::numeric /
+        null | SELECT coalesce(
+        (SELECT count(DISTINCT security_code) FROM analytics.score WHERE trade_date = :d)::numeric /
+
+config.quality_rule.check_body | ('row_count_drift',) | SELECT abs(cur - avg20) / nullif(avg20,0) < 0.05 FROM (
+        SELECT (SELECT count(*) FROM md.stock_daily WHERE trade | SELECT abs(cur - avg20) / nullif(avg20,0) < 0.05 FROM (
+        SELECT (SELECT count(*) FROM market_data.stock_daily WH
+config.quality_rule.check_body | ('amount_magnitude_drift',) | SELECT cur BETWEEN med20 / 10 AND med20 * 10 FROM (
+        SELECT (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY  | SELECT cur BETWEEN med20 / 10 AND med20 * 10 FROM (
+        SELECT (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY 
+config.quality_rule.check_body | ('score_range',) | SELECT count(*) = 0 FROM fct.score WHERE trade_date = :d AND (value < -100 OR value > 100) | SELECT count(*) = 0 FROM analytics.score WHERE trade_date = :d AND (value < -100 OR value > 100)
+config.quality_rule.check_body | ('score_not_constant',) | WITH cs AS (
+        SELECT part_key FROM fct.score_detail
+         WHERE trade_date = :d GROUP BY part_key
+        H | WITH cs AS (
+        SELECT component_key FROM analytics.score_detail
+         WHERE trade_date = :d GROUP BY componen
+config.quality_rule.check_body | ('weight_sum',) | SELECT count(*) = 0 FROM (
+        SELECT cap_key, sum(eff_weight) s FROM config.v_effective_binding GROUP BY cap_key)  | SELECT count(*) = 0 FROM (
+        SELECT capability_key, sum(eff_weight) s FROM config.v_effective_binding GROUP BY ca
+config.quality_rule.check_body | ('minute_daily_consistent',) | SELECT coalesce(count(*) = 0, true) FROM (
+        SELECT m.ts_code, sum(m.vol_shares) v, d.vol_shares dv
+        FROM | SELECT coalesce(count(*) = 0, true) FROM (
+        SELECT m.security_code, sum(m.volume_shares) v, d.volume_shares dv
+
+config.quality_rule.check_body | ('sector_key_aligned',) | SELECT count(*) = 0 FROM (
+        SELECT DISTINCT m.sector_code FROM ref.sector_member m
+         WHERE m.sector_code | SELECT count(*) = 0 FROM (
+        SELECT DISTINCT m.sector_code FROM reference_data.sector_member m
+         WHERE m.
+config.quality_rule.description | ('vol_amount_consistent',) | amount_yuan/vol_shares 必须落在 [low*0.5, high*2]。单位错 100 或 1000 倍必然被抓 | amount_yuan/volume_shares 必须落在 [low*0.5, high*2]。单位错 100 或 1000 倍必然被抓
+config.quality_rule.target | ('ohlc_order',) | md.stock_daily | market_data.stock_daily
+config.quality_rule.target | ('price_positive',) | md.stock_daily | market_data.stock_daily
+config.quality_rule.target | ('amount_sane',) | md.stock_daily | market_data.stock_daily
+config.quality_rule.target | ('not_sector_code',) | md.stock_daily | market_data.stock_daily
+config.quality_rule.target | ('code_format',) | md.stock_daily | market_data.stock_daily
+config.quality_rule.target | ('daily_row_count',) | md.stock_daily | market_data.stock_daily
+config.quality_rule.target | ('date_is_trading_day',) | md.stock_daily | market_data.stock_daily
+config.quality_rule.target | ('daily_source_is_tdx',) | md.stock_daily | market_data.stock_daily
+config.quality_rule.target | ('score_stale_check',) | fct.score | analytics.score
+config.quality_rule.target | ('vol_amount_consistent',) | md.stock_daily | market_data.stock_daily
+config.quality_rule.target | ('board_coverage',) | ref.security | reference_data.security
+config.quality_rule.target | ('pre_close_chain',) | md.stock_daily | market_data.stock_daily
+config.quality_rule.target | ('no_gap',) | md.stock_daily | market_data.stock_daily
+config.quality_rule.target | ('sector_member_valid',) | ref.sector_member | reference_data.sector_member
+config.quality_rule.target | ('index_present',) | md.index_daily | market_data.index_daily
+config.quality_rule.target | ('null_rate',) | md.stock_daily | market_data.stock_daily
+config.quality_rule.target | ('score_coverage',) | fct.score | analytics.score
+config.quality_rule.target | ('row_count_drift',) | md.stock_daily | market_data.stock_daily
+config.quality_rule.target | ('amount_magnitude_drift',) | md.stock_daily | market_data.stock_daily
+config.quality_rule.target | ('score_range',) | fct.score | analytics.score
+config.quality_rule.target | ('score_not_constant',) | fct.score_detail | analytics.score_detail
+config.quality_rule.target | ('sector_key_aligned',) | ref.sector_member | reference_data.sector_member
+config.quality_rule.target | ('minute_daily_consistent',) | md.stock_minute | market_data.stock_minute
+config.screen_rule.note | ('limit_up',) | 窗口内任一日收盘涨幅 ≥ pct（默认 9.9）。前收用 md.stock_daily.pre_close，
+     不在窗口内取前一日 —— 旧系统那样取会让窗口第一天永远参与不了判定 | 窗口内任一日收盘涨幅 ≥ pct（默认 9.9）。前收用 market_data.stock_daily.pre_close，
+     不在窗口内取前一日 —— 旧系统那样取会让窗口第一天永远参与不了判定
+config.screen_rule.note | ('amp10_over',) | 读 fct.indicator_value 的 amp10_avg（近10个交易日每日振幅均值），
+     不足 10 根交易日的票没有值、自然不入选 | 读 analytics.indicator_value 的 amp10_avg（近10个交易日每日振幅均值），
+     不足 10 根交易日的票没有值、自然不入选
+config.screen_rule.sql_template | ('limit_up',) | EXISTS (SELECT 1 FROM md.stock_daily x
+              WHERE x.ts_code = d.ts_code AND x.trade_date BETWEEN :start AND :d | EXISTS (SELECT 1 FROM market_data.stock_daily x
+              WHERE x.security_code = d.security_code AND x.trade_date 
+config.screen_rule.sql_template | ('amp10_over',) | EXISTS (SELECT 1 FROM fct.indicator_value i
+              WHERE i.ts_code = d.ts_code AND i.trade_date = :d
+           | EXISTS (SELECT 1 FROM analytics.indicator_value i
+              WHERE i.security_code = d.security_code AND i.trade_dat
+config.screen_rule.sql_template | ('price_compare',) | EXISTS (SELECT 1 FROM md.stock_daily x
+              WHERE x.ts_code = d.ts_code AND x.trade_date = :on_date
+          | EXISTS (SELECT 1 FROM market_data.stock_daily x
+              WHERE x.security_code = d.security_code AND x.trade_date 
+config.screen_rule.sql_template | ('intraday_limit_up',) | EXISTS (SELECT 1 FROM md.stock_daily x
+              WHERE x.ts_code = d.ts_code AND x.trade_date BETWEEN :start AND :d | EXISTS (SELECT 1 FROM market_data.stock_daily x
+              WHERE x.security_code = d.security_code AND x.trade_date 
+config.screen_rule.sql_template | ('rising_closes',) | (SELECT count(*) FROM md.stock_daily x
+        WHERE x.ts_code = d.ts_code AND x.trade_date BETWEEN :start AND :d
+     | (SELECT count(*) FROM market_data.stock_daily x
+        WHERE x.security_code = d.security_code AND x.trade_date BETWEE
+config.setting.label | ('scheduler_catchup_days',) | 调度器停机后最多往前补几个交易日的错过槽。下界还受 md.stock_daily 最新日约束 | 调度器停机后最多往前补几个交易日的错过槽。下界还受 market_data.stock_daily 最新日约束

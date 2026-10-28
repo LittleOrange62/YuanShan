@@ -1,0 +1,9 @@
+=== 通达信个股档案（TQ get_more_info）===
+  标的 9543 只
+TQ数据接口初始化成功，使用路径: D:\new_tdx64\PYPlugins\user\_ft_tq_bridge.py
+TQ数据连接已关闭
+__FT_TQ_JSON__{"rows": 9508, "stocks": 9543, "ok": true}
+  接口回显：9543 只票，取到 9508 条档案
+=== 结果 ===
+  入库 9508 行；stock_profile 现有 19007 行 / 9508 只
+  快照日 2026-09-23；有主营业务 11136 条

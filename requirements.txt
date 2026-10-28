@@ -1,0 +1,47 @@
+# YuanShan —— 需 Python 3.10+（akshare 新版语法）；实测 3.12
+# 编排引擎（借自 TradingAgents-astock）+ MiMo LLM
+langgraph>=0.6
+langchain-core>=0.3
+langchain-openai>=0.3
+pydantic>=2
+python-dotenv>=1
+
+# Web 后端（server.py）
+fastapi>=0.110
+uvicorn>=0.29
+# new-api / OpenAI 兼容模式的本机转换层要流式调用 Chat Completions
+httpx>=0.27
+
+# 数据层
+requests
+# 消息推送的渠道适配层（邮件 / 企业微信群助手 / 钉钉群助手 / 飞书群助手）。
+# 许可证 BSD-2-Clause（`pip show apprise` 实测，不是网上常写的 MIT）；只用作发送出口，
+# 判据与配置一律在我们自己这边（`notifyconfig.py` + `duanxian/notify.py`）。
+# 它自带 click/markdown/PyYAML/requests-oauthlib/tzdata，本机 `pip check` 无冲突。
+apprise>=2.0,<3
+beautifulsoup4>=4.12
+akshare>=1.18
+# 本地 P0 数据源（PostgreSQL financetool 库）；不连本地库时装了也不用
+psycopg2-binary>=2.9
+
+# 行业资金流那个接口要 JS 引擎解同花顺的混淆脚本。
+# 必须是改名后的 mini-racer，**不能装旧的 py_mini_racer**：
+# 两个包会装进同一个 py_mini_racer/ 目录互相覆盖 —— 旧包的 Python 代码
+# 配上新包的二进制，调用时报 `dlsym(mr_eval_context): symbol not found`，
+# 表现是「板块资金 / 资金轮动」两块**静默空着**（接口 200、sectors: []）。
+# 已经装了旧包的：pip uninstall py_mini_racer && pip install --force-reinstall mini-racer
+mini-racer>=0.12
+
+# 开发/测试
+pytest>=8
+
+# 受控复盘 Agent 工具协议（官方 MCP Python SDK）
+mcp==1.26.0
+
+# Research 日线回测引擎
+numpy>=1.26
+pandas>=2.2
+baostock>=0.8.9
+psycopg[binary]>=3.3
+psycopg-pool>=3.3
+psutil>=5.9              # app/orchestrator/runner.py 管进程树（取消/超时要把整棵树端掉）

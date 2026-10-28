@@ -1,0 +1,36 @@
+
+=== 对账 1 · 行数归属 ===
+  old_stock_daily        9,531,333
+  old_index_daily        4,896
+  old_sector_daily       716,577
+  new_stock_daily        6,369,062
+  new_index_daily        213,453
+  new_sector_daily       838,170
+  unit_rejected          0
+  classification_balanced None
+  stock_matched          None
+  sector_daily_matched   0
+
+=== 对账 2 · 字段完整度 ===
+  no_limit                   22,264  (0.35%)
+  no_pre_close               22,276  (0.35%)
+  no_turnover                17,794  (0.28%)
+  no_adj                    793,577  (12.46%)
+  no_vol                          0  (0.00%)
+  no_lineage                      0  (0.00%)
+
+=== 对账 3 · 覆盖度 ===
+  days                   1248
+  avg_per_day            5103
+  min_per_day            4277
+  max_per_day            5554
+  thin_days              0
+  dates_not_in_calendar  0
+
+=== 对账 4 · 随机抽样比对 ===
+  checked                0
+  mismatch_price         0
+  mismatch_vol_amount    0
+
+=== 结论 ===
+  [FAIL] 板块日线行数与基线不符：838170 vs 716577

@@ -1,0 +1,235 @@
+1	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-26 12:41:21.103976+08	2026-08-26 12:41:21.639772+08	ok	\N
+2	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-26 12:45:58.717767+08	2026-08-26 12:45:59.267116+08	ok	\N
+3	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-26 12:46:53.196809+08	2026-08-26 12:46:53.656398+08	ok	\N
+4	legacy_sqlite	D:\\finance\\data\\tq_core.db	\N	ref	139475	ft_etl	2026-08-26 16:34:17.992046+08	2026-08-26 16:34:29.897451+08	ok	\N
+5	legacy_sqlite	D:\\finance\\data	\N	md.stock_daily	0	ft_etl	2026-08-26 17:04:26.627534+08	2026-08-26 17:07:06.930923+08	failed	单位口径异常 204001.SH 2021-08-02：amount_yuan/vol_shares=9999.9998 超出价格区间 [191.0000, 249.5000]。请确认 amount_yuan 单位为元、vol_shares 单位为股。\nCONTEXT:  PL/pgSQL function md.trg_daily_sanity() line 9 at RAISE
+6	legacy_sqlite	D:\\finance\\data	\N	md.stock_daily	0	ft_etl	2026-08-26 17:09:15.823488+08	2026-08-26 17:15:46.779323+08	failed	ON CONFLICT DO UPDATE command cannot affect row a second time\nHINT:  Ensure that no rows proposed for insertion within the same command have duplicate constrained values.
+7	legacy_sqlite	D:\\finance\\data	\N	md.stock_daily	6003624	ft_etl	2026-08-26 17:27:06.717854+08	2026-08-26 17:36:31.871001+08	ok	\N
+8	legacy_financeweb	D:\\financeWeb\\data	\N	fct+cfg	235420	ft_etl	2026-08-26 17:41:05.173976+08	2026-08-26 17:41:25.978394+08	ok	\N
+9	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-26 17:58:04.180348+08	2026-08-26 17:58:04.889379+08	ok	\N
+10	tdx_vipdoc	D:\\new_tdx64\\vipdoc	\N	md.stock_daily	1910504	ft_etl	2026-08-26 18:51:00.569507+08	2026-08-26 18:55:31.467204+08	ok	\N
+11	legacy_sqlite	D:\\finance\\data\\tq_core.db	\N	ref	139475	ft_etl	2026-08-26 19:51:18.645914+08	2026-08-26 19:51:30.727304+08	ok	\N
+12	tdx_vipdoc	D:\\new_tdx64\\vipdoc\\sh\\lday	\N	md.sector_daily	1298	ft_etl	2026-08-26 19:58:19.347381+08	2026-08-26 19:58:35.379658+08	ok	\N
+13	akshare_etf_scale	fund_etf_scale_sse + fund_scale_daily_szse	\N	md.etf_share	12906	ft_etl	2026-08-27 10:50:04.025255+08	2026-08-27 10:50:18.086361+08	ok	\N
+14	akshare_etf_scale	fund_etf_scale_sse + fund_scale_daily_szse	\N	md.etf_share	220678	ft_etl	2026-08-27 10:52:12.806428+08	2026-08-27 10:55:57.779326+08	ok	\N
+15	akshare_margin	stock_margin_detail_sse + stock_margin_detail_szse	\N	md.margin_detail	32794	ft_etl	2026-08-27 10:57:17.023263+08	2026-08-27 10:57:40.176499+08	ok	\N
+16	akshare_lhb	stock_lhb_detail_em + stock_lhb_jgmmtj_em	\N	md.lhb_detail	913	ft_etl	2026-08-27 10:59:38.369258+08	2026-08-27 11:00:11.373369+08	ok	\N
+17	b7_sector_key	\N	\N	ref.sector_member	422	ft_etl	2026-08-27 11:05:18.367797+08	2026-08-27 11:05:20.956607+08	ok	\N
+18	b7_sector_key	\N	\N	ref.sector_member	422	ft_etl	2026-08-27 11:06:05.523073+08	2026-08-27 11:06:51.652752+08	ok	\N
+19	legacy_sqlite	D:\\finance\\data\\tq_core.db	\N	ref	139475	ft_etl	2026-08-27 11:16:37.531935+08	2026-08-27 11:16:50.115435+08	ok	\N
+20	b7_sector_key	\N	\N	ref.sector_member	422	ft_etl	2026-08-27 11:17:04.828184+08	2026-08-27 11:22:01.781465+08	ok	\N
+21	b7_sector_key	\N	\N	ref.sector_member	0	ft_etl	2026-08-27 11:22:51.530269+08	2026-08-27 11:22:51.734233+08	ok	\N
+22	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-27 11:33:37.049809+08	2026-08-27 11:33:37.366476+08	ok	\N
+23	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-27 15:24:25.833289+08	2026-08-27 15:24:26.069063+08	ok	\N
+24	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-27 15:28:18.245394+08	2026-08-27 15:28:18.384983+08	ok	\N
+25	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-27 22:10:37.030363+08	2026-08-27 22:10:37.1872+08	ok	\N
+26	akshare_em	\N	\N	ref.dividend	24150	ft_etl	2026-08-27 22:18:13.252177+08	2026-08-27 22:19:20.708968+08	ok	\N
+27	akshare_em	\N	\N	md.stock_daily.turnover	0	ft_etl	2026-08-28 02:40:29.883852+08	2026-08-28 02:40:56.835882+08	partial	3 个代码取数失败
+28	akshare_em	\N	\N	md.stock_daily.turnover	3672	ft_etl	2026-08-28 02:42:50.945469+08	2026-08-28 02:43:01.432236+08	ok	\N
+29	akshare_em	\N	\N	md.stock_daily.turnover	249644	ft_etl	2026-08-28 02:43:16.405136+08	2026-08-28 02:59:42.987603+08	partial	1 个代码取数失败
+30	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-28 03:02:50.89773+08	2026-08-28 03:02:51.051513+08	ok	\N
+31	sina_ak	\N	\N	md.stock_daily	\N	ft_etl	2026-08-28 05:09:15.219195+08	2026-08-28 05:49:21.916894+08	failed	单位口径异常 000001.SH 2026-08-26：amount_yuan/vol_shares=17.5103 超出价格区间 [3881.7400, 3926.4400]。请确认 amount_yuan 单位为元、vol_shares 单位为股。\nCONTEXT:  PL/pgSQL function md.trg_daily_sanity() line 9 at RAISE
+32	sina_ak	\N	\N	md.stock_daily	\N	ft_etl	2026-08-28 05:50:58.844624+08	2026-08-28 06:15:13.604993+08	ok	\N
+33	akshare_em	\N	\N	md.market_fund_flow	\N	ft_etl	2026-08-28 06:31:37.179005+08	2026-08-28 06:31:39.449923+08	failed	('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+34	tdx_vipdoc	D:\\new_tdx64\\vipdoc	\N	md.stock_daily	15718	ft_etl	2026-08-29 09:03:18.014661+08	2026-08-29 09:04:06.522736+08	ok	\N
+35	tdx_vipdoc	D:\\new_tdx64\\vipdoc\\sh\\lday	\N	md.sector_daily	1297	ft_etl	2026-08-29 09:04:11.663033+08	2026-08-29 09:04:16.382282+08	ok	\N
+36	tdx_tq_api	D:\\new_tdx64	\N	md.stock_daily	5547	ft_etl	2026-08-29 09:09:40.691113+08	2026-08-29 09:10:00.528516+08	ok	\N
+37	tdx_tq_api	D:\\new_tdx64	\N	md.stock_daily	5547	ft_etl	2026-08-29 09:20:09.883092+08	2026-08-29 09:20:24.368207+08	ok	\N
+38	tdx_tq_api	D:\\new_tdx64	\N	md.index_daily	174	ft_etl	2026-08-29 09:20:24.654502+08	2026-08-29 09:20:28.919839+08	ok	\N
+39	tdx_tq_api	D:\\new_tdx64	\N	md.sector_daily	652	ft_etl	2026-08-29 09:20:28.93316+08	2026-08-29 09:20:35.823201+08	ok	\N
+40	tdx_tq_api	D:\\new_tdx64	\N	md.stock_daily	5547	ft_etl	2026-08-29 09:24:01.392236+08	2026-08-29 09:24:18.171442+08	ok	\N
+41	tdx_tq_api	D:\\new_tdx64	\N	md.sector_daily	652	ft_etl	2026-08-29 09:24:18.186838+08	2026-08-29 09:24:23.197336+08	ok	\N
+42	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 09:58:57.982639+08	2026-08-29 09:58:58.171735+08	ok	\N
+43	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 10:03:58.525532+08	2026-08-29 10:03:58.676403+08	ok	\N
+44	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 10:04:21.043207+08	2026-08-29 10:04:21.187093+08	ok	\N
+45	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 11:48:15.245353+08	2026-08-29 11:48:15.412221+08	ok	\N
+46	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 12:00:13.047421+08	2026-08-29 12:00:13.220061+08	ok	\N
+47	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 12:03:28.405102+08	2026-08-29 12:03:28.573554+08	ok	\N
+48	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 12:08:48.834606+08	2026-08-29 12:08:49.014676+08	ok	\N
+49	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 12:14:34.401142+08	2026-08-29 12:14:34.561416+08	ok	\N
+50	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 12:18:46.742667+08	2026-08-29 12:18:46.910266+08	ok	\N
+51	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 12:27:15.409283+08	2026-08-29 12:27:15.55816+08	ok	\N
+52	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 12:34:45.309291+08	2026-08-29 12:34:45.472429+08	ok	\N
+53	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 12:37:16.0755+08	2026-08-29 12:37:16.250996+08	ok	\N
+54	akshare_lhb	stock_lhb_detail_em + stock_lhb_jgmmtj_em	\N	md.lhb_detail	95	ft_etl	2026-08-29 12:47:50.794345+08	2026-08-29 12:47:59.377912+08	ok	\N
+55	akshare_lhb	stock_lhb_detail_em + stock_lhb_jgmmtj_em	\N	md.lhb_detail	0	ft_etl	2026-08-29 12:48:38.574514+08	2026-08-29 12:48:43.230178+08	ok	\N
+56	akshare_margin	stock_margin_detail_sse + stock_margin_detail_szse	\N	md.margin_detail	6099	ft_etl	2026-08-29 12:48:45.682162+08	2026-08-29 12:48:53.804918+08	ok	\N
+57	akshare_etf_scale	fund_etf_scale_sse + fund_scale_daily_szse	\N	md.etf_share	1624	ft_etl	2026-08-29 12:48:55.309721+08	2026-08-29 12:48:59.692405+08	ok	\N
+58	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 12:49:19.483734+08	2026-08-29 12:49:19.640619+08	ok	\N
+59	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 12:53:17.394834+08	2026-08-29 12:53:17.565808+08	ok	\N
+60	akshare_etf_scale	fund_etf_scale_sse + fund_scale_daily_szse	\N	md.etf_share	0	ft_etl	2026-08-29 12:54:27.369508+08	2026-08-29 12:54:31.298688+08	ok	\N
+61	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 13:08:14.304646+08	2026-08-29 13:08:14.464899+08	ok	\N
+62	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 13:17:29.427377+08	2026-08-29 13:17:29.59263+08	ok	\N
+63	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 13:23:01.511504+08	2026-08-29 13:23:01.65883+08	ok	\N
+64	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 13:31:20.782125+08	2026-08-29 13:31:20.951601+08	ok	\N
+65	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 13:45:00.294981+08	2026-08-29 13:45:00.448937+08	ok	\N
+66	akshare_etf_scale	fund_etf_scale_sse + fund_scale_daily_szse	\N	md.etf_share	1623	ft_etl	2026-08-29 13:46:06.178819+08	2026-08-29 13:46:12.892082+08	ok	\N
+67	akshare_margin	stock_margin_detail_sse + stock_margin_detail_szse	\N	md.margin_detail	0	ft_etl	2026-08-29 13:46:16.802681+08	2026-08-29 13:46:25.499576+08	ok	\N
+68	akshare_lhb	stock_lhb_detail_em + stock_lhb_jgmmtj_em	\N	md.lhb_detail	109	ft_etl	2026-08-29 13:46:26.826904+08	2026-08-29 13:46:36.836721+08	ok	\N
+69	akshare_em	\N	\N	md.market_fund_flow	\N	ft_etl	2026-08-29 13:46:38.261098+08	2026-08-29 13:47:42.653106+08	failed	大盘资金流 重试 5 次仍失败：('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+70	akshare_em	\N	\N	ref.dividend	24158	ft_etl	2026-08-29 13:47:44.807433+08	2026-08-29 13:48:56.365388+08	ok	\N
+71	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 13:51:22.448569+08	2026-08-29 13:51:22.662989+08	ok	\N
+72	akshare_em	\N	\N	md.stock_daily.turnover	1	ft_etl	2026-08-29 13:53:39.525295+08	2026-08-29 13:53:53.661086+08	partial	1 个代码取数失败
+73	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 16:08:30.039412+08	2026-08-29 16:08:30.222909+08	ok	\N
+74	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 16:43:48.322208+08	2026-08-29 16:43:48.531246+08	ok	\N
+75	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 16:44:08.476648+08	2026-08-29 16:44:08.651271+08	ok	\N
+76	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 17:03:15.363551+08	2026-08-29 17:03:15.53752+08	ok	\N
+77	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 17:03:42.620176+08	2026-08-29 17:03:42.776015+08	ok	\N
+78	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 17:04:03.285914+08	2026-08-29 17:04:03.474276+08	ok	\N
+79	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 22:34:58.355482+08	2026-08-29 22:34:58.512386+08	ok	\N
+80	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 22:40:03.138881+08	2026-08-29 22:40:03.305061+08	ok	\N
+81	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 22:48:15.245801+08	2026-08-29 22:48:15.399681+08	ok	\N
+82	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 22:50:33.99164+08	2026-08-29 22:50:34.165855+08	ok	\N
+83	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 22:57:49.102794+08	2026-08-29 22:57:49.275099+08	ok	\N
+84	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 23:03:30.392056+08	2026-08-29 23:03:30.554148+08	ok	\N
+85	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 23:39:15.283146+08	2026-08-29 23:39:15.450326+08	ok	\N
+86	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 23:44:46.605528+08	2026-08-29 23:44:46.770159+08	ok	\N
+87	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-29 23:56:32.269751+08	2026-08-29 23:56:32.43577+08	ok	\N
+88	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 00:14:18.821411+08	2026-08-30 00:14:19.00479+08	ok	\N
+89	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 00:22:45.275016+08	2026-08-30 00:22:45.42985+08	ok	\N
+90	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 00:27:17.243563+08	2026-08-30 00:27:17.413748+08	ok	\N
+91	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 10:27:48.411022+08	2026-08-30 10:27:48.593049+08	ok	\N
+92	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 10:35:01.57751+08	2026-08-30 10:35:01.771845+08	ok	\N
+93	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 10:41:28.99591+08	2026-08-30 10:41:29.165992+08	ok	\N
+94	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 10:42:10.690375+08	2026-08-30 10:42:10.862066+08	ok	\N
+95	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 10:50:45.834256+08	2026-08-30 10:50:45.992777+08	ok	\N
+96	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 10:57:49.006234+08	2026-08-30 10:57:49.187459+08	ok	\N
+97	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 11:24:14.436816+08	2026-08-30 11:24:14.592378+08	ok	\N
+98	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 11:24:58.855711+08	2026-08-30 11:24:59.014525+08	ok	\N
+99	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 11:26:45.169456+08	2026-08-30 11:26:45.327987+08	ok	\N
+100	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 11:41:14.636355+08	2026-08-30 11:41:14.793949+08	ok	\N
+101	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 13:16:41.63952+08	2026-08-30 13:16:41.801264+08	ok	\N
+102	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 13:27:40.772847+08	2026-08-30 13:27:40.91831+08	ok	\N
+103	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 14:56:43.520488+08	2026-08-30 14:56:43.6857+08	ok	\N
+104	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 15:01:39.604921+08	2026-08-30 15:01:39.763005+08	ok	\N
+105	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 15:07:31.422028+08	2026-08-30 15:07:31.576478+08	ok	\N
+106	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 15:12:34.552523+08	2026-08-30 15:12:34.735578+08	ok	\N
+107	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 15:17:24.962687+08	2026-08-30 15:17:25.150028+08	ok	\N
+108	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 15:19:24.107009+08	2026-08-30 15:19:24.266774+08	ok	\N
+109	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 15:35:11.737684+08	2026-08-30 15:35:11.907893+08	ok	\N
+110	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 15:35:58.591853+08	2026-08-30 15:35:58.762876+08	ok	\N
+111	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 15:37:08.281213+08	2026-08-30 15:37:08.427433+08	ok	\N
+112	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 16:46:22.708352+08	2026-08-30 16:46:22.874256+08	ok	\N
+113	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 16:52:27.433377+08	2026-08-30 16:52:27.578412+08	ok	\N
+114	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 17:11:08.57943+08	2026-08-30 17:11:08.722235+08	ok	\N
+115	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 17:17:16.743399+08	2026-08-30 17:17:16.890548+08	ok	\N
+116	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 17:35:59.541942+08	2026-08-30 17:35:59.688498+08	ok	\N
+117	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 17:40:53.924468+08	2026-08-30 17:40:54.089475+08	ok	\N
+118	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 17:41:53.547909+08	2026-08-30 17:41:53.692398+08	ok	\N
+119	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-30 19:48:41.07171+08	2026-08-30 19:48:41.228332+08	ok	\N
+120	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-31 15:37:21.285455+08	2026-08-31 15:37:21.416695+08	ok	\N
+121	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-31 15:40:45.845355+08	2026-08-31 15:40:45.979246+08	ok	\N
+122	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-31 15:46:21.744222+08	2026-08-31 15:46:21.889337+08	ok	\N
+123	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-31 17:11:53.220324+08	2026-08-31 17:11:53.364663+08	ok	\N
+124	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-31 17:28:14.089224+08	2026-08-31 17:28:14.236215+08	ok	\N
+125	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-31 18:08:16.403354+08	2026-08-31 18:08:16.550833+08	ok	\N
+126	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-31 18:34:14.521773+08	2026-08-31 18:34:14.659484+08	ok	\N
+127	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-31 20:43:20.299782+08	2026-08-31 20:43:20.4428+08	ok	\N
+128	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-08-31 20:44:55.716361+08	2026-08-31 20:44:55.860224+08	ok	\N
+129	tdx_tq_api	D:\\new_tdx64	\N	md.stock_daily	5545	ft_etl	2026-08-31 21:02:57.216928+08	2026-08-31 21:03:20.018323+08	ok	\N
+130	tdx_tq_api	D:\\new_tdx64	\N	md.index_daily	174	ft_etl	2026-08-31 21:03:22.511621+08	2026-08-31 21:03:26.70075+08	ok	\N
+131	tdx_tq_api	D:\\new_tdx64	\N	md.sector_daily	738	ft_etl	2026-08-31 21:03:26.713216+08	2026-08-31 21:03:33.940096+08	ok	\N
+132	akshare_etf_scale	fund_etf_scale_sse + fund_scale_daily_szse	\N	md.etf_share	0	ft_etl	2026-08-31 21:19:45.957797+08	2026-08-31 21:19:49.67098+08	ok	\N
+133	akshare_etf_scale	fund_etf_scale_sse + fund_scale_daily_szse	\N	md.etf_share	0	ft_etl	2026-08-31 21:20:05.229596+08	2026-08-31 21:20:14.506278+08	ok	\N
+134	akshare_margin	stock_margin_detail_sse + stock_margin_detail_szse	\N	md.margin_detail	2101	ft_etl	2026-08-31 21:20:18.107518+08	2026-08-31 21:20:32.237375+08	ok	\N
+135	akshare_lhb	stock_lhb_detail_em + stock_lhb_jgmmtj_em	\N	md.lhb_detail	131	ft_etl	2026-08-31 21:20:33.662514+08	2026-08-31 21:20:47.395196+08	ok	\N
+136	akshare_em	\N	\N	md.market_fund_flow	\N	ft_etl	2026-08-31 21:20:48.90049+08	2026-08-31 21:21:53.427738+08	failed	大盘资金流 重试 5 次仍失败：('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+137	akshare_em	\N	\N	ref.dividend	24174	ft_etl	2026-08-31 21:21:55.46868+08	2026-08-31 21:22:57.80742+08	ok	\N
+138	akshare_em	\N	\N	md.stock_daily.turnover	0	ft_etl	2026-08-31 21:27:19.130956+08	2026-08-31 21:27:31.307418+08	partial	1 个代码取数失败
+139	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-09-01 10:29:21.238943+08	2026-09-01 10:29:23.041408+08	ok	\N
+140	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-09-01 10:33:35.290363+08	2026-09-01 10:33:35.419944+08	ok	\N
+141	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-09-01 10:57:20.9216+08	2026-09-01 10:57:21.046658+08	ok	\N
+142	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-09-01 11:17:19.507064+08	2026-09-01 11:17:19.636053+08	ok	\N
+143	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-09-01 11:28:15.26926+08	2026-09-01 11:28:15.407947+08	ok	\N
+144	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-09-01 11:31:00.687579+08	2026-09-01 11:31:00.824792+08	ok	\N
+145	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-09-01 11:33:47.021371+08	2026-09-01 11:33:47.153347+08	ok	\N
+146	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-09-01 11:47:08.362244+08	2026-09-01 11:47:08.49119+08	ok	\N
+147	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-09-01 11:49:57.910293+08	2026-09-01 11:49:58.036607+08	ok	\N
+148	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-09-01 12:01:46.170943+08	2026-09-01 12:01:46.304227+08	ok	\N
+149	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-09-01 12:17:42.66219+08	2026-09-01 12:17:42.797567+08	ok	\N
+150	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-09-01 12:22:31.150387+08	2026-09-01 12:22:31.287216+08	ok	\N
+151	tdx_snapshot_db	D:\\new_tdx64\\daily_close_data.db	\N	md.stock_snapshot	94724	ft_etl	2026-09-01 15:54:51.63248+08	2026-09-01 15:55:28.043532+08	ok	\N
+152	tdx_snapshot_db	D:\\new_tdx64\\daily_close_data.db	\N	md.stock_snapshot	110553	ft_etl	2026-09-01 15:59:45.943495+08	2026-09-01 16:00:29.990689+08	ok	\N
+153	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-09-01 16:08:01.775144+08	2026-09-01 16:08:01.911533+08	ok	\N
+154	tdx_tq_api	D:\\new_tdx64	\N	md.stock_daily	0	ft_etl	2026-09-01 16:12:31.705165+08	2026-09-01 16:12:45.127061+08	ok	\N
+155	tdx_tq_api	D:\\new_tdx64	\N	md.index_daily	0	ft_etl	2026-09-01 16:12:45.8905+08	2026-09-01 16:12:49.636003+08	ok	\N
+156	tdx_tq_api	D:\\new_tdx64	\N	md.sector_daily	0	ft_etl	2026-09-01 16:12:49.65069+08	2026-09-01 16:12:55.834891+08	ok	\N
+157	akshare_margin	stock_margin_detail_sse + stock_margin_detail_szse	\N	md.margin_detail	223934	ft_etl	2026-09-01 16:59:30.037081+08	2026-09-01 17:02:18.733397+08	ok	\N
+158	akshare_lhb	stock_lhb_detail_em + stock_lhb_jgmmtj_em	\N	md.lhb_detail	8591	ft_etl	2026-09-01 17:02:29.303845+08	2026-09-01 17:05:34.678264+08	ok	\N
+159	akshare_etf_scale	fund_etf_scale_sse + fund_scale_daily_szse	\N	md.etf_share	1624	ft_etl	2026-09-01 17:06:22.483554+08	2026-09-01 17:06:29.106712+08	ok	\N
+160	akshare_em	\N	\N	md.market_fund_flow	\N	ft_etl	2026-09-01 17:06:42.786965+08	2026-09-01 17:07:47.623904+08	failed	大盘资金流 重试 5 次仍失败：('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+161	sina_ak	\N	\N	md.stock_daily	\N	ft_etl	2026-09-01 20:34:17.495805+08	\N	running	\N
+163	akshare_em	\N	\N	ref.dividend	24195	ft_etl	2026-09-01 21:50:03.769541+08	2026-09-01 21:51:06.007725+08	ok	\N
+164	tdx_vipdoc	D:\\new_tdx64\\vipdoc	\N	md.stock_daily	9010	ft_etl	2026-09-01 21:50:04.60553+08	2026-09-01 21:51:25.45072+08	ok	\N
+162	tdx_vipdoc	D:\\new_tdx64\\vipdoc	\N	md.stock_daily	0	ft_etl	2026-09-01 21:50:01.479321+08	2026-09-01 21:51:27.626809+08	failed	relation "md.stg_c1_stock" does not exist
+165	tdx_vipdoc	D:\\new_tdx64\\vipdoc\\sh\\lday	\N	md.sector_daily	732	ft_etl	2026-09-01 21:51:33.565047+08	2026-09-01 21:51:38.851582+08	ok	\N
+166	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-09-01 22:50:48.87746+08	2026-09-01 22:50:49.007088+08	ok	\N
+168	akshare_etf_scale	fund_etf_scale_sse + fund_scale_daily_szse	\N	md.etf_share	0	ft_etl	2026-09-02 18:56:11.046486+08	2026-09-02 18:56:14.649637+08	ok	\N
+170	akshare_lhb	stock_lhb_detail_em + stock_lhb_jgmmtj_em	\N	md.lhb_detail	130	ft_etl	2026-09-02 18:56:16.404105+08	2026-09-02 18:56:22.14632+08	ok	\N
+171	akshare_margin	stock_margin_detail_sse + stock_margin_detail_szse	\N	md.margin_detail	4102	ft_etl	2026-09-02 18:56:18.448766+08	2026-09-02 18:56:27.105646+08	ok	\N
+172	tdx_vipdoc	D:\\new_tdx64\\vipdoc\\sh\\lday	\N	md.sector_daily	105866	ft_etl	2026-09-02 18:56:22.756889+08	2026-09-02 18:56:47.852889+08	ok	\N
+173	akshare_em	\N	\N	md.stock_daily.turnover	2	ft_etl	2026-09-02 18:56:33.651451+08	2026-09-02 18:56:52.893708+08	partial	1 个代码取数失败
+174	tdx_tq_api	D:\\new_tdx64	\N	md.stock_daily	5546	ft_etl	2026-09-02 18:56:37.49712+08	2026-09-02 18:56:54.729177+08	ok	\N
+175	tdx_tq_api	D:\\new_tdx64	\N	md.index_daily	174	ft_etl	2026-09-02 18:56:56.951785+08	2026-09-02 18:57:00.972741+08	ok	\N
+176	tdx_tq_api	D:\\new_tdx64	\N	md.sector_daily	738	ft_etl	2026-09-02 18:57:00.987476+08	2026-09-02 18:57:06.957803+08	ok	\N
+169	akshare_em	\N	\N	ref.dividend	24210	ft_etl	2026-09-02 18:56:15.13314+08	2026-09-02 18:57:24.13053+08	ok	\N
+167	tdx_vipdoc	D:\\new_tdx64\\vipdoc	\N	md.stock_daily	1228	ft_etl	2026-09-02 18:56:04.606148+08	2026-09-02 18:58:49.295513+08	ok	\N
+177	tdx_vipdoc	D:\\new_tdx64\\vipdoc	\N	md.stock_daily	2196	ft_etl	2026-09-02 19:16:31.513395+08	2026-09-02 19:17:17.392645+08	ok	\N
+178	tdx_vipdoc	D:\\new_tdx64\\vipdoc\\sh\\lday	\N	md.sector_daily	0	ft_etl	2026-09-02 19:17:21.245644+08	2026-09-02 19:17:26.316886+08	ok	\N
+179	tdx_snapshot_db	D:\\new_tdx64\\daily_close_data.db	\N	md.stock_snapshot	121681	ft_etl	2026-09-02 22:42:03.98963+08	2026-09-02 22:43:12.324373+08	ok	\N
+180	akshare_etf_scale	fund_etf_scale_sse + fund_scale_daily_szse	\N	md.etf_share	2524	ft_etl	2026-09-02 22:43:49.342133+08	2026-09-02 22:44:02.110887+08	ok	\N
+181	akshare_margin	stock_margin_detail_sse + stock_margin_detail_szse	\N	md.margin_detail	0	ft_etl	2026-09-02 22:44:07.849787+08	2026-09-02 22:44:21.885289+08	ok	\N
+182	akshare_lhb	stock_lhb_detail_em + stock_lhb_jgmmtj_em	\N	md.lhb_detail	123	ft_etl	2026-09-02 22:44:23.804574+08	2026-09-02 22:44:38.164051+08	ok	\N
+183	akshare_em	\N	\N	md.market_fund_flow	\N	ft_etl	2026-09-02 22:44:39.590168+08	2026-09-02 22:45:43.97219+08	failed	大盘资金流 重试 5 次仍失败：('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+184	akshare_em	\N	\N	ref.dividend	24214	ft_etl	2026-09-02 22:45:45.95252+08	2026-09-02 22:46:47.253821+08	ok	\N
+185	akshare_em	\N	\N	md.stock_daily.turnover	1	ft_etl	2026-09-02 22:51:38.50029+08	2026-09-02 22:51:55.707119+08	partial	1 个代码取数失败
+187	akshare_em	\N	\N	ref.dividend	24229	ft_etl	2026-09-03 23:38:18.666916+08	2026-09-03 23:39:28.805726+08	ok	\N
+189	tdx_vipdoc	D:\\new_tdx64\\vipdoc	\N	md.stock_daily	2196	ft_etl	2026-09-03 23:38:38.242364+08	2026-09-03 23:40:39.558025+08	ok	\N
+188	tdx_vipdoc	D:\\new_tdx64\\vipdoc	\N	md.stock_daily	5721	ft_etl	2026-09-03 23:38:32.098003+08	2026-09-03 23:40:39.598818+08	ok	\N
+186	tdx_vipdoc	D:\\new_tdx64\\vipdoc	\N	md.stock_daily	0	ft_etl	2026-09-03 23:38:16.907929+08	2026-09-03 23:41:03.709525+08	failed	relation "md.stg_c1_fund" does not exist\nLINE 4:           FROM md.stg_c1_fund s\n                       ^
+191	tdx_vipdoc	D:\\new_tdx64\\vipdoc\\sh\\lday	\N	md.sector_daily	0	ft_etl	2026-09-03 23:41:11.123307+08	2026-09-03 23:41:25.673863+08	ok	\N
+190	tdx_vipdoc	D:\\new_tdx64\\vipdoc\\sh\\lday	\N	md.sector_daily	735	ft_etl	2026-09-03 23:41:10.847221+08	2026-09-03 23:41:25.676311+08	ok	\N
+192	tdx_snapshot_db	D:\\new_tdx64\\daily_close_data.db	\N	md.stock_snapshot	\N	ft_etl	2026-09-03 23:43:49.982557+08	\N	running	\N
+193	tdx_vipdoc	D:\\new_tdx64\\vipdoc	\N	md.stock_daily	55209	ft_etl	2026-09-14 23:28:27.865046+08	2026-09-14 23:30:06.609601+08	ok	\N
+194	tdx_vipdoc	D:\\new_tdx64\\vipdoc\\sh\\lday	\N	md.sector_daily	5134	ft_etl	2026-09-14 23:30:13.34955+08	2026-09-14 23:30:22.652416+08	ok	\N
+195	tdx_snapshot_db	D:\\new_tdx64\\daily_close_data.db	\N	md.stock_snapshot	\N	ft_etl	2026-09-14 23:31:00.022908+08	\N	running	\N
+196	tdx_snapshot_db	D:\\new_tdx64\\daily_close_data.db	\N	md.stock_snapshot	\N	ft_etl	2026-09-14 23:32:22.270057+08	\N	running	\N
+197	tdx_snapshot_db	D:\\new_tdx64\\daily_close_data.db	\N	md.stock_snapshot	143953	ft_etl	2026-09-14 23:38:30.528693+08	2026-09-14 23:39:30.575575+08	ok	\N
+198	akshare_etf_scale	fund_etf_scale_sse + fund_scale_daily_szse	\N	md.etf_share	8178	ft_etl	2026-09-14 23:39:53.208282+08	2026-09-14 23:40:05.9172+08	ok	\N
+199	akshare_margin	stock_margin_detail_sse + stock_margin_detail_szse	\N	md.margin_detail	16415	ft_etl	2026-09-14 23:40:10.513788+08	2026-09-14 23:40:24.001368+08	ok	\N
+200	akshare_lhb	stock_lhb_detail_em + stock_lhb_jgmmtj_em	\N	md.lhb_detail	549	ft_etl	2026-09-14 23:40:25.391411+08	2026-09-14 23:40:37.94631+08	ok	\N
+201	akshare_em	\N	\N	md.market_fund_flow	\N	ft_etl	2026-09-14 23:40:39.363223+08	2026-09-14 23:41:43.401882+08	failed	大盘资金流 重试 5 次仍失败：('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+202	akshare_em	\N	\N	ref.dividend	24385	ft_etl	2026-09-14 23:41:45.400855+08	2026-09-14 23:42:42.200119+08	ok	\N
+203	akshare_em	\N	\N	md.stock_daily.turnover	40	ft_etl	2026-09-14 23:48:06.483754+08	2026-09-14 23:48:36.255849+08	partial	1 个代码取数失败
+204	tdx_vipdoc	D:\\new_tdx64\\vipdoc	\N	md.stock_daily	15799	ft_etl	2026-09-16 23:48:16.735042+08	2026-09-16 23:50:08.923137+08	ok	\N
+205	tdx_vipdoc	D:\\new_tdx64\\vipdoc\\sh\\lday	\N	md.sector_daily	1467	ft_etl	2026-09-16 23:50:12.609821+08	2026-09-16 23:50:24.226618+08	ok	\N
+206	tdx_snapshot_db	D:\\new_tdx64\\daily_close_data.db	\N	md.stock_snapshot	149526	ft_etl	2026-09-16 23:50:52.754869+08	2026-09-16 23:51:59.755038+08	ok	\N
+207	akshare_etf_scale	fund_etf_scale_sse + fund_scale_daily_szse	\N	md.etf_share	3286	ft_etl	2026-09-16 23:52:20.967413+08	2026-09-16 23:52:26.703493+08	ok	\N
+208	akshare_margin	stock_margin_detail_sse + stock_margin_detail_szse	\N	md.margin_detail	4105	ft_etl	2026-09-16 23:52:30.694956+08	2026-09-16 23:52:36.850764+08	ok	\N
+209	akshare_lhb	stock_lhb_detail_em + stock_lhb_jgmmtj_em	\N	md.lhb_detail	239	ft_etl	2026-09-16 23:52:38.222393+08	2026-09-16 23:52:48.277131+08	ok	\N
+210	akshare_em	\N	\N	md.market_fund_flow	\N	ft_etl	2026-09-16 23:52:49.718948+08	2026-09-16 23:53:54.096581+08	failed	大盘资金流 重试 5 次仍失败：('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+211	akshare_em	\N	\N	ref.dividend	24473	ft_etl	2026-09-16 23:53:56.10534+08	2026-09-16 23:54:55.497581+08	ok	\N
+212	akshare_em	\N	\N	md.stock_daily.turnover	2	ft_etl	2026-09-16 23:58:59.237917+08	2026-09-16 23:59:16.327613+08	partial	1 个代码取数失败
+213	tdx_snapshot_db	D:\\new_tdx64\\daily_close_data.db	\N	md.stock_snapshot	149526	ft_etl	2026-09-18 00:39:44.984798+08	2026-09-18 00:40:49.82045+08	ok	\N
+214	akshare_etf_scale	fund_etf_scale_sse + fund_scale_daily_szse	\N	md.etf_share	1647	ft_etl	2026-09-18 00:41:09.14005+08	2026-09-18 00:41:12.957279+08	ok	\N
+215	akshare_margin	stock_margin_detail_sse + stock_margin_detail_szse	\N	md.margin_detail	0	ft_etl	2026-09-18 00:41:16.688272+08	2026-09-18 00:41:20.182654+08	ok	\N
+216	akshare_lhb	stock_lhb_detail_em + stock_lhb_jgmmtj_em	\N	md.lhb_detail	98	ft_etl	2026-09-18 00:41:21.626913+08	2026-09-18 00:41:25.651464+08	ok	\N
+217	akshare_em	\N	\N	md.market_fund_flow	120	ft_etl	2026-09-18 00:41:27.034201+08	2026-09-18 00:41:38.367345+08	ok	\N
+218	akshare_em	\N	\N	ref.dividend	24502	ft_etl	2026-09-18 00:41:40.288284+08	2026-09-18 00:42:37.247849+08	ok	\N
+219	akshare_em	\N	\N	md.stock_daily.turnover	0	ft_etl	2026-09-18 00:46:54.54103+08	2026-09-18 00:47:05.935981+08	partial	1 个代码取数失败
+220	tdx_vipdoc	D:\\new_tdx64\\vipdoc	\N	md.stock_daily	7915	ft_etl	2026-09-18 08:59:14.698739+08	2026-09-18 09:00:02.70775+08	ok	\N
+221	tdx_vipdoc	D:\\new_tdx64\\vipdoc\\sh\\lday	\N	md.sector_daily	734	ft_etl	2026-09-18 09:00:06.41409+08	2026-09-18 09:00:11.42641+08	ok	\N
+222	tdx_snapshot_db	D:\\new_tdx64\\daily_close_data.db	\N	md.stock_snapshot	160672	ft_etl	2026-09-18 09:00:41.432529+08	2026-09-18 09:01:49.507664+08	ok	\N
+223	akshare_etf_scale	fund_etf_scale_sse + fund_scale_daily_szse	\N	md.etf_share	2	ft_etl	2026-09-18 09:02:09.824039+08	2026-09-18 09:02:13.682752+08	ok	\N
+224	akshare_margin	stock_margin_detail_sse + stock_margin_detail_szse	\N	md.margin_detail	4105	ft_etl	2026-09-18 09:02:17.681+08	2026-09-18 09:02:22.777993+08	ok	\N
+225	akshare_lhb	stock_lhb_detail_em + stock_lhb_jgmmtj_em	\N	md.lhb_detail	0	ft_etl	2026-09-18 09:02:24.211509+08	2026-09-18 09:02:29.264854+08	ok	\N
+226	akshare_em	\N	\N	md.market_fund_flow	120	ft_etl	2026-09-18 09:02:30.788136+08	2026-09-18 09:02:37.18578+08	ok	\N
+227	akshare_em	\N	\N	ref.dividend	24502	ft_etl	2026-09-18 09:02:39.263192+08	2026-09-18 09:03:35.507562+08	ok	\N
+228	akshare_em	\N	\N	md.stock_daily.turnover	1	ft_etl	2026-09-18 09:07:36.866342+08	2026-09-18 09:07:50.899639+08	partial	1 个代码取数失败
+229	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-09-21 23:17:48.553488+08	2026-09-21 23:17:49.020545+08	ok	\N
+230	pytest	\N	\N	md.stock_daily	0	ft_etl	2026-09-21 23:33:10.052356+08	2026-09-21 23:33:10.910562+08	ok	\N
+231	tdx_vipdoc	D:\\new_tdx64\\vipdoc	\N	md.stock_daily	23784	ft_etl	2026-09-22 19:58:04.59856+08	2026-09-22 20:01:14.342462+08	ok	\N
+232	tdx_vipdoc	D:\\new_tdx64\\vipdoc\\sh\\lday	\N	md.sector_daily	2201	ft_etl	2026-09-22 20:01:22.496422+08	2026-09-22 20:01:44.472552+08	ok	\N
+233	tdx_vipdoc_minute	D:\\new_tdx64\\vipdoc	\N	md.stock_minute	83283	ft_etl	2026-09-22 21:01:09.754115+08	2026-09-22 21:02:10.231472+08	ok	\N
+234	tdx_vipdoc_minute	D:\\new_tdx64\\vipdoc	\N	md.stock_minute	0	ft_etl	2026-09-22 21:02:19.899817+08	2026-09-22 21:03:18.604176+08	ok	\N
+235	tdx_vipdoc_minute	D:\\new_tdx64\\vipdoc	\N	md.stock_minute	\N	ft_etl	2026-09-22 21:03:41.796558+08	\N	running	\N

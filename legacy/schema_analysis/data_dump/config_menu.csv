@@ -1,0 +1,13 @@
+home	复盘首页	/	house	10	复盘	\N	t
+sector	板块热度	/sector	grid	40	复盘	\N	t
+stock	个股详情	/stock	search	50	复盘	\N	t
+screen	筛选器	/screen	funnel	60	选股	\N	t
+watchlist	自选股组分析	/watchlist	star	70	选股	\N	t
+scores	全市场个股分析	/scores	calculator	80	选股	\N	t
+blocks	积木管理	/blocks	puzzle	90	配置	\N	t
+jobs	任务与调度	/jobs	list-task	100	配置	\N	t
+data	数据加工	/data	database	110	运维	\N	t
+sql	SQL 查询台	/sql	terminal	130	运维	\N	t
+datasource	数据获取	/datasource	plug	125	运维	\N	t
+admin	系统管理	/admin	gear	140	运维	admin	t
+schedule	调度器	/schedule	clock	135	运维	\N	t

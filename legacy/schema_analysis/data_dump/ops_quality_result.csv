@@ -1,0 +1,640 @@
+1	2026-08-26 17:30:01.485288+08	\N	vol_amount_consistent	md.stock_daily	error	f	{"by_prefix": [{"n": 10, "prefix": "00", "sample_code": "000725.SZ", "max_avg_price": 871.4878, "min_avg_price": 485.1535}, {"n": 5, "prefix": "60", "sample_code": "600010.SH", "max_avg_price": 364.8805, "min_avg_price": 199.4103}], "rejected_rows": 15}	{"rule": "amount_yuan/vol_shares ∈ [low*0.5, high*2]"}	\N	7
+2	2026-08-26 17:54:36.402291+08	\N	migration_reconcile	md.stock_daily	info	t	{"fields": {"total": 6003609, "no_adj": 6003609, "no_vol": 0, "no_limit": 6432, "no_lineage": 0, "no_turnover": 148, "no_pre_close": 5215}, "sample": {"checked": 240, "examples": [], "mismatch_price": 0, "mismatch_vol_amount": 0}, "coverage": {"days": 1228, "thin_days": 0, "avg_per_day": 4889.0, "max_per_day": 5208, "min_per_day": 4222, "dates_not_in_calendar": 0}, "rowcount": {"stock_matched": null, "unit_rejected": 15, "new_index_daily": 208416, "new_stock_daily": 6003609, "old_index_daily": 4896, "old_stock_daily": 9531333, "new_sector_daily": 716577, "old_sector_daily": 716577, "sector_daily_matched": true, "classification_balanced": null}}	{"rule": "行数归属可解释、抽样一致、血缘完整、日期在日历内"}	\N	\N
+3	2026-08-30 17:08:45.232613+08	2026-08-17	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+4	2026-08-30 17:08:45.266326+08	2026-08-17	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+5	2026-08-30 17:08:45.270206+08	2026-08-17	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+6	2026-08-30 17:08:45.27385+08	2026-08-17	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+7	2026-08-30 17:08:45.277761+08	2026-08-17	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+8	2026-08-30 17:08:45.281246+08	2026-08-17	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+9	2026-08-30 17:08:45.438082+08	2026-08-17	board_coverage	ref.security	error	t	{"ms": 155, "value": true}	\N	\N	\N
+10	2026-08-30 17:08:45.445261+08	2026-08-17	daily_row_count	md.stock_daily	error	t	{"ms": 5, "value": true}	{"min": 4800}	\N	\N
+11	2026-08-30 17:08:45.465332+08	2026-08-17	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 16, "value": true}	\N	\N	\N
+12	2026-08-30 17:08:45.468798+08	2026-08-17	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+13	2026-08-30 17:08:45.472582+08	2026-08-17	index_present	md.index_daily	error	t	{"ms": 2, "value": true}	\N	\N	\N
+14	2026-08-30 17:08:45.51214+08	2026-08-17	null_rate	md.stock_daily	error	t	{"ms": 37, "value": true}	{"max_pct": 0.1}	\N	\N
+15	2026-08-30 17:08:47.837855+08	2026-08-17	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 2323, "value": true}	\N	\N	\N
+16	2026-08-30 17:08:47.873092+08	2026-08-17	no_gap	md.stock_daily	error	t	{"ms": 33, "value": true}	\N	\N	\N
+17	2026-08-30 17:08:48.105621+08	2026-08-17	pre_close_chain	md.stock_daily	error	t	{"ms": 230, "value": true}	\N	\N	\N
+18	2026-08-30 17:08:48.190797+08	2026-08-17	row_count_drift	md.stock_daily	warning	t	{"ms": 83, "value": true}	{"max_drift": 0.05}	\N	\N
+19	2026-08-30 17:08:48.243553+08	2026-08-17	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 50, "value": true}	{"tolerance": 0.005}	\N	\N
+20	2026-08-30 17:08:48.292946+08	2026-08-17	score_coverage	fct.score	warning	t	{"ms": 47, "value": true}	{"min_coverage": 0.95}	\N	\N
+21	2026-08-30 17:08:49.06818+08	2026-08-17	sector_key_aligned	ref.sector_member	error	t	{"ms": 773, "value": true}	\N	\N	\N
+22	2026-08-30 17:08:49.233516+08	2026-08-17	sector_member_valid	ref.sector_member	warning	f	{"ms": 163, "value": false}	\N	\N	\N
+23	2026-08-30 17:08:49.924349+08	2026-08-17	score_not_constant	fct.score_detail	error	t	{"ms": 689, "value": true}	\N	\N	\N
+24	2026-08-30 17:08:49.947349+08	2026-08-17	score_range	fct.score	error	t	{"ms": 21, "value": true}	\N	\N	\N
+25	2026-08-30 17:08:49.97259+08	2026-08-17	score_stale_check	fct.score	warning	t	{"ms": 21, "value": true}	\N	\N	\N
+26	2026-08-30 17:08:49.980107+08	2026-08-17	weight_sum	config.binding	error	t	{"ms": 5, "value": true}	\N	\N	\N
+27	2026-08-30 17:08:49.990391+08	2026-08-18	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+28	2026-08-30 17:08:49.994308+08	2026-08-18	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+29	2026-08-30 17:08:49.997936+08	2026-08-18	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+30	2026-08-30 17:08:50.001718+08	2026-08-18	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+31	2026-08-30 17:08:50.005833+08	2026-08-18	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+32	2026-08-30 17:08:50.0094+08	2026-08-18	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+33	2026-08-30 17:08:50.096513+08	2026-08-18	board_coverage	ref.security	error	t	{"ms": 85, "value": true}	\N	\N	\N
+34	2026-08-30 17:08:50.10179+08	2026-08-18	daily_row_count	md.stock_daily	error	t	{"ms": 3, "value": true}	{"min": 4800}	\N	\N
+35	2026-08-30 17:08:50.128228+08	2026-08-18	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 24, "value": true}	\N	\N	\N
+36	2026-08-30 17:08:50.131494+08	2026-08-18	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+37	2026-08-30 17:08:50.134748+08	2026-08-18	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+38	2026-08-30 17:08:50.157921+08	2026-08-18	null_rate	md.stock_daily	error	t	{"ms": 21, "value": true}	{"max_pct": 0.1}	\N	\N
+39	2026-08-30 17:08:52.397168+08	2026-08-18	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 2237, "value": true}	\N	\N	\N
+40	2026-08-30 17:08:52.405474+08	2026-08-18	no_gap	md.stock_daily	error	t	{"ms": 6, "value": true}	\N	\N	\N
+41	2026-08-30 17:08:52.636682+08	2026-08-18	pre_close_chain	md.stock_daily	error	t	{"ms": 229, "value": true}	\N	\N	\N
+42	2026-08-30 17:08:52.722368+08	2026-08-18	row_count_drift	md.stock_daily	warning	t	{"ms": 84, "value": true}	{"max_drift": 0.05}	\N	\N
+43	2026-08-30 17:08:52.734767+08	2026-08-18	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 10, "value": true}	{"tolerance": 0.005}	\N	\N
+44	2026-08-30 17:08:52.799686+08	2026-08-18	score_coverage	fct.score	warning	t	{"ms": 63, "value": true}	{"min_coverage": 0.95}	\N	\N
+45	2026-08-30 17:08:53.640996+08	2026-08-18	sector_key_aligned	ref.sector_member	error	t	{"ms": 838, "value": true}	\N	\N	\N
+46	2026-08-30 17:08:53.790611+08	2026-08-18	sector_member_valid	ref.sector_member	warning	f	{"ms": 147, "value": false}	\N	\N	\N
+48	2026-08-30 17:08:54.592744+08	2026-08-18	score_range	fct.score	error	t	{"ms": 27, "value": true}	\N	\N	\N
+50	2026-08-30 17:08:54.611536+08	2026-08-18	weight_sum	config.binding	error	t	{"ms": 3, "value": true}	\N	\N	\N
+52	2026-08-30 17:08:54.620481+08	2026-08-19	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+54	2026-08-30 17:08:54.625779+08	2026-08-19	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+56	2026-08-30 17:08:54.631096+08	2026-08-19	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+58	2026-08-30 17:08:54.71309+08	2026-08-19	daily_row_count	md.stock_daily	error	t	{"ms": 2, "value": true}	{"min": 4800}	\N	\N
+60	2026-08-30 17:08:54.731674+08	2026-08-19	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+62	2026-08-30 17:08:54.756569+08	2026-08-19	null_rate	md.stock_daily	error	t	{"ms": 20, "value": true}	{"max_pct": 0.1}	\N	\N
+64	2026-08-30 17:08:56.999675+08	2026-08-19	no_gap	md.stock_daily	error	t	{"ms": 7, "value": true}	\N	\N	\N
+66	2026-08-30 17:08:57.354994+08	2026-08-19	row_count_drift	md.stock_daily	warning	t	{"ms": 79, "value": true}	{"max_drift": 0.05}	\N	\N
+68	2026-08-30 17:08:57.410222+08	2026-08-19	score_coverage	fct.score	warning	t	{"ms": 41, "value": true}	{"min_coverage": 0.95}	\N	\N
+70	2026-08-30 17:08:58.284105+08	2026-08-19	sector_member_valid	ref.sector_member	warning	f	{"ms": 143, "value": false}	\N	\N	\N
+72	2026-08-30 17:08:59.034268+08	2026-08-19	score_range	fct.score	error	t	{"ms": 20, "value": true}	\N	\N	\N
+74	2026-08-30 17:08:59.051154+08	2026-08-19	weight_sum	config.binding	error	t	{"ms": 1, "value": true}	\N	\N	\N
+76	2026-08-30 17:08:59.060501+08	2026-08-20	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+78	2026-08-30 17:08:59.065746+08	2026-08-20	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+80	2026-08-30 17:08:59.071667+08	2026-08-20	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+82	2026-08-30 17:08:59.151614+08	2026-08-20	daily_row_count	md.stock_daily	error	t	{"ms": 2, "value": true}	{"min": 4800}	\N	\N
+84	2026-08-30 17:08:59.169316+08	2026-08-20	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+86	2026-08-30 17:08:59.189963+08	2026-08-20	null_rate	md.stock_daily	error	t	{"ms": 16, "value": true}	{"max_pct": 0.1}	\N	\N
+88	2026-08-30 17:09:01.427644+08	2026-08-20	no_gap	md.stock_daily	error	t	{"ms": 9, "value": true}	\N	\N	\N
+90	2026-08-30 17:09:01.763165+08	2026-08-20	row_count_drift	md.stock_daily	warning	t	{"ms": 94, "value": true}	{"max_drift": 0.05}	\N	\N
+92	2026-08-30 17:09:01.825578+08	2026-08-20	score_coverage	fct.score	warning	t	{"ms": 48, "value": true}	{"min_coverage": 0.95}	\N	\N
+94	2026-08-30 17:09:02.820587+08	2026-08-20	sector_member_valid	ref.sector_member	warning	f	{"ms": 231, "value": false}	\N	\N	\N
+96	2026-08-30 17:09:03.493186+08	2026-08-20	score_range	fct.score	error	t	{"ms": 20, "value": true}	\N	\N	\N
+98	2026-08-30 17:09:03.510386+08	2026-08-20	weight_sum	config.binding	error	t	{"ms": 2, "value": true}	\N	\N	\N
+100	2026-08-30 17:09:03.52082+08	2026-08-21	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+102	2026-08-30 17:09:03.53037+08	2026-08-21	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+104	2026-08-30 17:09:03.536653+08	2026-08-21	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+106	2026-08-30 17:09:03.620163+08	2026-08-21	daily_row_count	md.stock_daily	error	t	{"ms": 2, "value": true}	{"min": 4800}	\N	\N
+108	2026-08-30 17:09:03.63952+08	2026-08-21	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+110	2026-08-30 17:09:03.6534+08	2026-08-21	null_rate	md.stock_daily	error	t	{"ms": 9, "value": true}	{"max_pct": 0.1}	\N	\N
+112	2026-08-30 17:09:05.900206+08	2026-08-21	no_gap	md.stock_daily	error	t	{"ms": 6, "value": true}	\N	\N	\N
+114	2026-08-30 17:09:06.252778+08	2026-08-21	row_count_drift	md.stock_daily	warning	t	{"ms": 97, "value": true}	{"max_drift": 0.05}	\N	\N
+116	2026-08-30 17:09:06.306596+08	2026-08-21	score_coverage	fct.score	warning	t	{"ms": 40, "value": true}	{"min_coverage": 0.95}	\N	\N
+118	2026-08-30 17:09:07.212789+08	2026-08-21	sector_member_valid	ref.sector_member	warning	f	{"ms": 140, "value": false}	\N	\N	\N
+120	2026-08-30 17:09:08.020761+08	2026-08-21	score_range	fct.score	error	t	{"ms": 20, "value": true}	\N	\N	\N
+122	2026-08-30 17:09:08.042937+08	2026-08-21	weight_sum	config.binding	error	t	{"ms": 1, "value": true}	\N	\N	\N
+124	2026-08-30 17:09:08.051465+08	2026-08-24	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+126	2026-08-30 17:09:08.056764+08	2026-08-24	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+128	2026-08-30 17:09:08.06226+08	2026-08-24	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+130	2026-08-30 17:09:08.146304+08	2026-08-24	daily_row_count	md.stock_daily	error	t	{"ms": 2, "value": true}	{"min": 4800}	\N	\N
+132	2026-08-30 17:09:08.164484+08	2026-08-24	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+134	2026-08-30 17:09:08.176988+08	2026-08-24	null_rate	md.stock_daily	error	t	{"ms": 8, "value": true}	{"max_pct": 0.1}	\N	\N
+136	2026-08-30 17:09:10.436244+08	2026-08-24	no_gap	md.stock_daily	error	t	{"ms": 6, "value": true}	\N	\N	\N
+138	2026-08-30 17:09:10.758257+08	2026-08-24	row_count_drift	md.stock_daily	warning	t	{"ms": 88, "value": true}	{"max_drift": 0.05}	\N	\N
+140	2026-08-30 17:09:10.815585+08	2026-08-24	score_coverage	fct.score	warning	t	{"ms": 43, "value": true}	{"min_coverage": 0.95}	\N	\N
+142	2026-08-30 17:09:11.850719+08	2026-08-24	sector_member_valid	ref.sector_member	warning	f	{"ms": 152, "value": false}	\N	\N	\N
+144	2026-08-30 17:09:12.620083+08	2026-08-24	score_range	fct.score	error	t	{"ms": 21, "value": true}	\N	\N	\N
+146	2026-08-30 17:09:12.637553+08	2026-08-24	weight_sum	config.binding	error	t	{"ms": 2, "value": true}	\N	\N	\N
+148	2026-08-30 17:09:12.645891+08	2026-08-25	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+150	2026-08-30 17:09:12.651432+08	2026-08-25	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+253	2026-08-31 22:19:49.342931+08	2026-08-31	index_present	md.index_daily	error	t	{"ms": 2, "value": true}	\N	\N	\N
+47	2026-08-30 17:08:54.562844+08	2026-08-18	score_not_constant	fct.score_detail	error	t	{"ms": 768, "value": true}	\N	\N	\N
+49	2026-08-30 17:08:54.606359+08	2026-08-18	score_stale_check	fct.score	warning	t	{"ms": 11, "value": true}	\N	\N	\N
+51	2026-08-30 17:08:54.617587+08	2026-08-19	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+53	2026-08-30 17:08:54.62324+08	2026-08-19	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+55	2026-08-30 17:08:54.628343+08	2026-08-19	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+57	2026-08-30 17:08:54.708871+08	2026-08-19	board_coverage	ref.security	error	t	{"ms": 76, "value": true}	\N	\N	\N
+59	2026-08-30 17:08:54.728998+08	2026-08-19	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 14, "value": true}	\N	\N	\N
+61	2026-08-30 17:08:54.734452+08	2026-08-19	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+63	2026-08-30 17:08:56.990231+08	2026-08-19	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 2231, "value": true}	\N	\N	\N
+65	2026-08-30 17:08:57.273606+08	2026-08-19	pre_close_chain	md.stock_daily	error	t	{"ms": 272, "value": true}	\N	\N	\N
+67	2026-08-30 17:08:57.367034+08	2026-08-19	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 10, "value": true}	{"tolerance": 0.005}	\N	\N
+69	2026-08-30 17:08:58.138512+08	2026-08-19	sector_key_aligned	ref.sector_member	error	t	{"ms": 726, "value": true}	\N	\N	\N
+71	2026-08-30 17:08:59.012157+08	2026-08-19	score_not_constant	fct.score_detail	error	t	{"ms": 726, "value": true}	\N	\N	\N
+73	2026-08-30 17:08:59.047628+08	2026-08-19	score_stale_check	fct.score	warning	t	{"ms": 11, "value": true}	\N	\N	\N
+75	2026-08-30 17:08:59.057714+08	2026-08-20	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+77	2026-08-30 17:08:59.063127+08	2026-08-20	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+79	2026-08-30 17:08:59.068955+08	2026-08-20	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+81	2026-08-30 17:08:59.145632+08	2026-08-20	board_coverage	ref.security	error	t	{"ms": 72, "value": true}	\N	\N	\N
+83	2026-08-30 17:08:59.166469+08	2026-08-20	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 13, "value": true}	\N	\N	\N
+85	2026-08-30 17:08:59.171995+08	2026-08-20	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+87	2026-08-30 17:09:01.416277+08	2026-08-20	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 2224, "value": true}	\N	\N	\N
+89	2026-08-30 17:09:01.667052+08	2026-08-20	pre_close_chain	md.stock_daily	error	t	{"ms": 237, "value": true}	\N	\N	\N
+91	2026-08-30 17:09:01.775387+08	2026-08-20	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 10, "value": true}	{"tolerance": 0.005}	\N	\N
+93	2026-08-30 17:09:02.587227+08	2026-08-20	sector_key_aligned	ref.sector_member	error	t	{"ms": 759, "value": true}	\N	\N	\N
+95	2026-08-30 17:09:03.4709+08	2026-08-20	score_not_constant	fct.score_detail	error	t	{"ms": 648, "value": true}	\N	\N	\N
+97	2026-08-30 17:09:03.506329+08	2026-08-20	score_stale_check	fct.score	warning	t	{"ms": 11, "value": true}	\N	\N	\N
+99	2026-08-30 17:09:03.517222+08	2026-08-21	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+101	2026-08-30 17:09:03.526095+08	2026-08-21	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+103	2026-08-30 17:09:03.533714+08	2026-08-21	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+105	2026-08-30 17:09:03.615761+08	2026-08-21	board_coverage	ref.security	error	t	{"ms": 77, "value": true}	\N	\N	\N
+107	2026-08-30 17:09:03.636921+08	2026-08-21	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 15, "value": true}	\N	\N	\N
+109	2026-08-30 17:09:03.642259+08	2026-08-21	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+111	2026-08-30 17:09:05.891913+08	2026-08-21	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 2236, "value": true}	\N	\N	\N
+113	2026-08-30 17:09:06.153601+08	2026-08-21	pre_close_chain	md.stock_daily	error	t	{"ms": 244, "value": true}	\N	\N	\N
+115	2026-08-30 17:09:06.264583+08	2026-08-21	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 10, "value": true}	{"tolerance": 0.005}	\N	\N
+117	2026-08-30 17:09:07.070772+08	2026-08-21	sector_key_aligned	ref.sector_member	error	t	{"ms": 762, "value": true}	\N	\N	\N
+119	2026-08-30 17:09:07.998024+08	2026-08-21	score_not_constant	fct.score_detail	error	t	{"ms": 783, "value": true}	\N	\N	\N
+121	2026-08-30 17:09:08.039518+08	2026-08-21	score_stale_check	fct.score	warning	t	{"ms": 17, "value": true}	\N	\N	\N
+123	2026-08-30 17:09:08.04854+08	2026-08-24	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+125	2026-08-30 17:09:08.054177+08	2026-08-24	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+127	2026-08-30 17:09:08.059461+08	2026-08-24	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+129	2026-08-30 17:09:08.142434+08	2026-08-24	board_coverage	ref.security	error	t	{"ms": 78, "value": true}	\N	\N	\N
+131	2026-08-30 17:09:08.161666+08	2026-08-24	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 13, "value": true}	\N	\N	\N
+133	2026-08-30 17:09:08.167154+08	2026-08-24	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+135	2026-08-30 17:09:10.427376+08	2026-08-24	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 2248, "value": true}	\N	\N	\N
+137	2026-08-30 17:09:10.66869+08	2026-08-24	pre_close_chain	md.stock_daily	error	t	{"ms": 230, "value": true}	\N	\N	\N
+139	2026-08-30 17:09:10.769935+08	2026-08-24	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 10, "value": true}	{"tolerance": 0.005}	\N	\N
+141	2026-08-30 17:09:11.696037+08	2026-08-24	sector_key_aligned	ref.sector_member	error	t	{"ms": 878, "value": true}	\N	\N	\N
+143	2026-08-30 17:09:12.596638+08	2026-08-24	score_not_constant	fct.score_detail	error	t	{"ms": 744, "value": true}	\N	\N	\N
+145	2026-08-30 17:09:12.633934+08	2026-08-24	score_stale_check	fct.score	warning	t	{"ms": 12, "value": true}	\N	\N	\N
+147	2026-08-30 17:09:12.64309+08	2026-08-25	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+149	2026-08-30 17:09:12.648488+08	2026-08-25	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+151	2026-08-30 17:09:12.654197+08	2026-08-25	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+153	2026-08-30 17:09:12.749719+08	2026-08-25	board_coverage	ref.security	error	t	{"ms": 91, "value": true}	\N	\N	\N
+152	2026-08-30 17:09:12.657034+08	2026-08-25	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+154	2026-08-30 17:09:12.753484+08	2026-08-25	daily_row_count	md.stock_daily	error	t	{"ms": 2, "value": true}	{"min": 4800}	\N	\N
+156	2026-08-30 17:09:12.781721+08	2026-08-25	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+158	2026-08-30 17:09:12.792291+08	2026-08-25	null_rate	md.stock_daily	error	t	{"ms": 6, "value": true}	{"max_pct": 0.1}	\N	\N
+160	2026-08-30 17:09:15.031869+08	2026-08-25	no_gap	md.stock_daily	error	t	{"ms": 10, "value": true}	\N	\N	\N
+162	2026-08-30 17:09:15.355432+08	2026-08-25	row_count_drift	md.stock_daily	warning	t	{"ms": 78, "value": true}	{"max_drift": 0.05}	\N	\N
+164	2026-08-30 17:09:15.4079+08	2026-08-25	score_coverage	fct.score	warning	t	{"ms": 38, "value": true}	{"min_coverage": 0.95}	\N	\N
+166	2026-08-30 17:09:16.316186+08	2026-08-25	sector_member_valid	ref.sector_member	warning	f	{"ms": 142, "value": false}	\N	\N	\N
+168	2026-08-30 17:09:17.056622+08	2026-08-25	score_range	fct.score	error	t	{"ms": 20, "value": true}	\N	\N	\N
+170	2026-08-30 17:09:17.072511+08	2026-08-25	weight_sum	config.binding	error	t	{"ms": 1, "value": true}	\N	\N	\N
+172	2026-08-30 17:09:17.080235+08	2026-08-26	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+174	2026-08-30 17:09:17.085835+08	2026-08-26	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+176	2026-08-30 17:09:17.090782+08	2026-08-26	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+178	2026-08-30 17:09:17.112643+08	2026-08-26	daily_row_count	md.stock_daily	error	t	{"ms": 2, "value": true}	{"min": 4800}	\N	\N
+180	2026-08-30 17:09:17.126538+08	2026-08-26	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+182	2026-08-30 17:09:17.140308+08	2026-08-26	null_rate	md.stock_daily	error	t	{"ms": 9, "value": true}	{"max_pct": 0.1}	\N	\N
+184	2026-08-30 17:09:19.465166+08	2026-08-26	no_gap	md.stock_daily	error	t	{"ms": 8, "value": true}	\N	\N	\N
+186	2026-08-30 17:09:19.805781+08	2026-08-26	row_count_drift	md.stock_daily	warning	t	{"ms": 96, "value": true}	{"max_drift": 0.05}	\N	\N
+188	2026-08-30 17:09:19.866983+08	2026-08-26	score_coverage	fct.score	warning	t	{"ms": 47, "value": true}	{"min_coverage": 0.95}	\N	\N
+190	2026-08-30 17:09:20.782438+08	2026-08-26	sector_member_valid	ref.sector_member	warning	f	{"ms": 136, "value": false}	\N	\N	\N
+192	2026-08-30 17:09:21.553372+08	2026-08-26	score_range	fct.score	error	t	{"ms": 23, "value": true}	\N	\N	\N
+194	2026-08-30 17:09:21.570541+08	2026-08-26	weight_sum	config.binding	error	t	{"ms": 1, "value": true}	\N	\N	\N
+196	2026-08-30 17:09:21.578191+08	2026-08-27	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+198	2026-08-30 17:09:21.583831+08	2026-08-27	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+200	2026-08-30 17:09:21.59002+08	2026-08-27	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+202	2026-08-30 17:09:21.610991+08	2026-08-27	daily_row_count	md.stock_daily	error	t	{"ms": 2, "value": true}	{"min": 4800}	\N	\N
+204	2026-08-30 17:09:21.625051+08	2026-08-27	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+206	2026-08-30 17:09:21.632123+08	2026-08-27	null_rate	md.stock_daily	error	t	{"ms": 3, "value": true}	{"max_pct": 0.1}	\N	\N
+208	2026-08-30 17:09:23.921791+08	2026-08-27	no_gap	md.stock_daily	error	t	{"ms": 7, "value": true}	\N	\N	\N
+210	2026-08-30 17:09:24.148899+08	2026-08-27	row_count_drift	md.stock_daily	warning	t	{"ms": 85, "value": true}	{"max_drift": 0.05}	\N	\N
+212	2026-08-30 17:09:24.230125+08	2026-08-27	score_coverage	fct.score	warning	t	{"ms": 67, "value": true}	{"min_coverage": 0.95}	\N	\N
+214	2026-08-30 17:09:25.130276+08	2026-08-27	sector_member_valid	ref.sector_member	warning	f	{"ms": 145, "value": false}	\N	\N	\N
+216	2026-08-30 17:09:25.906021+08	2026-08-27	score_range	fct.score	error	t	{"ms": 21, "value": true}	\N	\N	\N
+218	2026-08-30 17:09:25.929261+08	2026-08-27	weight_sum	config.binding	error	t	{"ms": 1, "value": true}	\N	\N	\N
+220	2026-08-30 17:09:25.94025+08	2026-08-28	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+222	2026-08-30 17:09:25.946266+08	2026-08-28	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+224	2026-08-30 17:09:25.951737+08	2026-08-28	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+226	2026-08-30 17:09:25.972114+08	2026-08-28	daily_row_count	md.stock_daily	error	t	{"ms": 2, "value": true}	{"min": 4800}	\N	\N
+228	2026-08-30 17:09:25.985277+08	2026-08-28	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+230	2026-08-30 17:09:25.993426+08	2026-08-28	null_rate	md.stock_daily	error	t	{"ms": 3, "value": true}	{"max_pct": 0.1}	\N	\N
+232	2026-08-30 17:09:28.242396+08	2026-08-28	no_gap	md.stock_daily	error	t	{"ms": 5, "value": true}	\N	\N	\N
+234	2026-08-30 17:09:28.473267+08	2026-08-28	row_count_drift	md.stock_daily	warning	t	{"ms": 96, "value": true}	{"max_drift": 0.05}	\N	\N
+236	2026-08-30 17:09:28.534744+08	2026-08-28	score_coverage	fct.score	warning	t	{"ms": 47, "value": true}	{"min_coverage": 0.95}	\N	\N
+238	2026-08-30 17:09:29.439062+08	2026-08-28	sector_member_valid	ref.sector_member	warning	f	{"ms": 148, "value": false}	\N	\N	\N
+240	2026-08-30 17:09:30.205697+08	2026-08-28	score_range	fct.score	error	t	{"ms": 27, "value": true}	\N	\N	\N
+242	2026-08-30 17:09:30.225604+08	2026-08-28	weight_sum	config.binding	error	t	{"ms": 1, "value": true}	\N	\N	\N
+155	2026-08-30 17:09:12.778672+08	2026-08-25	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 23, "value": true}	\N	\N	\N
+157	2026-08-30 17:09:12.784394+08	2026-08-25	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+159	2026-08-30 17:09:15.01914+08	2026-08-25	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 2225, "value": true}	\N	\N	\N
+161	2026-08-30 17:09:15.274316+08	2026-08-25	pre_close_chain	md.stock_daily	error	t	{"ms": 240, "value": true}	\N	\N	\N
+163	2026-08-30 17:09:15.367569+08	2026-08-25	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 10, "value": true}	{"tolerance": 0.005}	\N	\N
+165	2026-08-30 17:09:16.171995+08	2026-08-25	sector_key_aligned	ref.sector_member	error	t	{"ms": 762, "value": true}	\N	\N	\N
+167	2026-08-30 17:09:17.035112+08	2026-08-25	score_not_constant	fct.score_detail	error	t	{"ms": 716, "value": true}	\N	\N	\N
+169	2026-08-30 17:09:17.069767+08	2026-08-25	score_stale_check	fct.score	warning	t	{"ms": 11, "value": true}	\N	\N	\N
+171	2026-08-30 17:09:17.077602+08	2026-08-26	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+173	2026-08-30 17:09:17.083011+08	2026-08-26	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+175	2026-08-30 17:09:17.088356+08	2026-08-26	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+177	2026-08-30 17:09:17.108336+08	2026-08-26	board_coverage	ref.security	error	t	{"ms": 16, "value": true}	\N	\N	\N
+179	2026-08-30 17:09:17.123685+08	2026-08-26	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 9, "value": true}	\N	\N	\N
+181	2026-08-30 17:09:17.129377+08	2026-08-26	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+183	2026-08-30 17:09:19.45451+08	2026-08-26	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 2312, "value": true}	\N	\N	\N
+185	2026-08-30 17:09:19.707377+08	2026-08-26	pre_close_chain	md.stock_daily	error	f	{"ms": 240, "value": false}	\N	\N	\N
+187	2026-08-30 17:09:19.817873+08	2026-08-26	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 10, "value": true}	{"tolerance": 0.005}	\N	\N
+189	2026-08-30 17:09:20.644838+08	2026-08-26	sector_key_aligned	ref.sector_member	error	t	{"ms": 776, "value": true}	\N	\N	\N
+191	2026-08-30 17:09:21.528213+08	2026-08-26	score_not_constant	fct.score_detail	error	t	{"ms": 744, "value": true}	\N	\N	\N
+193	2026-08-30 17:09:21.567656+08	2026-08-26	score_stale_check	fct.score	warning	t	{"ms": 12, "value": true}	\N	\N	\N
+195	2026-08-30 17:09:21.575599+08	2026-08-27	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+197	2026-08-30 17:09:21.581195+08	2026-08-27	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+199	2026-08-30 17:09:21.586831+08	2026-08-27	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+201	2026-08-30 17:09:21.607245+08	2026-08-27	board_coverage	ref.security	error	t	{"ms": 15, "value": true}	\N	\N	\N
+203	2026-08-30 17:09:21.622544+08	2026-08-27	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 10, "value": true}	\N	\N	\N
+205	2026-08-30 17:09:21.627595+08	2026-08-27	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+207	2026-08-30 17:09:23.911915+08	2026-08-27	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 2278, "value": true}	\N	\N	\N
+209	2026-08-30 17:09:24.061242+08	2026-08-27	pre_close_chain	md.stock_daily	error	t	{"ms": 137, "value": true}	\N	\N	\N
+211	2026-08-30 17:09:24.16052+08	2026-08-27	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 10, "value": true}	{"tolerance": 0.005}	\N	\N
+213	2026-08-30 17:09:24.982551+08	2026-08-27	sector_key_aligned	ref.sector_member	error	t	{"ms": 750, "value": true}	\N	\N	\N
+215	2026-08-30 17:09:25.882501+08	2026-08-27	score_not_constant	fct.score_detail	error	t	{"ms": 750, "value": true}	\N	\N	\N
+217	2026-08-30 17:09:25.92547+08	2026-08-27	score_stale_check	fct.score	warning	t	{"ms": 14, "value": true}	\N	\N	\N
+219	2026-08-30 17:09:25.936693+08	2026-08-28	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+221	2026-08-30 17:09:25.943466+08	2026-08-28	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+223	2026-08-30 17:09:25.949101+08	2026-08-28	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+225	2026-08-30 17:09:25.968234+08	2026-08-28	board_coverage	ref.security	error	t	{"ms": 15, "value": true}	\N	\N	\N
+227	2026-08-30 17:09:25.98274+08	2026-08-28	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 9, "value": true}	\N	\N	\N
+229	2026-08-30 17:09:25.988774+08	2026-08-28	index_present	md.index_daily	error	t	{"ms": 2, "value": true}	\N	\N	\N
+231	2026-08-30 17:09:28.234586+08	2026-08-28	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 2239, "value": true}	\N	\N	\N
+233	2026-08-30 17:09:28.374663+08	2026-08-28	pre_close_chain	md.stock_daily	error	t	{"ms": 130, "value": true}	\N	\N	\N
+235	2026-08-30 17:09:28.48509+08	2026-08-28	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 10, "value": true}	{"tolerance": 0.005}	\N	\N
+237	2026-08-30 17:09:29.289065+08	2026-08-28	sector_key_aligned	ref.sector_member	error	t	{"ms": 752, "value": true}	\N	\N	\N
+239	2026-08-30 17:09:30.175736+08	2026-08-28	score_not_constant	fct.score_detail	error	t	{"ms": 734, "value": true}	\N	\N	\N
+241	2026-08-30 17:09:30.221983+08	2026-08-28	score_stale_check	fct.score	warning	t	{"ms": 13, "value": true}	\N	\N	\N
+243	2026-08-31 22:19:49.17458+08	2026-08-31	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+244	2026-08-31 22:19:49.280575+08	2026-08-31	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+245	2026-08-31 22:19:49.285382+08	2026-08-31	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+246	2026-08-31 22:19:49.288455+08	2026-08-31	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+247	2026-08-31 22:19:49.291343+08	2026-08-31	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+248	2026-08-31 22:19:49.294477+08	2026-08-31	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+249	2026-08-31 22:19:49.314499+08	2026-08-31	board_coverage	ref.security	error	t	{"ms": 18, "value": true}	\N	\N	\N
+250	2026-08-31 22:19:49.321538+08	2026-08-31	daily_row_count	md.stock_daily	error	t	{"ms": 5, "value": true}	{"min": 4800}	\N	\N
+251	2026-08-31 22:19:49.335707+08	2026-08-31	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 12, "value": true}	\N	\N	\N
+252	2026-08-31 22:19:49.339247+08	2026-08-31	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+254	2026-08-31 22:19:49.349861+08	2026-08-31	null_rate	md.stock_daily	error	t	{"ms": 5, "value": true}	{"max_pct": 0.1}	\N	\N
+256	2026-08-31 22:19:51.11945+08	2026-08-31	no_gap	md.stock_daily	error	t	{"ms": 25, "value": true}	\N	\N	\N
+258	2026-08-31 22:19:51.377483+08	2026-08-31	row_count_drift	md.stock_daily	warning	t	{"ms": 83, "value": true}	{"max_drift": 0.05}	\N	\N
+260	2026-08-31 22:19:51.466333+08	2026-08-31	score_coverage	fct.score	warning	t	{"ms": 42, "value": true}	{"min_coverage": 0.95}	\N	\N
+262	2026-08-31 22:19:52.453695+08	2026-08-31	sector_member_valid	ref.sector_member	warning	f	{"ms": 167, "value": false}	\N	\N	\N
+264	2026-08-31 22:19:53.260173+08	2026-08-31	score_range	fct.score	error	t	{"ms": 25, "value": true}	\N	\N	\N
+266	2026-08-31 22:19:53.285687+08	2026-08-31	weight_sum	config.binding	error	t	{"ms": 5, "value": true}	\N	\N	\N
+255	2026-08-31 22:19:51.092326+08	2026-08-31	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 1740, "value": true}	\N	\N	\N
+257	2026-08-31 22:19:51.292478+08	2026-08-31	pre_close_chain	md.stock_daily	error	t	{"ms": 171, "value": true}	\N	\N	\N
+259	2026-08-31 22:19:51.421467+08	2026-08-31	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 42, "value": true}	{"tolerance": 0.005}	\N	\N
+261	2026-08-31 22:19:52.284786+08	2026-08-31	sector_key_aligned	ref.sector_member	error	t	{"ms": 816, "value": true}	\N	\N	\N
+263	2026-08-31 22:19:53.232865+08	2026-08-31	score_not_constant	fct.score_detail	error	t	{"ms": 777, "value": true}	\N	\N	\N
+265	2026-08-31 22:19:53.278788+08	2026-08-31	score_stale_check	fct.score	warning	t	{"ms": 17, "value": true}	\N	\N	\N
+267	2026-09-02 22:40:50.862815+08	2026-09-01	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+268	2026-09-02 22:40:50.944525+08	2026-09-01	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+269	2026-09-02 22:40:50.949595+08	2026-09-01	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+270	2026-09-02 22:40:50.952512+08	2026-09-01	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+271	2026-09-02 22:40:50.955445+08	2026-09-01	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+272	2026-09-02 22:40:50.95882+08	2026-09-01	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+273	2026-09-02 22:40:51.000926+08	2026-09-01	board_coverage	ref.security	error	t	{"ms": 39, "value": true}	\N	\N	\N
+274	2026-09-02 22:40:51.008379+08	2026-09-01	daily_row_count	md.stock_daily	error	t	{"ms": 5, "value": true}	{"min": 4800}	\N	\N
+275	2026-09-02 22:40:51.023977+08	2026-09-01	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 13, "value": true}	\N	\N	\N
+276	2026-09-02 22:40:51.030676+08	2026-09-01	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+277	2026-09-02 22:40:51.034334+08	2026-09-01	index_present	md.index_daily	error	t	{"ms": 2, "value": true}	\N	\N	\N
+278	2026-09-02 22:40:51.049851+08	2026-09-01	null_rate	md.stock_daily	error	t	{"ms": 13, "value": true}	{"max_pct": 0.1}	\N	\N
+279	2026-09-02 22:40:52.708+08	2026-09-01	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 1656, "value": true}	\N	\N	\N
+280	2026-09-02 22:40:52.741051+08	2026-09-01	no_gap	md.stock_daily	error	t	{"ms": 26, "value": true}	\N	\N	\N
+281	2026-09-02 22:40:52.957724+08	2026-09-01	pre_close_chain	md.stock_daily	error	t	{"ms": 215, "value": true}	\N	\N	\N
+282	2026-09-02 22:40:53.064173+08	2026-09-01	row_count_drift	md.stock_daily	warning	t	{"ms": 104, "value": true}	{"max_drift": 0.05}	\N	\N
+283	2026-09-02 22:40:53.165825+08	2026-09-01	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 99, "value": true}	{"tolerance": 0.005}	\N	\N
+284	2026-09-02 22:40:53.172038+08	2026-09-01	score_coverage	fct.score	warning	f	{"ms": 4, "value": false}	{"min_coverage": 0.95}	\N	\N
+285	2026-09-02 22:40:56.113208+08	2026-09-01	sector_key_aligned	ref.sector_member	error	t	{"ms": 2939, "value": true}	\N	\N	\N
+286	2026-09-02 22:40:56.276573+08	2026-09-01	sector_member_valid	ref.sector_member	warning	f	{"ms": 161, "value": false}	\N	\N	\N
+287	2026-09-02 22:40:56.580561+08	2026-09-01	score_not_constant	fct.score_detail	error	t	{"ms": 302, "value": true}	\N	\N	\N
+288	2026-09-02 22:40:56.584042+08	2026-09-01	score_range	fct.score	error	t	{"ms": 1, "value": true}	\N	\N	\N
+289	2026-09-02 22:40:56.58743+08	2026-09-01	score_stale_check	fct.score	warning	t	{"ms": 2, "value": true}	\N	\N	\N
+290	2026-09-02 22:40:56.65516+08	2026-09-01	weight_sum	config.binding	error	t	{"ms": 66, "value": true}	\N	\N	\N
+291	2026-09-02 22:40:56.662382+08	2026-09-02	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+292	2026-09-02 22:40:56.665731+08	2026-09-02	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+293	2026-09-02 22:40:56.668789+08	2026-09-02	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+294	2026-09-02 22:40:56.671593+08	2026-09-02	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+295	2026-09-02 22:40:56.674306+08	2026-09-02	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+296	2026-09-02 22:40:56.676844+08	2026-09-02	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+297	2026-09-02 22:40:56.687547+08	2026-09-02	board_coverage	ref.security	error	t	{"ms": 9, "value": true}	\N	\N	\N
+298	2026-09-02 22:40:56.691874+08	2026-09-02	daily_row_count	md.stock_daily	error	t	{"ms": 3, "value": true}	{"min": 4800}	\N	\N
+299	2026-09-02 22:40:56.70248+08	2026-09-02	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 9, "value": true}	\N	\N	\N
+300	2026-09-02 22:40:56.7053+08	2026-09-02	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+301	2026-09-02 22:40:56.707994+08	2026-09-02	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+302	2026-09-02 22:40:56.713197+08	2026-09-02	null_rate	md.stock_daily	error	t	{"ms": 3, "value": true}	{"max_pct": 0.1}	\N	\N
+303	2026-09-02 22:40:58.569617+08	2026-09-02	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 1854, "value": true}	\N	\N	\N
+304	2026-09-02 22:40:58.575823+08	2026-09-02	no_gap	md.stock_daily	error	t	{"ms": 4, "value": true}	\N	\N	\N
+305	2026-09-02 22:40:58.70555+08	2026-09-02	pre_close_chain	md.stock_daily	error	t	{"ms": 128, "value": true}	\N	\N	\N
+306	2026-09-02 22:40:58.787754+08	2026-09-02	row_count_drift	md.stock_daily	warning	t	{"ms": 80, "value": true}	{"max_drift": 0.05}	\N	\N
+307	2026-09-02 22:40:58.799957+08	2026-09-02	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 10, "value": true}	{"tolerance": 0.005}	\N	\N
+308	2026-09-02 22:40:58.803934+08	2026-09-02	score_coverage	fct.score	warning	f	{"ms": 2, "value": false}	{"min_coverage": 0.95}	\N	\N
+309	2026-09-02 22:40:59.592602+08	2026-09-02	sector_key_aligned	ref.sector_member	error	t	{"ms": 787, "value": true}	\N	\N	\N
+310	2026-09-02 22:40:59.7532+08	2026-09-02	sector_member_valid	ref.sector_member	warning	f	{"ms": 158, "value": false}	\N	\N	\N
+311	2026-09-02 22:40:59.98866+08	2026-09-02	score_not_constant	fct.score_detail	error	t	{"ms": 233, "value": true}	\N	\N	\N
+312	2026-09-02 22:40:59.991664+08	2026-09-02	score_range	fct.score	error	t	{"ms": 1, "value": true}	\N	\N	\N
+313	2026-09-02 22:40:59.994129+08	2026-09-02	score_stale_check	fct.score	warning	t	{"ms": 1, "value": true}	\N	\N	\N
+314	2026-09-02 22:40:59.997247+08	2026-09-02	weight_sum	config.binding	error	t	{"ms": 1, "value": true}	\N	\N	\N
+315	2026-09-09 20:10:12.056957+08	2026-09-03	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+316	2026-09-09 20:10:12.077101+08	2026-09-03	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+317	2026-09-09 20:10:12.081016+08	2026-09-03	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+318	2026-09-09 20:10:12.084497+08	2026-09-03	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+319	2026-09-09 20:10:12.087994+08	2026-09-03	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+320	2026-09-09 20:10:12.091661+08	2026-09-03	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+321	2026-09-09 20:10:12.2455+08	2026-09-03	board_coverage	ref.security	error	t	{"ms": 151, "value": true}	\N	\N	\N
+322	2026-09-09 20:10:12.252862+08	2026-09-03	daily_row_count	md.stock_daily	error	t	{"ms": 5, "value": true}	{"min": 4800}	\N	\N
+323	2026-09-09 20:10:12.270886+08	2026-09-03	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 14, "value": true}	\N	\N	\N
+324	2026-09-09 20:10:12.274423+08	2026-09-03	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+325	2026-09-09 20:10:12.338237+08	2026-09-03	index_present	md.index_daily	error	t	{"ms": 62, "value": true}	\N	\N	\N
+326	2026-09-09 20:10:12.347058+08	2026-09-03	null_rate	md.stock_daily	error	t	{"ms": 6, "value": true}	{"max_pct": 0.1}	\N	\N
+327	2026-09-09 20:10:13.885488+08	2026-09-03	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 1536, "value": true}	\N	\N	\N
+328	2026-09-09 20:10:13.910328+08	2026-09-03	no_gap	md.stock_daily	error	t	{"ms": 23, "value": true}	\N	\N	\N
+329	2026-09-09 20:10:15.564839+08	2026-09-03	pre_close_chain	md.stock_daily	error	t	{"ms": 1651, "value": true}	\N	\N	\N
+330	2026-09-09 20:10:15.661656+08	2026-09-03	row_count_drift	md.stock_daily	warning	t	{"ms": 95, "value": true}	{"max_drift": 0.05}	\N	\N
+331	2026-09-09 20:10:15.72942+08	2026-09-03	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 65, "value": true}	{"tolerance": 0.005}	\N	\N
+332	2026-09-09 20:10:15.737252+08	2026-09-03	score_coverage	fct.score	warning	f	{"ms": 5, "value": false}	{"min_coverage": 0.95}	\N	\N
+333	2026-09-09 20:10:17.64159+08	2026-09-03	sector_key_aligned	ref.sector_member	error	t	{"ms": 1902, "value": true}	\N	\N	\N
+334	2026-09-09 20:10:17.971313+08	2026-09-03	sector_member_valid	ref.sector_member	warning	f	{"ms": 328, "value": false}	\N	\N	\N
+335	2026-09-09 20:10:18.212397+08	2026-09-03	score_not_constant	fct.score_detail	error	t	{"ms": 239, "value": true}	\N	\N	\N
+336	2026-09-09 20:10:18.215592+08	2026-09-03	score_range	fct.score	error	t	{"ms": 1, "value": true}	\N	\N	\N
+337	2026-09-09 20:10:18.218891+08	2026-09-03	score_stale_check	fct.score	warning	t	{"ms": 1, "value": true}	\N	\N	\N
+338	2026-09-09 20:10:18.226071+08	2026-09-03	weight_sum	config.binding	error	t	{"ms": 5, "value": true}	\N	\N	\N
+339	2026-09-15 00:21:02.720543+08	2026-09-04	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+340	2026-09-15 00:21:02.753148+08	2026-09-04	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+341	2026-09-15 00:21:02.756552+08	2026-09-04	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+342	2026-09-15 00:21:02.759926+08	2026-09-04	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+343	2026-09-15 00:21:02.763064+08	2026-09-04	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+344	2026-09-15 00:21:02.76698+08	2026-09-04	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+345	2026-09-15 00:21:02.806768+08	2026-09-04	board_coverage	ref.security	error	t	{"ms": 38, "value": true}	\N	\N	\N
+346	2026-09-15 00:21:02.813751+08	2026-09-04	daily_row_count	md.stock_daily	error	t	{"ms": 5, "value": true}	{"min": 4800}	\N	\N
+347	2026-09-15 00:21:02.827424+08	2026-09-04	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 12, "value": true}	\N	\N	\N
+348	2026-09-15 00:21:02.83037+08	2026-09-04	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+349	2026-09-15 00:21:02.833793+08	2026-09-04	index_present	md.index_daily	error	t	{"ms": 2, "value": true}	\N	\N	\N
+350	2026-09-15 00:21:02.84539+08	2026-09-04	null_rate	md.stock_daily	error	t	{"ms": 10, "value": true}	{"max_pct": 0.1}	\N	\N
+351	2026-09-15 00:21:05.209671+08	2026-09-04	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 2362, "value": true}	\N	\N	\N
+352	2026-09-15 00:21:05.244929+08	2026-09-04	no_gap	md.stock_daily	error	t	{"ms": 33, "value": true}	\N	\N	\N
+353	2026-09-15 00:21:05.396248+08	2026-09-04	pre_close_chain	md.stock_daily	error	t	{"ms": 145, "value": true}	\N	\N	\N
+354	2026-09-15 00:21:05.492236+08	2026-09-04	row_count_drift	md.stock_daily	warning	t	{"ms": 94, "value": true}	{"max_drift": 0.05}	\N	\N
+355	2026-09-15 00:21:05.548572+08	2026-09-04	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 54, "value": true}	{"tolerance": 0.005}	\N	\N
+356	2026-09-15 00:21:05.554495+08	2026-09-04	score_coverage	fct.score	warning	f	{"ms": 4, "value": false}	{"min_coverage": 0.95}	\N	\N
+357	2026-09-15 00:21:06.723348+08	2026-09-04	sector_key_aligned	ref.sector_member	error	t	{"ms": 1167, "value": true}	\N	\N	\N
+358	2026-09-15 00:21:06.897946+08	2026-09-04	sector_member_valid	ref.sector_member	warning	f	{"ms": 173, "value": false}	\N	\N	\N
+359	2026-09-15 00:21:07.256436+08	2026-09-04	score_not_constant	fct.score_detail	error	t	{"ms": 356, "value": true}	\N	\N	\N
+360	2026-09-15 00:21:07.259559+08	2026-09-04	score_range	fct.score	error	t	{"ms": 1, "value": true}	\N	\N	\N
+361	2026-09-15 00:21:07.263108+08	2026-09-04	score_stale_check	fct.score	warning	t	{"ms": 2, "value": true}	\N	\N	\N
+362	2026-09-15 00:21:07.269209+08	2026-09-04	weight_sum	config.binding	error	t	{"ms": 4, "value": true}	\N	\N	\N
+363	2026-09-15 00:21:07.275765+08	2026-09-07	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+364	2026-09-15 00:21:07.278809+08	2026-09-07	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+365	2026-09-15 00:21:07.28157+08	2026-09-07	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+366	2026-09-15 00:21:07.284313+08	2026-09-07	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+367	2026-09-15 00:21:07.287537+08	2026-09-07	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+368	2026-09-15 00:21:07.290306+08	2026-09-07	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+370	2026-09-15 00:21:07.325442+08	2026-09-07	daily_row_count	md.stock_daily	error	t	{"ms": 2, "value": true}	{"min": 4800}	\N	\N
+372	2026-09-15 00:21:07.350639+08	2026-09-07	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+374	2026-09-15 00:21:07.365132+08	2026-09-07	null_rate	md.stock_daily	error	t	{"ms": 9, "value": true}	{"max_pct": 0.1}	\N	\N
+376	2026-09-15 00:21:09.522888+08	2026-09-07	no_gap	md.stock_daily	error	t	{"ms": 6, "value": true}	\N	\N	\N
+378	2026-09-15 00:21:09.753937+08	2026-09-07	row_count_drift	md.stock_daily	warning	t	{"ms": 77, "value": true}	{"max_drift": 0.05}	\N	\N
+380	2026-09-15 00:21:09.769899+08	2026-09-07	score_coverage	fct.score	warning	f	{"ms": 2, "value": false}	{"min_coverage": 0.95}	\N	\N
+382	2026-09-15 00:21:10.642241+08	2026-09-07	sector_member_valid	ref.sector_member	warning	f	{"ms": 158, "value": false}	\N	\N	\N
+384	2026-09-15 00:21:10.97853+08	2026-09-07	score_range	fct.score	error	t	{"ms": 1, "value": true}	\N	\N	\N
+386	2026-09-15 00:21:10.984012+08	2026-09-07	weight_sum	config.binding	error	t	{"ms": 1, "value": true}	\N	\N	\N
+388	2026-09-15 00:21:10.991557+08	2026-09-08	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+390	2026-09-15 00:21:10.996646+08	2026-09-08	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+392	2026-09-15 00:21:11.001523+08	2026-09-08	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+394	2026-09-15 00:21:11.023817+08	2026-09-08	daily_row_count	md.stock_daily	error	t	{"ms": 2, "value": true}	{"min": 4800}	\N	\N
+396	2026-09-15 00:21:11.037074+08	2026-09-08	date_is_trading_day	md.stock_daily	error	t	{"ms": 0, "value": true}	\N	\N	\N
+398	2026-09-15 00:21:11.048114+08	2026-09-08	null_rate	md.stock_daily	error	t	{"ms": 7, "value": true}	{"max_pct": 0.1}	\N	\N
+400	2026-09-15 00:21:13.196419+08	2026-09-08	no_gap	md.stock_daily	error	t	{"ms": 6, "value": true}	\N	\N	\N
+402	2026-09-15 00:21:13.443647+08	2026-09-08	row_count_drift	md.stock_daily	warning	t	{"ms": 90, "value": true}	{"max_drift": 0.05}	\N	\N
+404	2026-09-15 00:21:13.498474+08	2026-09-08	score_coverage	fct.score	warning	t	{"ms": 41, "value": true}	{"min_coverage": 0.95}	\N	\N
+406	2026-09-15 00:21:14.330322+08	2026-09-08	sector_member_valid	ref.sector_member	warning	f	{"ms": 135, "value": false}	\N	\N	\N
+408	2026-09-15 00:21:15.576399+08	2026-09-08	score_range	fct.score	error	t	{"ms": 19, "value": true}	\N	\N	\N
+410	2026-09-15 00:21:15.593525+08	2026-09-08	weight_sum	config.binding	error	t	{"ms": 1, "value": true}	\N	\N	\N
+412	2026-09-15 00:21:15.602473+08	2026-09-09	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+414	2026-09-15 00:21:15.607506+08	2026-09-09	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+416	2026-09-15 00:21:15.612687+08	2026-09-09	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+418	2026-09-15 00:21:15.630625+08	2026-09-09	daily_row_count	md.stock_daily	error	t	{"ms": 2, "value": true}	{"min": 4800}	\N	\N
+420	2026-09-15 00:21:15.644024+08	2026-09-09	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+422	2026-09-15 00:21:15.654779+08	2026-09-09	null_rate	md.stock_daily	error	t	{"ms": 7, "value": true}	{"max_pct": 0.1}	\N	\N
+424	2026-09-15 00:21:17.790147+08	2026-09-09	no_gap	md.stock_daily	error	t	{"ms": 7, "value": true}	\N	\N	\N
+426	2026-09-15 00:21:18.04758+08	2026-09-09	row_count_drift	md.stock_daily	warning	t	{"ms": 93, "value": true}	{"max_drift": 0.05}	\N	\N
+428	2026-09-15 00:21:18.103858+08	2026-09-09	score_coverage	fct.score	warning	t	{"ms": 38, "value": true}	{"min_coverage": 0.95}	\N	\N
+430	2026-09-15 00:21:18.960917+08	2026-09-09	sector_member_valid	ref.sector_member	warning	f	{"ms": 137, "value": false}	\N	\N	\N
+432	2026-09-15 00:21:19.691161+08	2026-09-09	score_range	fct.score	error	t	{"ms": 20, "value": true}	\N	\N	\N
+434	2026-09-15 00:21:19.706985+08	2026-09-09	weight_sum	config.binding	error	t	{"ms": 1, "value": true}	\N	\N	\N
+436	2026-09-15 00:21:19.715087+08	2026-09-10	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+438	2026-09-15 00:21:19.720289+08	2026-09-10	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+440	2026-09-15 00:21:19.725346+08	2026-09-10	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+442	2026-09-15 00:21:19.743934+08	2026-09-10	daily_row_count	md.stock_daily	error	t	{"ms": 2, "value": true}	{"min": 4800}	\N	\N
+444	2026-09-15 00:21:19.758282+08	2026-09-10	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+446	2026-09-15 00:21:19.768698+08	2026-09-10	null_rate	md.stock_daily	error	t	{"ms": 6, "value": true}	{"max_pct": 0.1}	\N	\N
+448	2026-09-15 00:21:21.936381+08	2026-09-10	no_gap	md.stock_daily	error	t	{"ms": 5, "value": true}	\N	\N	\N
+450	2026-09-15 00:21:22.159805+08	2026-09-10	row_count_drift	md.stock_daily	warning	t	{"ms": 76, "value": true}	{"max_drift": 0.05}	\N	\N
+452	2026-09-15 00:21:22.210687+08	2026-09-10	score_coverage	fct.score	warning	t	{"ms": 38, "value": true}	{"min_coverage": 0.95}	\N	\N
+454	2026-09-15 00:21:23.082861+08	2026-09-10	sector_member_valid	ref.sector_member	warning	f	{"ms": 135, "value": false}	\N	\N	\N
+456	2026-09-15 00:21:23.827553+08	2026-09-10	score_range	fct.score	error	t	{"ms": 21, "value": true}	\N	\N	\N
+458	2026-09-15 00:21:23.843719+08	2026-09-10	weight_sum	config.binding	error	t	{"ms": 1, "value": true}	\N	\N	\N
+460	2026-09-15 00:21:23.851725+08	2026-09-11	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+462	2026-09-15 00:21:23.859856+08	2026-09-11	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+464	2026-09-15 00:21:23.864908+08	2026-09-11	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+466	2026-09-15 00:21:23.88442+08	2026-09-11	daily_row_count	md.stock_daily	error	t	{"ms": 2, "value": true}	{"min": 4800}	\N	\N
+468	2026-09-15 00:21:23.898011+08	2026-09-11	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+470	2026-09-15 00:21:23.908061+08	2026-09-11	null_rate	md.stock_daily	error	t	{"ms": 6, "value": true}	{"max_pct": 0.1}	\N	\N
+472	2026-09-15 00:21:26.059963+08	2026-09-11	no_gap	md.stock_daily	error	t	{"ms": 5, "value": true}	\N	\N	\N
+369	2026-09-15 00:21:07.321052+08	2026-09-07	board_coverage	ref.security	error	t	{"ms": 28, "value": true}	\N	\N	\N
+371	2026-09-15 00:21:07.347694+08	2026-09-07	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 20, "value": true}	\N	\N	\N
+373	2026-09-15 00:21:07.35374+08	2026-09-07	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+375	2026-09-15 00:21:09.514694+08	2026-09-07	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 2147, "value": true}	\N	\N	\N
+377	2026-09-15 00:21:09.67495+08	2026-09-07	pre_close_chain	md.stock_daily	error	t	{"ms": 150, "value": true}	\N	\N	\N
+379	2026-09-15 00:21:09.765975+08	2026-09-07	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 10, "value": true}	{"tolerance": 0.005}	\N	\N
+381	2026-09-15 00:21:10.482439+08	2026-09-07	sector_key_aligned	ref.sector_member	error	t	{"ms": 711, "value": true}	\N	\N	\N
+383	2026-09-15 00:21:10.975824+08	2026-09-07	score_not_constant	fct.score_detail	error	t	{"ms": 332, "value": true}	\N	\N	\N
+385	2026-09-15 00:21:10.980973+08	2026-09-07	score_stale_check	fct.score	warning	t	{"ms": 1, "value": true}	\N	\N	\N
+387	2026-09-15 00:21:10.989095+08	2026-09-08	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+389	2026-09-15 00:21:10.994062+08	2026-09-08	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+391	2026-09-15 00:21:10.999146+08	2026-09-08	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+393	2026-09-15 00:21:11.019934+08	2026-09-08	board_coverage	ref.security	error	t	{"ms": 17, "value": true}	\N	\N	\N
+395	2026-09-15 00:21:11.034917+08	2026-09-08	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 9, "value": true}	\N	\N	\N
+397	2026-09-15 00:21:11.039343+08	2026-09-08	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+399	2026-09-15 00:21:13.188452+08	2026-09-08	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 2139, "value": true}	\N	\N	\N
+401	2026-09-15 00:21:13.351539+08	2026-09-08	pre_close_chain	md.stock_daily	error	t	{"ms": 153, "value": true}	\N	\N	\N
+403	2026-09-15 00:21:13.455095+08	2026-09-08	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 9, "value": true}	{"tolerance": 0.005}	\N	\N
+405	2026-09-15 00:21:14.193742+08	2026-09-08	sector_key_aligned	ref.sector_member	error	t	{"ms": 693, "value": true}	\N	\N	\N
+407	2026-09-15 00:21:15.555102+08	2026-09-08	score_not_constant	fct.score_detail	error	t	{"ms": 1223, "value": true}	\N	\N	\N
+409	2026-09-15 00:21:15.590423+08	2026-09-08	score_stale_check	fct.score	warning	t	{"ms": 11, "value": true}	\N	\N	\N
+411	2026-09-15 00:21:15.598661+08	2026-09-09	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+413	2026-09-15 00:21:15.60497+08	2026-09-09	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+415	2026-09-15 00:21:15.610046+08	2026-09-09	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+417	2026-09-15 00:21:15.627315+08	2026-09-09	board_coverage	ref.security	error	t	{"ms": 13, "value": true}	\N	\N	\N
+419	2026-09-15 00:21:15.641755+08	2026-09-09	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 9, "value": true}	\N	\N	\N
+421	2026-09-15 00:21:15.646339+08	2026-09-09	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+423	2026-09-15 00:21:17.780481+08	2026-09-09	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 2124, "value": true}	\N	\N	\N
+425	2026-09-15 00:21:17.952136+08	2026-09-09	pre_close_chain	md.stock_daily	error	t	{"ms": 160, "value": true}	\N	\N	\N
+427	2026-09-15 00:21:18.06099+08	2026-09-09	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 11, "value": true}	{"tolerance": 0.005}	\N	\N
+429	2026-09-15 00:21:18.821785+08	2026-09-09	sector_key_aligned	ref.sector_member	error	t	{"ms": 716, "value": true}	\N	\N	\N
+431	2026-09-15 00:21:19.669369+08	2026-09-09	score_not_constant	fct.score_detail	error	t	{"ms": 680, "value": true}	\N	\N	\N
+433	2026-09-15 00:21:19.703903+08	2026-09-09	score_stale_check	fct.score	warning	t	{"ms": 11, "value": true}	\N	\N	\N
+435	2026-09-15 00:21:19.712466+08	2026-09-10	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+437	2026-09-15 00:21:19.717801+08	2026-09-10	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+439	2026-09-15 00:21:19.722804+08	2026-09-10	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+441	2026-09-15 00:21:19.740106+08	2026-09-10	board_coverage	ref.security	error	t	{"ms": 13, "value": true}	\N	\N	\N
+443	2026-09-15 00:21:19.755733+08	2026-09-10	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 10, "value": true}	\N	\N	\N
+445	2026-09-15 00:21:19.760849+08	2026-09-10	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+447	2026-09-15 00:21:21.928867+08	2026-09-10	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 2158, "value": true}	\N	\N	\N
+449	2026-09-15 00:21:22.082059+08	2026-09-10	pre_close_chain	md.stock_daily	error	t	{"ms": 144, "value": true}	\N	\N	\N
+451	2026-09-15 00:21:22.170882+08	2026-09-10	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 9, "value": true}	{"tolerance": 0.005}	\N	\N
+453	2026-09-15 00:21:22.94636+08	2026-09-10	sector_key_aligned	ref.sector_member	error	t	{"ms": 734, "value": true}	\N	\N	\N
+455	2026-09-15 00:21:23.804011+08	2026-09-10	score_not_constant	fct.score_detail	error	t	{"ms": 719, "value": true}	\N	\N	\N
+457	2026-09-15 00:21:23.840786+08	2026-09-10	score_stale_check	fct.score	warning	t	{"ms": 11, "value": true}	\N	\N	\N
+459	2026-09-15 00:21:23.849244+08	2026-09-11	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+461	2026-09-15 00:21:23.854138+08	2026-09-11	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+463	2026-09-15 00:21:23.862332+08	2026-09-11	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+465	2026-09-15 00:21:23.880865+08	2026-09-11	board_coverage	ref.security	error	t	{"ms": 13, "value": true}	\N	\N	\N
+467	2026-09-15 00:21:23.895626+08	2026-09-11	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 9, "value": true}	\N	\N	\N
+469	2026-09-15 00:21:23.900469+08	2026-09-11	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+471	2026-09-15 00:21:26.052761+08	2026-09-11	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 2143, "value": true}	\N	\N	\N
+473	2026-09-15 00:21:26.205334+08	2026-09-11	pre_close_chain	md.stock_daily	error	t	{"ms": 143, "value": true}	\N	\N	\N
+475	2026-09-15 00:21:26.309927+08	2026-09-11	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 10, "value": true}	{"tolerance": 0.005}	\N	\N
+474	2026-09-15 00:21:26.297903+08	2026-09-11	row_count_drift	md.stock_daily	warning	t	{"ms": 91, "value": true}	{"max_drift": 0.05}	\N	\N
+476	2026-09-15 00:21:26.350637+08	2026-09-11	score_coverage	fct.score	warning	t	{"ms": 39, "value": true}	{"min_coverage": 0.95}	\N	\N
+478	2026-09-15 00:21:27.178938+08	2026-09-11	sector_member_valid	ref.sector_member	warning	f	{"ms": 136, "value": false}	\N	\N	\N
+480	2026-09-15 00:21:28.056644+08	2026-09-11	score_range	fct.score	error	t	{"ms": 22, "value": true}	\N	\N	\N
+482	2026-09-15 00:21:28.073596+08	2026-09-11	weight_sum	config.binding	error	t	{"ms": 2, "value": true}	\N	\N	\N
+484	2026-09-15 00:21:28.081857+08	2026-09-14	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+486	2026-09-15 00:21:28.088159+08	2026-09-14	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+488	2026-09-15 00:21:28.093322+08	2026-09-14	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+490	2026-09-15 00:21:28.111518+08	2026-09-14	daily_row_count	md.stock_daily	error	t	{"ms": 1, "value": true}	{"min": 4800}	\N	\N
+492	2026-09-15 00:21:28.12452+08	2026-09-14	date_is_trading_day	md.stock_daily	error	t	{"ms": 0, "value": true}	\N	\N	\N
+494	2026-09-15 00:21:28.133437+08	2026-09-14	null_rate	md.stock_daily	error	t	{"ms": 5, "value": true}	{"max_pct": 0.1}	\N	\N
+496	2026-09-15 00:21:30.285006+08	2026-09-14	no_gap	md.stock_daily	error	t	{"ms": 5, "value": true}	\N	\N	\N
+498	2026-09-15 00:21:30.512682+08	2026-09-14	row_count_drift	md.stock_daily	warning	t	{"ms": 75, "value": true}	{"max_drift": 0.05}	\N	\N
+500	2026-09-15 00:21:30.567938+08	2026-09-14	score_coverage	fct.score	warning	t	{"ms": 39, "value": true}	{"min_coverage": 0.95}	\N	\N
+502	2026-09-15 00:21:31.422154+08	2026-09-14	sector_member_valid	ref.sector_member	warning	f	{"ms": 128, "value": false}	\N	\N	\N
+504	2026-09-15 00:21:32.26827+08	2026-09-14	score_range	fct.score	error	t	{"ms": 22, "value": true}	\N	\N	\N
+506	2026-09-15 00:21:32.284914+08	2026-09-14	weight_sum	config.binding	error	t	{"ms": 1, "value": true}	\N	\N	\N
+477	2026-09-15 00:21:27.040656+08	2026-09-11	sector_key_aligned	ref.sector_member	error	t	{"ms": 688, "value": true}	\N	\N	\N
+479	2026-09-15 00:21:28.032887+08	2026-09-11	score_not_constant	fct.score_detail	error	t	{"ms": 852, "value": true}	\N	\N	\N
+481	2026-09-15 00:21:28.069999+08	2026-09-11	score_stale_check	fct.score	warning	t	{"ms": 11, "value": true}	\N	\N	\N
+483	2026-09-15 00:21:28.079248+08	2026-09-14	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+485	2026-09-15 00:21:28.085536+08	2026-09-14	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+487	2026-09-15 00:21:28.090758+08	2026-09-14	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+489	2026-09-15 00:21:28.10817+08	2026-09-14	board_coverage	ref.security	error	t	{"ms": 13, "value": true}	\N	\N	\N
+491	2026-09-15 00:21:28.122381+08	2026-09-14	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 9, "value": true}	\N	\N	\N
+493	2026-09-15 00:21:28.126781+08	2026-09-14	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+495	2026-09-15 00:21:30.278025+08	2026-09-14	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 2143, "value": true}	\N	\N	\N
+497	2026-09-15 00:21:30.434976+08	2026-09-14	pre_close_chain	md.stock_daily	error	t	{"ms": 148, "value": true}	\N	\N	\N
+499	2026-09-15 00:21:30.527184+08	2026-09-14	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 12, "value": true}	{"tolerance": 0.005}	\N	\N
+501	2026-09-15 00:21:31.291882+08	2026-09-14	sector_key_aligned	ref.sector_member	error	t	{"ms": 722, "value": true}	\N	\N	\N
+503	2026-09-15 00:21:32.244038+08	2026-09-14	score_not_constant	fct.score_detail	error	t	{"ms": 820, "value": true}	\N	\N	\N
+505	2026-09-15 00:21:32.282428+08	2026-09-14	score_stale_check	fct.score	warning	t	{"ms": 12, "value": true}	\N	\N	\N
+507	2026-09-17 18:33:31.861393+08	2026-09-15	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+508	2026-09-17 18:33:31.872752+08	2026-09-15	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+509	2026-09-17 18:33:31.875981+08	2026-09-15	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+510	2026-09-17 18:33:31.878957+08	2026-09-15	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+511	2026-09-17 18:33:31.882041+08	2026-09-15	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+512	2026-09-17 18:33:31.885424+08	2026-09-15	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+513	2026-09-17 18:33:31.907954+08	2026-09-15	board_coverage	ref.security	error	t	{"ms": 20, "value": true}	\N	\N	\N
+514	2026-09-17 18:33:31.914654+08	2026-09-15	daily_row_count	md.stock_daily	error	t	{"ms": 5, "value": true}	{"min": 4800}	\N	\N
+515	2026-09-17 18:33:31.93558+08	2026-09-15	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 19, "value": true}	\N	\N	\N
+516	2026-09-17 18:33:31.93903+08	2026-09-15	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+517	2026-09-17 18:33:31.977898+08	2026-09-15	index_present	md.index_daily	error	t	{"ms": 35, "value": true}	\N	\N	\N
+518	2026-09-17 18:33:31.985064+08	2026-09-15	null_rate	md.stock_daily	error	t	{"ms": 5, "value": true}	{"max_pct": 0.1}	\N	\N
+519	2026-09-17 18:33:33.582856+08	2026-09-15	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 1596, "value": true}	\N	\N	\N
+520	2026-09-17 18:33:33.608379+08	2026-09-15	no_gap	md.stock_daily	error	t	{"ms": 23, "value": true}	\N	\N	\N
+521	2026-09-17 18:33:33.793688+08	2026-09-15	pre_close_chain	md.stock_daily	error	t	{"ms": 183, "value": true}	\N	\N	\N
+522	2026-09-17 18:33:33.885895+08	2026-09-15	row_count_drift	md.stock_daily	warning	t	{"ms": 90, "value": true}	{"max_drift": 0.05}	\N	\N
+523	2026-09-17 18:33:34.024331+08	2026-09-15	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 136, "value": true}	{"tolerance": 0.005}	\N	\N
+524	2026-09-17 18:33:34.030801+08	2026-09-15	score_coverage	fct.score	warning	f	{"ms": 4, "value": false}	{"min_coverage": 0.95}	\N	\N
+525	2026-09-17 18:33:34.826259+08	2026-09-15	sector_key_aligned	ref.sector_member	error	t	{"ms": 793, "value": true}	\N	\N	\N
+526	2026-09-17 18:33:34.972952+08	2026-09-15	sector_member_valid	ref.sector_member	warning	f	{"ms": 145, "value": false}	\N	\N	\N
+527	2026-09-17 18:33:35.294233+08	2026-09-15	score_not_constant	fct.score_detail	error	t	{"ms": 319, "value": true}	\N	\N	\N
+528	2026-09-17 18:33:35.297372+08	2026-09-15	score_range	fct.score	error	t	{"ms": 1, "value": true}	\N	\N	\N
+529	2026-09-17 18:33:35.302002+08	2026-09-15	score_stale_check	fct.score	warning	t	{"ms": 3, "value": true}	\N	\N	\N
+530	2026-09-17 18:33:35.422388+08	2026-09-15	weight_sum	config.binding	error	t	{"ms": 119, "value": true}	\N	\N	\N
+531	2026-09-17 18:33:35.428739+08	2026-09-16	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+532	2026-09-17 18:33:35.431697+08	2026-09-16	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+533	2026-09-17 18:33:35.435316+08	2026-09-16	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+534	2026-09-17 18:33:35.439056+08	2026-09-16	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+535	2026-09-17 18:33:35.442454+08	2026-09-16	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+536	2026-09-17 18:33:35.445318+08	2026-09-16	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+537	2026-09-17 18:33:35.467942+08	2026-09-16	board_coverage	ref.security	error	t	{"ms": 21, "value": true}	\N	\N	\N
+538	2026-09-17 18:33:35.472095+08	2026-09-16	daily_row_count	md.stock_daily	error	t	{"ms": 2, "value": true}	{"min": 4800}	\N	\N
+539	2026-09-17 18:33:35.486035+08	2026-09-16	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 12, "value": true}	\N	\N	\N
+540	2026-09-17 18:33:35.489003+08	2026-09-16	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+541	2026-09-17 18:33:35.492022+08	2026-09-16	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+542	2026-09-17 18:33:35.498858+08	2026-09-16	null_rate	md.stock_daily	error	t	{"ms": 5, "value": true}	{"max_pct": 0.1}	\N	\N
+543	2026-09-17 18:33:37.456946+08	2026-09-16	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 1956, "value": true}	\N	\N	\N
+544	2026-09-17 18:33:37.463354+08	2026-09-16	no_gap	md.stock_daily	error	t	{"ms": 4, "value": true}	\N	\N	\N
+545	2026-09-17 18:33:37.516024+08	2026-09-16	pre_close_chain	md.stock_daily	error	t	{"ms": 50, "value": true}	\N	\N	\N
+546	2026-09-17 18:33:37.591698+08	2026-09-16	row_count_drift	md.stock_daily	warning	t	{"ms": 73, "value": true}	{"max_drift": 0.05}	\N	\N
+548	2026-09-17 18:33:37.607317+08	2026-09-16	score_coverage	fct.score	warning	f	{"ms": 2, "value": false}	{"min_coverage": 0.95}	\N	\N
+550	2026-09-17 18:33:38.601641+08	2026-09-16	sector_member_valid	ref.sector_member	warning	f	{"ms": 240, "value": false}	\N	\N	\N
+552	2026-09-17 18:33:38.841629+08	2026-09-16	score_range	fct.score	error	t	{"ms": 1, "value": true}	\N	\N	\N
+554	2026-09-17 18:33:38.847748+08	2026-09-16	weight_sum	config.binding	error	t	{"ms": 1, "value": true}	\N	\N	\N
+547	2026-09-17 18:33:37.603166+08	2026-09-16	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 9, "value": true}	{"tolerance": 0.005}	\N	\N
+549	2026-09-17 18:33:38.359015+08	2026-09-16	sector_key_aligned	ref.sector_member	error	t	{"ms": 750, "value": true}	\N	\N	\N
+551	2026-09-17 18:33:38.838601+08	2026-09-16	score_not_constant	fct.score_detail	error	t	{"ms": 235, "value": true}	\N	\N	\N
+553	2026-09-17 18:33:38.844331+08	2026-09-16	score_stale_check	fct.score	warning	t	{"ms": 1, "value": true}	\N	\N	\N
+555	2026-09-18 09:15:34.856618+08	2026-09-17	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+556	2026-09-18 09:15:34.873104+08	2026-09-17	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+557	2026-09-18 09:15:34.876042+08	2026-09-17	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+558	2026-09-18 09:15:34.878885+08	2026-09-17	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+559	2026-09-18 09:15:34.88174+08	2026-09-17	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+560	2026-09-18 09:15:34.88494+08	2026-09-17	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+561	2026-09-18 09:15:34.917969+08	2026-09-17	board_coverage	ref.security	error	t	{"ms": 31, "value": true}	\N	\N	\N
+562	2026-09-18 09:15:34.924371+08	2026-09-17	daily_row_count	md.stock_daily	error	t	{"ms": 4, "value": true}	{"min": 4800}	\N	\N
+563	2026-09-18 09:15:34.938621+08	2026-09-17	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 12, "value": true}	\N	\N	\N
+564	2026-09-18 09:15:34.941533+08	2026-09-17	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+565	2026-09-18 09:15:34.953084+08	2026-09-17	index_present	md.index_daily	error	t	{"ms": 8, "value": true}	\N	\N	\N
+566	2026-09-18 09:15:34.960164+08	2026-09-17	null_rate	md.stock_daily	error	t	{"ms": 5, "value": true}	{"max_pct": 0.1}	\N	\N
+567	2026-09-18 09:15:36.755758+08	2026-09-17	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 1794, "value": true}	\N	\N	\N
+568	2026-09-18 09:15:36.77943+08	2026-09-17	no_gap	md.stock_daily	error	t	{"ms": 20, "value": true}	\N	\N	\N
+569	2026-09-18 09:15:37.026836+08	2026-09-17	pre_close_chain	md.stock_daily	error	t	{"ms": 245, "value": true}	\N	\N	\N
+570	2026-09-18 09:15:37.1093+08	2026-09-17	row_count_drift	md.stock_daily	warning	t	{"ms": 80, "value": true}	{"max_drift": 0.05}	\N	\N
+571	2026-09-18 09:15:37.226087+08	2026-09-17	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 115, "value": true}	{"tolerance": 0.005}	\N	\N
+572	2026-09-18 09:15:37.276475+08	2026-09-17	score_coverage	fct.score	warning	t	{"ms": 48, "value": true}	{"min_coverage": 0.95}	\N	\N
+573	2026-09-18 09:15:38.337606+08	2026-09-17	sector_key_aligned	ref.sector_member	error	t	{"ms": 1056, "value": true}	\N	\N	\N
+574	2026-09-18 09:15:38.491505+08	2026-09-17	sector_member_valid	ref.sector_member	warning	f	{"ms": 152, "value": false}	\N	\N	\N
+575	2026-09-18 09:15:41.15266+08	2026-09-17	score_not_constant	fct.score_detail	error	t	{"ms": 2659, "value": true}	\N	\N	\N
+576	2026-09-18 09:15:41.178394+08	2026-09-17	score_range	fct.score	error	t	{"ms": 24, "value": true}	\N	\N	\N
+577	2026-09-18 09:15:41.196698+08	2026-09-17	score_stale_check	fct.score	warning	t	{"ms": 16, "value": true}	\N	\N	\N
+578	2026-09-18 09:15:41.203732+08	2026-09-17	weight_sum	config.binding	error	t	{"ms": 5, "value": true}	\N	\N	\N
+579	2026-09-22 20:02:20.135893+08	\N	migration_reconcile	md.stock_daily	error	f	{"fields": {"total": 6369062, "no_adj": 793577, "no_vol": 0, "no_limit": 22264, "no_lineage": 0, "no_turnover": 17794, "no_pre_close": 22276}, "sample": {"checked": 0, "examples": [], "mismatch_price": 0, "mismatch_vol_amount": 0}, "coverage": {"days": 1248, "thin_days": 0, "avg_per_day": 5103.0, "max_per_day": 5554, "min_per_day": 4277, "dates_not_in_calendar": 0}, "rowcount": {"stock_matched": null, "unit_rejected": 0, "new_index_daily": 213453, "new_stock_daily": 6369062, "old_index_daily": 4896, "old_stock_daily": 9531333, "new_sector_daily": 838170, "old_sector_daily": 716577, "sector_daily_matched": false, "classification_balanced": null}}	{"rule": "行数归属可解释、抽样一致、血缘完整、日期在日历内"}	\N	\N
+580	2026-09-22 20:13:49.828878+08	\N	migration_reconcile	md.stock_daily	info	t	{"fields": {"total": 6369062, "no_adj": 793577, "no_vol": 0, "no_limit": 22264, "no_lineage": 0, "no_turnover": 17794, "no_pre_close": 22276}, "sample": {"checked": 0, "examples": [], "mismatch_price": 0, "mismatch_vol_amount": 0}, "coverage": {"days": 1248, "thin_days": 0, "avg_per_day": 5103.0, "max_per_day": 5554, "min_per_day": 4277, "dates_not_in_calendar": 0}, "rowcount": {"stock_matched": null, "unit_rejected": 0, "new_index_daily": 213453, "new_stock_daily": 6369062, "old_index_daily": 4896, "old_stock_daily": 9531333, "new_sector_daily": 838170, "old_sector_daily": 716577, "sector_daily_matched": true, "classification_balanced": null}}	{"rule": "行数归属可解释、抽样一致、血缘完整、日期在日历内"}	\N	\N
+581	2026-09-22 20:36:51.572292+08	2026-09-18	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+582	2026-09-22 20:36:51.577738+08	2026-09-18	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+583	2026-09-22 20:36:51.581048+08	2026-09-18	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+584	2026-09-22 20:36:51.58412+08	2026-09-18	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+585	2026-09-22 20:36:51.587074+08	2026-09-18	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+586	2026-09-22 20:36:51.590734+08	2026-09-18	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+587	2026-09-22 20:36:51.612861+08	2026-09-18	board_coverage	ref.security	error	t	{"ms": 20, "value": true}	\N	\N	\N
+588	2026-09-22 20:36:51.626533+08	2026-09-18	daily_row_count	md.stock_daily	error	t	{"ms": 12, "value": true}	{"min": 4800}	\N	\N
+589	2026-09-22 20:36:51.671558+08	2026-09-18	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 43, "value": true}	\N	\N	\N
+590	2026-09-22 20:36:51.674504+08	2026-09-18	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+591	2026-09-22 20:36:51.679704+08	2026-09-18	index_present	md.index_daily	error	t	{"ms": 2, "value": true}	\N	\N	\N
+592	2026-09-22 20:36:51.684971+08	2026-09-18	null_rate	md.stock_daily	error	t	{"ms": 3, "value": true}	{"max_pct": 0.1}	\N	\N
+594	2026-09-22 20:36:53.469264+08	2026-09-18	no_gap	md.stock_daily	error	t	{"ms": 28, "value": true}	\N	\N	\N
+596	2026-09-22 20:36:53.772109+08	2026-09-18	row_count_drift	md.stock_daily	warning	t	{"ms": 101, "value": true}	{"max_drift": 0.05}	\N	\N
+598	2026-09-22 20:36:53.873218+08	2026-09-18	score_coverage	fct.score	warning	f	{"ms": 61, "value": false}	{"min_coverage": 0.95}	\N	\N
+600	2026-09-22 20:36:55.284254+08	2026-09-18	sector_member_valid	ref.sector_member	warning	f	{"ms": 203, "value": false}	\N	\N	\N
+602	2026-09-22 20:36:55.584203+08	2026-09-18	score_range	fct.score	error	t	{"ms": 1, "value": true}	\N	\N	\N
+604	2026-09-22 20:36:55.631336+08	2026-09-18	weight_sum	config.binding	error	t	{"ms": 42, "value": true}	\N	\N	\N
+606	2026-09-22 20:36:55.640369+08	2026-09-21	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+608	2026-09-22 20:36:55.645903+08	2026-09-21	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+610	2026-09-22 20:36:55.651297+08	2026-09-21	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+612	2026-09-22 20:36:55.670976+08	2026-09-21	daily_row_count	md.stock_daily	error	t	{"ms": 3, "value": true}	{"min": 4800}	\N	\N
+614	2026-09-22 20:36:55.688493+08	2026-09-21	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+616	2026-09-22 20:36:55.695876+08	2026-09-21	null_rate	md.stock_daily	error	t	{"ms": 3, "value": true}	{"max_pct": 0.1}	\N	\N
+618	2026-09-22 20:36:57.378873+08	2026-09-21	no_gap	md.stock_daily	error	t	{"ms": 4, "value": true}	\N	\N	\N
+620	2026-09-22 20:36:57.500381+08	2026-09-21	row_count_drift	md.stock_daily	warning	t	{"ms": 83, "value": true}	{"max_drift": 0.05}	\N	\N
+622	2026-09-22 20:36:57.528316+08	2026-09-21	score_coverage	fct.score	warning	f	{"ms": 4, "value": false}	{"min_coverage": 0.95}	\N	\N
+624	2026-09-22 20:36:58.397346+08	2026-09-21	sector_member_valid	ref.sector_member	warning	f	{"ms": 175, "value": false}	\N	\N	\N
+626	2026-09-22 20:36:58.633561+08	2026-09-21	score_range	fct.score	error	t	{"ms": 1, "value": true}	\N	\N	\N
+628	2026-09-22 20:36:58.639452+08	2026-09-21	weight_sum	config.binding	error	t	{"ms": 1, "value": true}	\N	\N	\N
+630	2026-09-22 20:36:58.648286+08	2026-09-22	code_format	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_code_fmt"}	\N	\N	\N
+632	2026-09-22 20:36:58.653259+08	2026-09-22	ohlc_order	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_ohlc"}	\N	\N	\N
+634	2026-09-22 20:36:58.658278+08	2026-09-22	vol_amount_consistent	md.stock_daily	error	t	{"kind": "触发器", "copies": 23, "object": "daily_sanity"}	\N	\N	\N
+636	2026-09-22 20:36:58.674108+08	2026-09-22	daily_row_count	md.stock_daily	error	t	{"ms": 3, "value": true}	{"min": 4800}	\N	\N
+638	2026-09-22 20:36:58.687064+08	2026-09-22	date_is_trading_day	md.stock_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+640	2026-09-22 20:36:58.693692+08	2026-09-22	null_rate	md.stock_daily	error	t	{"ms": 3, "value": true}	{"max_pct": 0.1}	\N	\N
+593	2026-09-22 20:36:53.438025+08	2026-09-18	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 1751, "value": true}	\N	\N	\N
+595	2026-09-22 20:36:53.668478+08	2026-09-18	pre_close_chain	md.stock_daily	error	t	{"ms": 197, "value": true}	\N	\N	\N
+597	2026-09-22 20:36:53.809752+08	2026-09-18	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 35, "value": true}	{"tolerance": 0.005}	\N	\N
+599	2026-09-22 20:36:55.07898+08	2026-09-18	sector_key_aligned	ref.sector_member	error	t	{"ms": 1204, "value": true}	\N	\N	\N
+601	2026-09-22 20:36:55.581031+08	2026-09-18	score_not_constant	fct.score_detail	error	t	{"ms": 293, "value": true}	\N	\N	\N
+603	2026-09-22 20:36:55.587801+08	2026-09-18	score_stale_check	fct.score	warning	t	{"ms": 2, "value": true}	\N	\N	\N
+605	2026-09-22 20:36:55.637468+08	2026-09-21	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+607	2026-09-22 20:36:55.643091+08	2026-09-21	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+609	2026-09-22 20:36:55.648653+08	2026-09-21	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+611	2026-09-22 20:36:55.666162+08	2026-09-21	board_coverage	ref.security	error	t	{"ms": 13, "value": true}	\N	\N	\N
+613	2026-09-22 20:36:55.686005+08	2026-09-21	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 13, "value": true}	\N	\N	\N
+615	2026-09-22 20:36:55.690976+08	2026-09-21	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N
+617	2026-09-22 20:36:57.372849+08	2026-09-21	amount_magnitude_drift	md.stock_daily	error	t	{"ms": 1675, "value": true}	\N	\N	\N
+619	2026-09-22 20:36:57.415099+08	2026-09-21	pre_close_chain	md.stock_daily	error	t	{"ms": 34, "value": true}	\N	\N	\N
+621	2026-09-22 20:36:57.521162+08	2026-09-21	minute_daily_consistent	md.stock_minute	warning	t	{"ms": 19, "value": true}	{"tolerance": 0.005}	\N	\N
+623	2026-09-22 20:36:58.219897+08	2026-09-21	sector_key_aligned	ref.sector_member	error	t	{"ms": 689, "value": true}	\N	\N	\N
+625	2026-09-22 20:36:58.630559+08	2026-09-21	score_not_constant	fct.score_detail	error	t	{"ms": 231, "value": true}	\N	\N	\N
+627	2026-09-22 20:36:58.636221+08	2026-09-21	score_stale_check	fct.score	warning	t	{"ms": 1, "value": true}	\N	\N	\N
+629	2026-09-22 20:36:58.645716+08	2026-09-22	amount_sane	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_amount_sane"}	\N	\N	\N
+631	2026-09-22 20:36:58.650802+08	2026-09-22	not_sector_code	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_not_sector"}	\N	\N	\N
+633	2026-09-22 20:36:58.65572+08	2026-09-22	price_positive	md.stock_daily	error	t	{"kind": "约束", "copies": 23, "object": "ck_daily_price_positive"}	\N	\N	\N
+635	2026-09-22 20:36:58.669563+08	2026-09-22	board_coverage	ref.security	error	t	{"ms": 10, "value": true}	\N	\N	\N
+637	2026-09-22 20:36:58.684757+08	2026-09-22	daily_source_is_tdx	md.stock_daily	warning	t	{"ms": 9, "value": true}	\N	\N	\N
+639	2026-09-22 20:36:58.689363+08	2026-09-22	index_present	md.index_daily	error	t	{"ms": 1, "value": true}	\N	\N	\N

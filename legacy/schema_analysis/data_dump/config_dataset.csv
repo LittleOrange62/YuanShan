@@ -1,0 +1,6 @@
+md.stock_daily	个股日线	daily	{vipdoc_day}	{"min_rows": 4800, "max_null_pct": 0.1, "require_codes": ["000001.SH", "399001.SZ"], "amount_median_range": [1000000, 10000000000]}	{"partition": "year", "keep_years": null}	t	2026-08-31 20:38:51.629178+08
+md.index_daily	指数日线	daily	{vipdoc_day}	{"min_rows": 5, "require_codes": ["000001.SH"]}	\N	t	2026-08-31 20:38:51.629178+08
+md.sector_daily	板块日线	daily	{vipdoc_day}	{"min_rows": 100}	\N	t	2026-08-31 20:38:51.629178+08
+md.stock_minute	分钟线	minute	{vipdoc_lc1,vipdoc_lc5}	{"min_rows": 500000}	{"partition": "month", "keep_months": 36}	t	2026-08-31 20:38:51.629178+08
+md.stock_snapshot	行情快照	snapshot	{tqcenter_snapshot}	{"min_rows": 4000}	\N	t	2026-08-31 20:38:51.629178+08
+ref.security	证券基础信息	static	{tdx_tnf,tqcenter_sector}	{"min_rows": 5000}	\N	t	2026-08-31 20:38:51.629178+08

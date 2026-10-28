@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+# .venv 里的解释器位置两边不一样：Unix 是 bin/，Windows 是 Scripts/*.exe。
+# 只找 bin/ 的话，在 Windows 上连"venv 已经装好"这种情况都会掉到最后的
+# "请先安装 Python" 那句假提示上 —— 体检的补救文案正是"运行 scripts/setup"。
+for PY in "$ROOT/.venv/Scripts/python.exe" "$ROOT/.venv/bin/python" \
+          python3.14 python3.13 python3.12 python3.11 python3 py -3; do
+  if "$PY" -c 'import sys; sys.exit(sys.version_info < (3,10))' >/dev/null 2>&1; then
+    exec "$PY" "$ROOT/scripts/manage.py" setup "$@"
+  fi
+done
+printf '%s\n' '请先安装 Python 3.10 或更高版本（推荐 3.12），再重新打开启动文件。' >&2
+printf '%s\n' '也可以直接跑： .venv/Scripts/python.exe scripts/manage.py setup' >&2
+exit 1

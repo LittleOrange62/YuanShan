@@ -1,0 +1,37 @@
+import sqlite3
+
+print('=== fin_data.db stock_basic 现状 ===')
+try:
+    c1 = sqlite3.connect(r'D:\finance\data\fin_data.db')
+    cur = c1.cursor()
+    cur.execute("select count(*) from stock_basic")
+    print('stock_basic 行数:', cur.fetchone()[0])
+    cur.execute("select symbol from stock_basic limit 10")
+    print('前10个 symbol:', [r[0] for r in cur.fetchall()])
+    cur.execute("select symbol from stock_basic where symbol like 'sz%' limit 5")
+    print('sz% sample:', [r[0] for r in cur.fetchall()])
+    cur.execute("select count(*) from stock_basic where symbol like 'sz%'")
+    print('sz 数量:', cur.fetchone()[0])
+    c1.close()
+except Exception as e:
+    print('ERROR:', e)
+
+print()
+print('=== tq_core.db stock_info 现状（候选代码清单来源）===')
+c2 = sqlite3.connect(r'D:\finance\data\tq_core.db')
+cur = c2.cursor()
+cur.execute("select count(*) from stock_info where asset_type='stock'")
+print('stock_info stock 总数:', cur.fetchone()[0])
+cur.execute("select ts_code from stock_info where asset_type='stock' and ts_code like '%.SZ' limit 5")
+print('SZ sample:', [r[0] for r in cur.fetchall()])
+cur.execute("select ts_code from stock_info where asset_type='stock' and ts_code like '%.SH' limit 5")
+print('SH sample:', [r[0] for r in cur.fetchall()])
+c2.close()
+
+print()
+print('=== fin_data.db 里的表 ===')
+c3 = sqlite3.connect(r'D:\finance\data\fin_data.db')
+cur3 = c3.cursor()
+cur3.execute("select name from sqlite_master where type='table'")
+print([r[0] for r in cur3.fetchall()])
+c3.close()

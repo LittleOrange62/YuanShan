@@ -1,0 +1,164 @@
+/* =============================================================================
+   表格十字高亮（点中一格 → 整行 + 整列 + 该列表头一起亮）
+   -----------------------------------------------------------------------------
+   为什么用纯 CSS 而不是回调：全站表格是 `ui.table()` 造的，数量由 config.page_layout
+   决定，回调要按 id 一张张挂，加一张卡就漏一张。这里挂在 dash 自己给单元格加的
+   class 上，**所有 DataTable 自动都有**，排序、翻页、重渲染之后照样有效
+   （回调改 style_data_conditional 的做法在重渲染时会掉）。
+
+   dash 3.3.0 给单元格的 class 是 `dash-cell column-{序号}`，选中的那一格（含框选
+   范围）额外带 `cell--selected`，表头是 `dash-header column-{序号}`
+   （出处：site-packages/dash/dash_table/async-table.js，
+    `"dash-cell"+" column-".concat(r)+...+" cell--selected"`）。
+   **不要改成按 nth-child 选**：隐藏列（hidden_columns，比如排名列）会让
+   nth-child 和列序号错位。
+
+   用 `box-shadow: inset` 铺一层半透明色，**不用 background-color**：涨跌红绿是
+   dash 以行内 style 写上去的，行内样式赢过外部 CSS，改背景要 `!important`，
+   那就把红绿盖掉了 —— 高亮的代价不该是看不见涨跌。inset 阴影画在背景之上、
+   文字之下，两者能叠。
+
+   `:has()` 需要 Chrome/Edge 105+（2022 年 8 月起）。这台机器上的 Edge 够新；
+   万一在老浏览器里打开，效果是"点了没反应"，不会报错也不会影响别的功能。
+   ========================================================================== */
+
+:root {
+    /* 行/列的底色。0.10 是试出来的：再淡看不出，再深会压住红绿字 */
+    --ft-xhair: rgba(13, 110, 253, 0.10);
+    /* 十字交叉的那一格（行和列都命中）自然会叠两层，看起来更深，正好当焦点 */
+    --ft-xhair-head: rgba(13, 110, 253, 0.18);
+}
+
+/* ---- 整行：选中格所在的那一行 ---- */
+.dash-table-container tr:has(> td.cell--selected) > td.dash-cell {
+    box-shadow: inset 0 0 0 9999px var(--ft-xhair);
+}
+
+/* ---- 整列 + 该列表头：按列序号逐个写。
+       列数上限 60 —— 现在最宽的表（自选组内成员）约 20 列，留三倍余量。
+       要加更多列时照下面的样子接着写，或用编辑器的多光标复制一行改数字。 ---- */
+.dash-table-container:has(td.cell--selected.column-0) td.dash-cell.column-0,
+.dash-table-container:has(td.cell--selected.column-1) td.dash-cell.column-1,
+.dash-table-container:has(td.cell--selected.column-2) td.dash-cell.column-2,
+.dash-table-container:has(td.cell--selected.column-3) td.dash-cell.column-3,
+.dash-table-container:has(td.cell--selected.column-4) td.dash-cell.column-4,
+.dash-table-container:has(td.cell--selected.column-5) td.dash-cell.column-5,
+.dash-table-container:has(td.cell--selected.column-6) td.dash-cell.column-6,
+.dash-table-container:has(td.cell--selected.column-7) td.dash-cell.column-7,
+.dash-table-container:has(td.cell--selected.column-8) td.dash-cell.column-8,
+.dash-table-container:has(td.cell--selected.column-9) td.dash-cell.column-9,
+.dash-table-container:has(td.cell--selected.column-10) td.dash-cell.column-10,
+.dash-table-container:has(td.cell--selected.column-11) td.dash-cell.column-11,
+.dash-table-container:has(td.cell--selected.column-12) td.dash-cell.column-12,
+.dash-table-container:has(td.cell--selected.column-13) td.dash-cell.column-13,
+.dash-table-container:has(td.cell--selected.column-14) td.dash-cell.column-14,
+.dash-table-container:has(td.cell--selected.column-15) td.dash-cell.column-15,
+.dash-table-container:has(td.cell--selected.column-16) td.dash-cell.column-16,
+.dash-table-container:has(td.cell--selected.column-17) td.dash-cell.column-17,
+.dash-table-container:has(td.cell--selected.column-18) td.dash-cell.column-18,
+.dash-table-container:has(td.cell--selected.column-19) td.dash-cell.column-19,
+.dash-table-container:has(td.cell--selected.column-20) td.dash-cell.column-20,
+.dash-table-container:has(td.cell--selected.column-21) td.dash-cell.column-21,
+.dash-table-container:has(td.cell--selected.column-22) td.dash-cell.column-22,
+.dash-table-container:has(td.cell--selected.column-23) td.dash-cell.column-23,
+.dash-table-container:has(td.cell--selected.column-24) td.dash-cell.column-24,
+.dash-table-container:has(td.cell--selected.column-25) td.dash-cell.column-25,
+.dash-table-container:has(td.cell--selected.column-26) td.dash-cell.column-26,
+.dash-table-container:has(td.cell--selected.column-27) td.dash-cell.column-27,
+.dash-table-container:has(td.cell--selected.column-28) td.dash-cell.column-28,
+.dash-table-container:has(td.cell--selected.column-29) td.dash-cell.column-29,
+.dash-table-container:has(td.cell--selected.column-30) td.dash-cell.column-30,
+.dash-table-container:has(td.cell--selected.column-31) td.dash-cell.column-31,
+.dash-table-container:has(td.cell--selected.column-32) td.dash-cell.column-32,
+.dash-table-container:has(td.cell--selected.column-33) td.dash-cell.column-33,
+.dash-table-container:has(td.cell--selected.column-34) td.dash-cell.column-34,
+.dash-table-container:has(td.cell--selected.column-35) td.dash-cell.column-35,
+.dash-table-container:has(td.cell--selected.column-36) td.dash-cell.column-36,
+.dash-table-container:has(td.cell--selected.column-37) td.dash-cell.column-37,
+.dash-table-container:has(td.cell--selected.column-38) td.dash-cell.column-38,
+.dash-table-container:has(td.cell--selected.column-39) td.dash-cell.column-39,
+.dash-table-container:has(td.cell--selected.column-40) td.dash-cell.column-40,
+.dash-table-container:has(td.cell--selected.column-41) td.dash-cell.column-41,
+.dash-table-container:has(td.cell--selected.column-42) td.dash-cell.column-42,
+.dash-table-container:has(td.cell--selected.column-43) td.dash-cell.column-43,
+.dash-table-container:has(td.cell--selected.column-44) td.dash-cell.column-44,
+.dash-table-container:has(td.cell--selected.column-45) td.dash-cell.column-45,
+.dash-table-container:has(td.cell--selected.column-46) td.dash-cell.column-46,
+.dash-table-container:has(td.cell--selected.column-47) td.dash-cell.column-47,
+.dash-table-container:has(td.cell--selected.column-48) td.dash-cell.column-48,
+.dash-table-container:has(td.cell--selected.column-49) td.dash-cell.column-49,
+.dash-table-container:has(td.cell--selected.column-50) td.dash-cell.column-50,
+.dash-table-container:has(td.cell--selected.column-51) td.dash-cell.column-51,
+.dash-table-container:has(td.cell--selected.column-52) td.dash-cell.column-52,
+.dash-table-container:has(td.cell--selected.column-53) td.dash-cell.column-53,
+.dash-table-container:has(td.cell--selected.column-54) td.dash-cell.column-54,
+.dash-table-container:has(td.cell--selected.column-55) td.dash-cell.column-55,
+.dash-table-container:has(td.cell--selected.column-56) td.dash-cell.column-56,
+.dash-table-container:has(td.cell--selected.column-57) td.dash-cell.column-57,
+.dash-table-container:has(td.cell--selected.column-58) td.dash-cell.column-58,
+.dash-table-container:has(td.cell--selected.column-59) td.dash-cell.column-59 {
+    box-shadow: inset 0 0 0 9999px var(--ft-xhair);
+}
+
+.dash-table-container:has(td.cell--selected.column-0) th.dash-header.column-0,
+.dash-table-container:has(td.cell--selected.column-1) th.dash-header.column-1,
+.dash-table-container:has(td.cell--selected.column-2) th.dash-header.column-2,
+.dash-table-container:has(td.cell--selected.column-3) th.dash-header.column-3,
+.dash-table-container:has(td.cell--selected.column-4) th.dash-header.column-4,
+.dash-table-container:has(td.cell--selected.column-5) th.dash-header.column-5,
+.dash-table-container:has(td.cell--selected.column-6) th.dash-header.column-6,
+.dash-table-container:has(td.cell--selected.column-7) th.dash-header.column-7,
+.dash-table-container:has(td.cell--selected.column-8) th.dash-header.column-8,
+.dash-table-container:has(td.cell--selected.column-9) th.dash-header.column-9,
+.dash-table-container:has(td.cell--selected.column-10) th.dash-header.column-10,
+.dash-table-container:has(td.cell--selected.column-11) th.dash-header.column-11,
+.dash-table-container:has(td.cell--selected.column-12) th.dash-header.column-12,
+.dash-table-container:has(td.cell--selected.column-13) th.dash-header.column-13,
+.dash-table-container:has(td.cell--selected.column-14) th.dash-header.column-14,
+.dash-table-container:has(td.cell--selected.column-15) th.dash-header.column-15,
+.dash-table-container:has(td.cell--selected.column-16) th.dash-header.column-16,
+.dash-table-container:has(td.cell--selected.column-17) th.dash-header.column-17,
+.dash-table-container:has(td.cell--selected.column-18) th.dash-header.column-18,
+.dash-table-container:has(td.cell--selected.column-19) th.dash-header.column-19,
+.dash-table-container:has(td.cell--selected.column-20) th.dash-header.column-20,
+.dash-table-container:has(td.cell--selected.column-21) th.dash-header.column-21,
+.dash-table-container:has(td.cell--selected.column-22) th.dash-header.column-22,
+.dash-table-container:has(td.cell--selected.column-23) th.dash-header.column-23,
+.dash-table-container:has(td.cell--selected.column-24) th.dash-header.column-24,
+.dash-table-container:has(td.cell--selected.column-25) th.dash-header.column-25,
+.dash-table-container:has(td.cell--selected.column-26) th.dash-header.column-26,
+.dash-table-container:has(td.cell--selected.column-27) th.dash-header.column-27,
+.dash-table-container:has(td.cell--selected.column-28) th.dash-header.column-28,
+.dash-table-container:has(td.cell--selected.column-29) th.dash-header.column-29,
+.dash-table-container:has(td.cell--selected.column-30) th.dash-header.column-30,
+.dash-table-container:has(td.cell--selected.column-31) th.dash-header.column-31,
+.dash-table-container:has(td.cell--selected.column-32) th.dash-header.column-32,
+.dash-table-container:has(td.cell--selected.column-33) th.dash-header.column-33,
+.dash-table-container:has(td.cell--selected.column-34) th.dash-header.column-34,
+.dash-table-container:has(td.cell--selected.column-35) th.dash-header.column-35,
+.dash-table-container:has(td.cell--selected.column-36) th.dash-header.column-36,
+.dash-table-container:has(td.cell--selected.column-37) th.dash-header.column-37,
+.dash-table-container:has(td.cell--selected.column-38) th.dash-header.column-38,
+.dash-table-container:has(td.cell--selected.column-39) th.dash-header.column-39,
+.dash-table-container:has(td.cell--selected.column-40) th.dash-header.column-40,
+.dash-table-container:has(td.cell--selected.column-41) th.dash-header.column-41,
+.dash-table-container:has(td.cell--selected.column-42) th.dash-header.column-42,
+.dash-table-container:has(td.cell--selected.column-43) th.dash-header.column-43,
+.dash-table-container:has(td.cell--selected.column-44) th.dash-header.column-44,
+.dash-table-container:has(td.cell--selected.column-45) th.dash-header.column-45,
+.dash-table-container:has(td.cell--selected.column-46) th.dash-header.column-46,
+.dash-table-container:has(td.cell--selected.column-47) th.dash-header.column-47,
+.dash-table-container:has(td.cell--selected.column-48) th.dash-header.column-48,
+.dash-table-container:has(td.cell--selected.column-49) th.dash-header.column-49,
+.dash-table-container:has(td.cell--selected.column-50) th.dash-header.column-50,
+.dash-table-container:has(td.cell--selected.column-51) th.dash-header.column-51,
+.dash-table-container:has(td.cell--selected.column-52) th.dash-header.column-52,
+.dash-table-container:has(td.cell--selected.column-53) th.dash-header.column-53,
+.dash-table-container:has(td.cell--selected.column-54) th.dash-header.column-54,
+.dash-table-container:has(td.cell--selected.column-55) th.dash-header.column-55,
+.dash-table-container:has(td.cell--selected.column-56) th.dash-header.column-56,
+.dash-table-container:has(td.cell--selected.column-57) th.dash-header.column-57,
+.dash-table-container:has(td.cell--selected.column-58) th.dash-header.column-58,
+.dash-table-container:has(td.cell--selected.column-59) th.dash-header.column-59 {
+    box-shadow: inset 0 0 0 9999px var(--ft-xhair-head);
+}

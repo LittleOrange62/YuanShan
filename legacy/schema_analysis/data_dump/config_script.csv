@@ -1,0 +1,19 @@
+1	base_factors_v1	基础因子计算	builtin/base_factors.py	run	1.0	{}	{base_factors}	\N	t	t	2026-08-26 12:27:15.700935+08	\N	\N
+2	xingtai_v1	形态分	builtin/quality_xingtai.py	run	1.0	{"type": "object", "properties": {"neutral_penalty": {"type": "number", "default": -50}}}	{stock_quality}	\N	t	t	2026-08-26 12:27:15.700935+08	\N	\N
+3	qushi_v1	趋势分	builtin/quality_qushi.py	run	1.0	{"type": "object", "properties": {"fit_days": {"type": "integer", "default": 20}}}	{stock_quality}	\N	t	t	2026-08-26 12:27:15.700935+08	\N	\N
+4	weizhi_v1	位置分	builtin/quality_weizhi.py	run	1.0	{"type": "object", "properties": {"lookback": {"type": "integer", "default": 250}}}	{stock_quality}	\N	t	t	2026-08-26 12:27:15.700935+08	\N	\N
+119	vol_phase_v1	量能温度	builtin/vol_phase.py	run	1.0	{"type": "object", "properties": {"weights": {"type": "object"}}}	{vol_temp}	\N	t	t	2026-08-27 10:49:33.728847+08	\N	\N
+17	review_report_v1	复盘报告	builtin/review_report.py	run	1.0	{}	{review_report}	\N	t	t	2026-08-26 12:27:15.700935+08	\N	\N
+10	sector_chengjiao_v1	板块成交额	builtin/sector_chengjiao.py	run	1.0	{"type": "object", "properties": {"ma_n": {"type": "integer", "title": "放量基准窗口", "default": 20}, "w_abs": {"type": "number", "title": "绝对成交额分位权重", "default": 0.40}, "rel_hi": {"type": "number", "title": "相对放量上界", "default": 1.50}, "rel_lo": {"type": "number", "title": "相对放量下界", "default": 0.70}, "min_ref": {"type": "integer", "title": "中位数可信所需板块数", "default": 30}, "w_ratio": {"type": "number", "title": "相对放量权重", "default": 0.60}}}	{sector_heat}	\N	t	t	2026-08-26 12:27:15.700935+08	\N	\N
+11	market_mood_v1	大盘情绪	builtin/market_mood.py	run	1.0	{}	{market_mood}	\N	t	t	2026-08-26 12:27:15.700935+08	\N	\N
+12	env_sector_v1	板块热度分量	builtin/env_sector.py	run	1.0	{}	{env_resonance}	\N	t	t	2026-08-26 12:27:15.700935+08	\N	\N
+13	env_mood_v1	大盘情绪分量	builtin/env_mood.py	run	1.0	{}	{env_resonance}	\N	t	t	2026-08-26 12:27:15.700935+08	\N	\N
+14	oper_x_v1	X 个股质量	builtin/oper_x.py	run	1.0	{}	{oper_score}	\N	t	t	2026-08-26 12:27:15.700935+08	\N	\N
+15	oper_y_v1	Y 环境共振	builtin/oper_y.py	run	1.0	{}	{oper_score}	\N	t	t	2026-08-26 12:27:15.700935+08	\N	\N
+16	temp_score_v1	温度	builtin/temp_score.py	run	1.0	{}	{temp_score}	\N	t	t	2026-08-26 12:27:15.700935+08	\N	\N
+5	chouma_v1	筹码分	builtin/quality_chouma.py	run	1.0	{}	{stock_quality}	\N	t	t	2026-08-26 12:27:15.700935+08	\N	\N
+6	liangneng_v1	量能分	builtin/quality_liangneng.py	run	1.0	{}	{stock_quality}	\N	t	t	2026-08-26 12:27:15.700935+08	\N	\N
+7	sector_zhangfu_v1	板块涨幅	builtin/sector_zhangfu.py	run	1.0	{}	{sector_heat}	\N	t	t	2026-08-26 12:27:15.700935+08	\N	\N
+8	sector_guangdu_v1	板块广度	builtin/sector_guangdu.py	run	1.0	{}	{sector_heat}	\N	t	t	2026-08-26 12:27:15.700935+08	\N	\N
+9	sector_dongliang_v1	板块动量	builtin/sector_dongliang.py	run	1.0	{}	{sector_heat}	\N	t	t	2026-08-26 12:27:15.700935+08	\N	\N
+120	vol_stage_v1	量能阶段	builtin/vol_stage.py	run	1.0	{"type": "object", "properties": {"div_high": {"type": "number", "default": 0.995}, "div_peak": {"type": "number", "default": 0.60}, "ebb_vr20": {"type": "number", "default": 0.90}, "climax_vr": {"type": "number", "default": 2.0}, "climax_days": {"type": "number", "default": 3}, "climax_high": {"type": "number", "default": 0.95}, "incub_solid": {"type": "number", "default": 0.45}, "incub_vr_hi": {"type": "number", "default": 2.0}, "incub_vr_lo": {"type": "number", "default": 1.05}}}	{vol_stage}	\N	t	t	2026-08-27 10:49:33.728847+08	\N	\N

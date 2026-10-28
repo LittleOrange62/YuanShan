@@ -1,0 +1,229 @@
+1	tdx_vipdoc	2026-08-27 11:11:23.392758+08	ok	645	97458	97458 个 .day 文件，库内最新 2026-08-25
+2	ak_pkg	2026-08-27 11:11:25.091138+08	ok	1667	\N	版本 1.18.88
+3	ak_etf_sse	2026-08-27 11:11:25.700021+08	ok	596	897	\N
+4	ak_etf_szse	2026-08-27 11:11:26.895165+08	ok	1185	720	\N
+5	ak_margin_sse	2026-08-27 11:11:27.799347+08	ok	894	1999	\N
+6	ak_margin_szse	2026-08-27 11:11:29.103557+08	ok	1290	2101	\N
+7	ak_margin_sum_sse	2026-08-27 11:11:29.775287+08	ok	660	2000	\N
+8	ak_margin_sum_szse	2026-08-27 11:11:30.331891+08	ok	546	1	\N
+9	ak_lhb_detail	2026-08-27 11:11:31.683431+08	ok	1341	65	\N
+10	ak_lhb_inst	2026-08-27 11:11:32.985697+08	ok	1292	37	\N
+11	ak_concept_em	2026-08-27 11:11:57.357767+08	down	24360	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+12	ak_fundflow_em	2026-08-27 11:11:57.975141+08	down	606	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+13	baostock_pkg	2026-08-27 11:11:58.013173+08	ok	31	\N	版本 00.9.30
+14	mootdx_pkg	2026-08-27 11:11:58.161172+08	ok	141	\N	版本 0.11.7
+15	ts_pkg	2026-08-27 11:11:58.234755+08	down	66	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+16	ts_margin	2026-08-27 11:11:58.240298+08	down	0	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+17	ts_margin_detail	2026-08-27 11:11:58.245472+08	down	0	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+18	ts_top_list	2026-08-27 11:11:58.250576+08	down	0	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+19	ts_top_inst	2026-08-27 11:11:58.255951+08	down	0	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+20	ts_moneyflow	2026-08-27 11:11:58.261767+08	down	0	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+21	ts_ths_index	2026-08-27 11:11:58.26744+08	down	0	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+22	em_push2	2026-08-27 11:11:58.604592+08	down	331	\N	RemoteDisconnected: Remote end closed connection without response
+23	miaoxiang	2026-08-27 11:11:59.473292+08	ok	862	4096	HTTP 200
+24	alphafeed	2026-08-27 11:11:59.480117+08	down	0	\N	FT_ALPHAFEED_KEY 未设置
+25	tdx_vipdoc	2026-08-27 20:38:36.883254+08	ok	584	97458	97458 个 .day 文件，库内最新 2026-08-25
+26	ak_pkg	2026-08-27 20:38:38.019611+08	ok	1073	\N	版本 1.18.88
+27	ak_etf_sse	2026-08-27 20:38:38.684353+08	ok	653	897	\N
+28	ak_etf_szse	2026-08-27 20:38:39.847034+08	ok	1150	720	\N
+29	ak_margin_sse	2026-08-27 20:38:40.732749+08	ok	875	1999	\N
+30	ak_margin_szse	2026-08-27 20:38:42.072471+08	ok	1329	2101	\N
+31	ak_margin_sum_sse	2026-08-27 20:38:42.82248+08	ok	705	2000	\N
+32	ak_lhb_detail	2026-08-27 20:38:44.125654+08	ok	1291	65	\N
+33	ak_lhb_inst	2026-08-27 20:38:45.342453+08	ok	1206	37	\N
+34	ak_concept_em	2026-08-27 20:39:26.330712+08	down	40975	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+35	ak_fundflow_em	2026-08-27 20:39:29.559819+08	down	3218	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+36	baostock_pkg	2026-08-27 20:39:29.602023+08	ok	34	\N	版本 00.9.30
+37	mootdx_pkg	2026-08-27 20:39:29.737264+08	ok	124	\N	版本 0.11.7
+38	ts_pkg	2026-08-27 20:39:29.816197+08	down	72	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+39	em_push2	2026-08-27 20:39:32.097801+08	down	2274	\N	RemoteDisconnected: Remote end closed connection without response
+40	miaoxiang	2026-08-27 20:39:34.519415+08	ok	2414	4096	HTTP 200
+41	alphafeed	2026-08-27 20:39:34.525586+08	ok	0	\N	FT_ALPHAFEED_KEY 已配置
+42	ths_local_block	2026-08-30 16:40:34.742973+08	ok	423	1015	1015 个板块 / 130320 条成员，ConfigVer 20260830.095501
+43	ths_local_industry	2026-08-30 16:40:34.796602+08	ok	26	90	90 个行业 / 5212 条成员
+44	ths_local_watchlist	2026-08-30 16:40:34.866203+08	ok	37	43	用户 炒股大王哈哈：43 个分组 / 1182 只
+45	tdx_vipdoc	2026-08-31 19:27:08.332549+08	ok	6707	97468	97468 个 .day 文件，库内最新 2026-08-28
+46	ths_local_block	2026-08-31 19:27:08.885199+08	ok	499	1015	1015 个板块 / 130320 条成员，ConfigVer 20260830.095501
+47	ths_local_industry	2026-08-31 19:27:08.924353+08	ok	26	90	90 个行业 / 5212 条成员
+48	ths_local_watchlist	2026-08-31 19:27:09.171092+08	ok	236	43	用户 炒股大王哈哈：43 个分组 / 1182 只
+49	ak_pkg	2026-08-31 19:27:20.741039+08	ok	11557	\N	版本 1.18.88
+50	ak_etf_sse	2026-08-31 19:27:21.714041+08	ok	960	898	\N
+51	ak_etf_szse	2026-08-31 19:27:27.541284+08	ok	5816	726	\N
+52	ak_margin_sse	2026-08-31 19:27:28.456602+08	ok	905	1999	\N
+53	ak_margin_szse	2026-08-31 19:27:29.790438+08	ok	1323	2101	\N
+54	ak_margin_sum_sse	2026-08-31 19:27:30.479211+08	ok	679	2000	\N
+55	ak_lhb_detail	2026-08-31 19:27:32.060529+08	ok	1569	63	\N
+56	ak_lhb_inst	2026-08-31 19:27:33.130951+08	ok	1054	32	\N
+57	ak_concept_em	2026-08-31 19:28:14.381608+08	down	41243	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+58	ak_fundflow_em	2026-08-31 19:28:17.310801+08	down	2921	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+59	em_push2	2026-08-31 19:28:17.569067+08	ok	251	158	HTTP 200
+60	miaoxiang	2026-08-31 19:28:18.420071+08	ok	844	4096	HTTP 200
+61	baostock_pkg	2026-08-31 19:28:19.045798+08	ok	619	\N	版本 00.9.30
+62	mootdx_pkg	2026-08-31 19:28:19.671121+08	ok	618	\N	版本 0.11.7
+63	ts_pkg	2026-08-31 19:28:20.350933+08	down	673	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+64	alphafeed	2026-08-31 19:28:20.357015+08	ok	0	\N	FT_ALPHAFEED_KEY 已配置
+65	tdx_vipdoc	2026-08-31 20:31:11.212683+08	ok	599	97468	97468 个 .day 文件，库内最新 2026-08-28
+66	ths_local_block	2026-08-31 20:31:11.670643+08	ok	445	1015	1015 个板块 / 130320 条成员，ConfigVer 20260830.095501
+67	ths_local_industry	2026-08-31 20:31:11.716142+08	ok	26	90	90 个行业 / 5212 条成员
+68	ths_local_watchlist	2026-08-31 20:31:11.765341+08	ok	39	43	用户 炒股大王哈哈：43 个分组 / 1182 只
+69	ak_pkg	2026-08-31 20:31:12.6755+08	ok	899	\N	版本 1.18.88
+70	ak_etf_sse	2026-08-31 20:31:13.312915+08	ok	627	898	\N
+71	ak_etf_szse	2026-08-31 20:31:14.404093+08	ok	1081	726	\N
+72	ak_margin_sse	2026-08-31 20:31:15.271969+08	ok	857	1999	\N
+73	ak_margin_szse	2026-08-31 20:31:16.597741+08	ok	1315	2101	\N
+74	ak_margin_sum_sse	2026-08-31 20:31:17.365583+08	ok	757	2000	\N
+75	ak_lhb_detail	2026-08-31 20:31:18.851331+08	ok	1474	63	\N
+76	ak_lhb_inst	2026-08-31 20:31:19.996109+08	ok	1134	32	\N
+77	ak_concept_em	2026-08-31 20:32:02.879987+08	down	42873	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+78	ak_fundflow_em	2026-08-31 20:32:06.154778+08	down	3261	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+79	em_push2	2026-08-31 20:32:08.439088+08	down	2272	\N	RemoteDisconnected: Remote end closed connection without response
+80	miaoxiang	2026-08-31 20:32:09.231213+08	ok	783	4096	HTTP 200
+81	baostock_pkg	2026-08-31 20:32:09.27085+08	ok	32	\N	版本 00.9.30
+82	mootdx_pkg	2026-08-31 20:32:09.420708+08	ok	142	\N	版本 0.11.7
+83	ts_pkg	2026-08-31 20:32:09.507555+08	down	78	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+84	alphafeed	2026-08-31 20:32:09.514163+08	ok	0	\N	FT_ALPHAFEED_KEY 已配置
+85	ts_pkg	2026-08-31 21:08:19.41675+08	ok	1465	1	\N
+86	ts_margin	2026-08-31 21:08:19.495472+08	no_permission	64	0	抱歉，您没有接口(margin)访问权限，权限的具体详情访问：https://tushare.pro/document/1?doc_id=108。
+87	ts_margin_detail	2026-08-31 21:08:19.649989+08	no_permission	123	0	抱歉，您没有接口(margin_detail)访问权限，权限的具体详情访问：https://tushare.pro/document/1?doc_id=108。
+88	ts_top_list	2026-08-31 21:08:19.731514+08	no_permission	69	0	抱歉，您没有接口(top_list)访问权限，权限的具体详情访问：https://tushare.pro/document/1?doc_id=108。
+89	ts_top_inst	2026-08-31 21:08:19.8291+08	no_permission	87	0	抱歉，您没有接口(top_inst)访问权限，权限的具体详情访问：https://tushare.pro/document/1?doc_id=108。
+90	ts_moneyflow	2026-08-31 21:08:19.915751+08	no_permission	74	0	抱歉，您没有接口(moneyflow)访问权限，权限的具体详情访问：https://tushare.pro/document/1?doc_id=108。
+91	ts_ths_index	2026-08-31 21:08:20.000442+08	no_permission	75	0	抱歉，您没有接口(ths_index)访问权限，权限的具体详情访问：https://tushare.pro/document/1?doc_id=108。
+92	tq_http	2026-08-31 21:17:28.763721+08	ok	178	1	\N
+93	tq_http	2026-08-31 21:17:28.818443+08	ok	48	1	\N
+94	tq_http	2026-08-31 21:17:32.587412+08	degraded	3756	\N	TqHttpError: get_zdt_data: {'code': -32601, 'message': 'MCP不支持该tqcenter方法名'}
+95	tq_http	2026-08-31 21:19:08.477728+08	ok	331	2	\N
+96	tq_http	2026-08-31 21:19:08.509254+08	ok	23	587	\N
+97	tq_http	2026-08-31 21:19:21.62152+08	ok	353	38	\N
+98	tq_http	2026-08-31 21:19:21.672494+08	ok	43	2	\N
+99	tdx_snapshot_db	2026-09-01 16:05:49.353724+08	ok	22	5563	29 张日表，最新 2026-08-31（5563 行）
+100	tdx_snapshot_db	2026-09-01 16:07:45.175273+08	ok	9	5563	29 张日表，最新 2026-08-31（5563 行）
+101	tdx_snapshot_db	2026-09-01 16:10:24.622079+08	ok	10	5563	29 张日表，最新 2026-08-31（5563 行）
+102	tq_http	2026-09-01 16:13:31.083276+08	degraded	4138	\N	TqHttpError: get_market_data: ErrorId=3
+103	tq_http	2026-09-01 16:13:34.874358+08	degraded	3783	\N	TqHttpError: get_market_data: ErrorId=3
+104	tq_http	2026-09-01 16:13:34.90812+08	ok	27	1	\N
+105	tq_http	2026-09-01 20:12:29.177269+08	ok	214	1	\N
+106	tdx_vipdoc	2026-09-01 21:23:22.662573+08	ok	623	97468	97468 个 .day 文件，库内最新 2026-09-01
+107	ths_local_block	2026-09-01 21:23:23.141072+08	ok	443	1018	1018 个板块 / 130509 条成员，ConfigVer 20260831.195001
+108	ths_local_industry	2026-09-01 21:23:23.189719+08	ok	26	90	90 个行业 / 5214 条成员
+109	ths_local_watchlist	2026-09-01 21:23:23.527077+08	ok	318	43	用户 炒股大王哈哈：43 个分组 / 1188 只
+110	ak_pkg	2026-09-01 21:23:23.541581+08	ok	0	\N	版本 1.18.88
+111	ak_etf_szse	2026-09-01 21:23:24.57474+08	degraded	534	0	返回 0 行（非交易日或当日尚未发布）
+112	ak_margin_sse	2026-09-01 21:23:27.881943+08	down	3296	\N	ValueError: Length mismatch: Expected axis has 0 elements, new values have 13 elements
+113	ak_margin_szse	2026-09-01 21:23:28.4122+08	degraded	520	0	返回 0 行（非交易日或当日尚未发布）
+114	ak_margin_sum_sse	2026-09-01 21:23:29.070463+08	ok	648	2000	\N
+115	ak_lhb_detail	2026-09-01 21:23:30.101101+08	ok	1020	79	\N
+116	ak_lhb_inst	2026-09-01 21:23:31.197396+08	ok	1086	44	\N
+117	ak_concept_em	2026-09-01 21:24:10.202876+08	down	38994	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+118	ak_fundflow_em	2026-09-01 21:24:13.130783+08	down	2916	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+119	em_push2	2026-09-01 21:24:13.342727+08	ok	200	160	HTTP 200
+120	miaoxiang	2026-09-01 21:24:14.669782+08	ok	1316	4096	HTTP 200
+121	baostock_pkg	2026-09-01 21:24:14.676288+08	ok	0	\N	版本 00.9.30
+122	mootdx_pkg	2026-09-01 21:24:14.682546+08	ok	0	\N	版本 0.11.7
+123	ts_pkg	2026-09-01 21:24:14.688663+08	down	0	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+124	alphafeed	2026-09-01 21:24:14.694742+08	ok	0	\N	FT_ALPHAFEED_KEY 已配置
+125	tdx_snapshot_db	2026-09-01 22:53:55.42272+08	ok	5	5563	30 张日表，最新 2026-09-01（5563 行）
+126	tdx_vipdoc	2026-09-02 18:48:32.265305+08	ok	625	97471	97471 个 .day 文件，库内最新 2026-09-01
+127	ths_local_block	2026-09-02 18:48:32.732145+08	ok	445	1019	1019 个板块 / 130681 条成员，ConfigVer 20260901.215000
+128	ths_local_industry	2026-09-02 18:48:32.771184+08	ok	27	90	90 个行业 / 5215 条成员
+129	ths_local_watchlist	2026-09-02 18:48:32.909378+08	ok	125	43	用户 炒股大王哈哈：43 个分组 / 1190 只
+130	ak_pkg	2026-09-02 18:48:32.923208+08	ok	0	\N	版本 1.18.88
+131	ak_etf_sse	2026-09-02 18:48:33.484276+08	ok	551	898	\N
+132	ak_etf_szse	2026-09-02 18:48:34.239725+08	ok	744	727	\N
+133	ak_margin_sse	2026-09-02 18:48:35.202383+08	ok	953	2000	\N
+134	ak_margin_szse	2026-09-02 18:48:36.478282+08	ok	1265	2102	\N
+135	ak_margin_sum_sse	2026-09-02 18:48:37.161473+08	ok	670	2000	\N
+136	ak_margin_sum_szse	2026-09-02 18:48:37.719928+08	ok	547	1	\N
+137	ak_lhb_detail	2026-09-02 18:48:38.87806+08	ok	1148	79	\N
+138	ak_lhb_inst	2026-09-02 18:48:40.024114+08	ok	1135	44	\N
+139	ak_concept_em	2026-09-02 18:49:22.161765+08	down	42127	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+140	ak_fundflow_em	2026-09-02 18:49:25.182164+08	down	3013	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+141	em_push2	2026-09-02 18:49:25.230536+08	ok	41	160	HTTP 200
+142	miaoxiang	2026-09-02 18:49:25.858837+08	ok	618	4096	HTTP 200
+143	baostock_pkg	2026-09-02 18:49:25.870612+08	ok	0	\N	版本 00.9.30
+144	mootdx_pkg	2026-09-02 18:49:25.876563+08	ok	0	\N	版本 0.11.7
+145	ts_pkg	2026-09-02 18:49:25.883083+08	down	0	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+146	ts_margin	2026-09-02 18:49:25.888904+08	down	0	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+147	ts_margin_detail	2026-09-02 18:49:25.894491+08	down	0	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+148	ts_top_list	2026-09-02 18:49:25.899715+08	down	0	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+149	ts_top_inst	2026-09-02 18:49:25.90605+08	down	0	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+150	ts_moneyflow	2026-09-02 18:49:25.913111+08	down	0	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+151	ts_ths_index	2026-09-02 18:49:25.919266+08	down	0	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+152	alphafeed	2026-09-02 18:49:25.925624+08	ok	0	\N	FT_ALPHAFEED_KEY 已配置
+153	tdx_vipdoc	2026-09-02 22:12:52.275397+08	ok	4350	97475	97475 个 .day 文件，库内最新 2026-09-02
+154	ths_local_block	2026-09-02 22:12:52.839374+08	ok	522	1020	1020 个板块 / 130509 条成员，ConfigVer 20260902.215500
+155	ths_local_industry	2026-09-02 22:12:52.879549+08	ok	27	90	90 个行业 / 5215 条成员
+156	ths_local_watchlist	2026-09-02 22:12:52.986103+08	ok	96	44	用户 炒股大王哈哈：44 个分组 / 1199 只
+157	ak_pkg	2026-09-02 22:12:53.002005+08	ok	0	\N	版本 1.18.88
+158	ak_etf_sse	2026-09-02 22:12:54.068266+08	ok	998	899	\N
+159	ak_etf_szse	2026-09-02 22:12:54.759963+08	degraded	586	0	返回 0 行（非交易日或当日尚未发布）
+160	ak_margin_sse	2026-09-02 22:12:58.347019+08	down	3576	\N	ValueError: Length mismatch: Expected axis has 0 elements, new values have 13 elements
+161	ak_margin_szse	2026-09-02 22:12:58.931922+08	degraded	577	0	返回 0 行（非交易日或当日尚未发布）
+162	ak_margin_sum_sse	2026-09-02 22:12:59.65733+08	ok	718	2000	\N
+163	ak_lhb_detail	2026-09-02 22:13:00.985054+08	ok	1320	83	\N
+164	ak_lhb_inst	2026-09-02 22:13:02.127204+08	ok	1135	47	\N
+165	ak_concept_em	2026-09-02 22:13:44.271249+08	down	42136	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+166	ak_fundflow_em	2026-09-02 22:13:47.265851+08	down	2987	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+167	em_push2	2026-09-02 22:13:49.368535+08	down	2095	\N	RemoteDisconnected: Remote end closed connection without response
+168	miaoxiang	2026-09-02 22:13:50.257204+08	ok	880	4096	HTTP 200
+169	baostock_pkg	2026-09-02 22:13:50.264754+08	ok	0	\N	版本 00.9.30
+170	mootdx_pkg	2026-09-02 22:13:50.271736+08	ok	0	\N	版本 0.11.7
+171	ts_pkg	2026-09-02 22:13:50.278274+08	down	0	\N	环境变量 FT_TUSHARE_TOKEN 未设置
+172	alphafeed	2026-09-02 22:13:50.284194+08	ok	0	\N	FT_ALPHAFEED_KEY 已配置
+173	tdx_vipdoc	2026-09-09 20:10:06.636679+08	ok	643	97491	97491 个 .day 文件，库内最新 2026-09-03
+174	ths_local_block	2026-09-09 20:10:07.541909+08	ok	856	1020	1020 个板块 / 130509 条成员，ConfigVer 20260902.215500
+175	ths_local_industry	2026-09-09 20:10:07.615948+08	ok	55	90	90 个行业 / 5215 条成员
+176	ths_local_watchlist	2026-09-09 20:10:08.247521+08	ok	602	44	用户 炒股大王哈哈：44 个分组 / 1199 只
+177	ak_pkg	2026-09-09 20:10:08.264794+08	ok	0	\N	版本 1.18.88
+178	ak_etf_sse	2026-09-09 20:10:09.034806+08	ok	760	900	\N
+179	ak_etf_szse	2026-09-09 20:10:09.878561+08	ok	811	728	\N
+180	ak_margin_sse	2026-09-09 20:10:10.900737+08	ok	987	2000	\N
+181	ak_margin_szse	2026-09-09 20:10:12.366194+08	ok	1453	2103	\N
+182	ak_margin_sum_sse	2026-09-09 20:10:13.170133+08	ok	791	2000	\N
+183	ak_lhb_detail	2026-09-09 20:10:14.327503+08	ok	1137	63	\N
+184	ak_lhb_inst	2026-09-09 20:10:15.553155+08	ok	1215	37	\N
+185	tq_http	2026-09-14 23:24:53.057931+08	ok	408	\N	http://127.0.0.1:17709/ 通，get_match_stkinfo 返回 1 条
+186	tdx_vipdoc	2026-09-14 23:24:58.921136+08	ok	5828	97500	97500 个 .day 文件，库内最新 2026-09-03
+187	ths_local_block	2026-09-14 23:24:59.507556+08	ok	566	1040	1040 个板块 / 129968 条成员，ConfigVer 20260914.231500
+188	ths_local_industry	2026-09-14 23:24:59.553654+08	ok	36	90	90 个行业 / 5219 条成员
+189	ths_local_watchlist	2026-09-14 23:24:59.647708+08	ok	84	44	用户 炒股大王哈哈：44 个分组 / 1254 只
+190	tdx_snapshot_db	2026-09-14 23:24:59.680384+08	ok	22	5570	35 张日表，最新 2026-09-11（5570 行）
+191	ak_pkg	2026-09-14 23:25:05.988056+08	ok	6297	\N	版本 1.18.88
+192	ak_etf_sse	2026-09-14 23:25:06.712229+08	ok	714	900	\N
+193	ak_etf_szse	2026-09-14 23:25:10.042672+08	ok	3310	728	\N
+194	ak_margin_sse	2026-09-14 23:25:10.998288+08	ok	941	2000	\N
+195	ak_margin_szse	2026-09-14 23:25:12.353269+08	ok	1344	2103	\N
+196	ak_margin_sum_sse	2026-09-14 23:25:13.047337+08	ok	682	2000	\N
+197	ak_lhb_detail	2026-09-14 23:25:14.265793+08	ok	1180	63	\N
+198	ak_lhb_inst	2026-09-14 23:25:15.23522+08	ok	959	37	\N
+199	ak_concept_em	2026-09-14 23:25:56.41252+08	down	41166	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+200	ak_fundflow_em	2026-09-14 23:25:59.358261+08	down	2928	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+201	em_push2	2026-09-14 23:25:59.402181+08	ok	36	160	HTTP 200
+202	miaoxiang	2026-09-14 23:26:00.03717+08	ok	624	4096	HTTP 200
+203	baostock_pkg	2026-09-14 23:26:00.336507+08	ok	293	\N	版本 00.9.30
+204	mootdx_pkg	2026-09-14 23:26:00.810862+08	ok	467	\N	版本 0.11.7
+205	ts_pkg	2026-09-14 23:26:01.520931+08	ok	700	1	\N
+206	alphafeed	2026-09-14 23:26:01.526841+08	ok	0	\N	FT_ALPHAFEED_KEY 已配置
+207	tq_http	2026-09-17 23:57:02.933815+08	ok	372	\N	http://127.0.0.1:17709/ 通，get_match_stkinfo 返回 1 条
+208	tdx_vipdoc	2026-09-17 23:57:07.563943+08	ok	4578	97506	97506 个 .day 文件，库内最新 2026-09-16
+209	ths_local_block	2026-09-17 23:57:08.089107+08	ok	512	1044	1044 个板块 / 129582 条成员，ConfigVer 20260917.235000
+210	ths_local_industry	2026-09-17 23:57:08.136229+08	ok	35	90	90 个行业 / 5221 条成员
+211	ths_local_watchlist	2026-09-17 23:57:08.187172+08	ok	40	45	用户 炒股大王哈哈：45 个分组 / 1272 只
+212	tdx_snapshot_db	2026-09-17 23:57:08.207453+08	ok	10	5573	37 张日表，最新 2026-09-17（5573 行）
+213	ak_pkg	2026-09-17 23:57:08.986845+08	ok	769	\N	版本 1.18.88
+214	ak_etf_sse	2026-09-17 23:57:09.596269+08	ok	600	909	\N
+215	ak_etf_szse	2026-09-17 23:57:10.959102+08	ok	1351	736	\N
+216	ak_margin_sse	2026-09-17 23:57:12.009307+08	ok	1043	2000	\N
+217	ak_margin_szse	2026-09-17 23:57:13.4441+08	ok	1428	2105	\N
+218	ak_margin_sum_sse	2026-09-17 23:57:14.117044+08	ok	663	2000	\N
+219	ak_lhb_detail	2026-09-17 23:57:15.185442+08	ok	1062	73	\N
+220	ak_lhb_inst	2026-09-17 23:57:16.16224+08	ok	966	41	\N
+221	ak_concept_em	2026-09-17 23:57:57.433063+08	down	41263	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+222	ak_fundflow_em	2026-09-17 23:58:00.346645+08	down	2901	\N	ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+223	em_push2	2026-09-17 23:58:00.432368+08	ok	79	159	HTTP 200
+224	miaoxiang	2026-09-17 23:58:01.503265+08	ok	1064	4096	HTTP 200
+225	baostock_pkg	2026-09-17 23:58:01.896904+08	ok	386	\N	版本 00.9.30
+226	mootdx_pkg	2026-09-17 23:58:02.474905+08	ok	571	\N	版本 0.11.7
+227	ts_pkg	2026-09-17 23:58:03.515011+08	ok	1034	1	\N
+228	alphafeed	2026-09-17 23:58:03.52138+08	ok	0	\N	FT_ALPHAFEED_KEY 已配置
+229	tdx_snapshot_db	2026-09-21 23:21:55.883279+08	ok	6	5575	39 张日表，最新 2026-09-21（5575 行）

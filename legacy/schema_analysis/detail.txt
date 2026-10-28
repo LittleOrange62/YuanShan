@@ -1,0 +1,199 @@
+Output format is unaligned.
+Field separator is "|".
+tbl|ord|column_name|data_type|is_nullable|column_default
+config.datasource|1|ds_key|text|NO|
+config.datasource|2|name|text|NO|
+config.datasource|3|kind|text|NO|
+config.datasource|4|provider|text|YES|
+config.datasource|5|endpoint|text|YES|
+config.datasource|6|auth_ref|text|YES|
+config.datasource|7|quota_limit|bigint|YES|
+config.datasource|8|quota_used|bigint|YES|
+config.datasource|9|quota_reset|text|YES|
+config.datasource|10|health|text|NO|'unknown'::text
+config.datasource|11|last_ok_at|timestamp with time zone|YES|
+config.datasource|12|last_check|timestamp with time zone|YES|
+config.datasource|13|last_err|text|YES|
+config.datasource|14|latency_ms|integer|YES|
+config.datasource|15|row_count|integer|YES|
+config.datasource|16|probe_spec|jsonb|NO|'{}'::jsonb
+config.datasource|17|seq|integer|NO|100
+config.datasource|18|is_active|boolean|NO|true
+config.datasource|19|note|text|YES|
+config.datasource|20|updated_at|timestamp with time zone|NO|now()
+config.datasource|21|layer|text|NO|'assist'::text
+config.datasource|22|ds_role|text|YES|
+config.datasource|23|cost|text|YES|
+config.datasource|24|tagline|text|YES|
+config.help_note|1|note_key|text|NO|
+config.help_note|2|scope|text|NO|
+config.help_note|3|target|text|YES|
+config.help_note|4|title|text|YES|
+config.help_note|5|purpose|text|YES|
+config.help_note|6|content|text|YES|
+config.help_note|7|source_query|text|YES|
+config.help_note|8|source_tables|ARRAY|NO|'{}'::text[]
+config.help_note|9|script|text|YES|
+config.help_note|10|derive|text|YES|
+config.help_note|11|formula|text|YES|
+config.help_note|12|caveat|text|YES|
+config.help_note|13|includes|ARRAY|NO|'{}'::text[]
+config.help_note|14|params|jsonb|NO|'{}'::jsonb
+config.help_note|15|seq|integer|NO|100
+config.help_note|16|enabled|boolean|NO|true
+config.help_note|17|updated_at|timestamp with time zone|NO|now()
+config.popup_rule|1|rule_key|text|NO|
+config.popup_rule|2|match_type|text|NO|'title'::text
+config.popup_rule|3|pattern|text|NO|
+config.popup_rule|4|action|text|NO|'close'::text
+config.popup_rule|5|button_text|text|YES|
+config.popup_rule|6|priority|integer|NO|100
+config.popup_rule|7|is_active|boolean|NO|true
+config.popup_rule|8|note|text|YES|
+config.popup_rule|9|updated_at|timestamp with time zone|NO|now()
+fct.ignition|1|scope|text|NO|
+fct.ignition|2|obj_key|text|NO|
+fct.ignition|3|trade_date|date|NO|
+fct.ignition|4|stage|text|NO|
+fct.ignition|5|score|numeric|YES|
+fct.ignition|6|squeeze|numeric|YES|
+fct.ignition|7|pos|numeric|YES|
+fct.ignition|8|ignition|numeric|YES|
+fct.ignition|9|volume|numeric|YES|
+fct.ignition|10|breadth|numeric|YES|
+fct.ignition|11|n_terms|smallint|YES|
+fct.ignition|12|detail|jsonb|NO|'{}'::jsonb
+fct.ignition|13|task_id|bigint|YES|
+fct.ignition|14|calculated_at|timestamp with time zone|NO|now()
+fct.sector_heat_daily|1|sector_code|text|NO|
+fct.sector_heat_daily|2|trade_date|date|NO|
+fct.sector_heat_daily|3|heat|numeric|YES|
+fct.sector_heat_daily|4|member_scored|integer|YES|
+fct.sector_heat_daily|5|task_id|bigint|YES|
+fct.sector_heat_daily|6|calculated_at|timestamp with time zone|NO|now()
+fct.sector_heat_daily|7|src|text|NO|'member_agg'::text
+fct.sector_heat_daily|8|n_parts|smallint|YES|
+fct.sector_trend|1|sector_code|text|NO|
+fct.sector_trend|2|trade_date|date|NO|
+fct.sector_trend|3|win|smallint|NO|
+fct.sector_trend|4|slope|numeric|YES|
+fct.sector_trend|5|n_points|smallint|YES|
+fct.sector_trend|6|task_id|bigint|YES|
+fct.sector_trend|7|calculated_at|timestamp with time zone|NO|now()
+md.etf_share|1|ts_code|text|NO|
+md.etf_share|2|trade_date|date|NO|
+md.etf_share|3|fund_name|text|YES|
+md.etf_share|4|etf_type|text|YES|
+md.etf_share|5|share_units|numeric|NO|
+md.etf_share|6|src_batch_id|bigint|NO|
+md.etf_share|7|updated_at|timestamp with time zone|NO|now()
+md.fund_flow_rank|1|trade_date|date|NO|
+md.fund_flow_rank|2|scope|text|NO|
+md.fund_flow_rank|3|obj_code|text|NO|
+md.fund_flow_rank|4|obj_name|text|YES|
+md.fund_flow_rank|5|window_days|smallint|NO|
+md.fund_flow_rank|6|main_net|numeric|YES|
+md.fund_flow_rank|7|main_pct|numeric|YES|
+md.fund_flow_rank|8|pct_chg|numeric|YES|
+md.fund_flow_rank|9|src_batch_id|bigint|NO|
+md.fund_flow_rank|10|updated_at|timestamp with time zone|NO|now()
+md.lhb_detail|1|ts_code|text|NO|
+md.lhb_detail|2|trade_date|date|NO|
+md.lhb_detail|3|reason|text|NO|
+md.lhb_detail|4|close|numeric|YES|
+md.lhb_detail|5|pct_chg|numeric|YES|
+md.lhb_detail|6|net_buy|numeric|YES|
+md.lhb_detail|7|buy_amount|numeric|YES|
+md.lhb_detail|8|sell_amount|numeric|YES|
+md.lhb_detail|9|lhb_amount|numeric|YES|
+md.lhb_detail|10|market_amount|numeric|YES|
+md.lhb_detail|11|net_buy_ratio|numeric|YES|
+md.lhb_detail|12|amount_ratio|numeric|YES|
+md.lhb_detail|13|turnover_rate_pct|numeric|YES|
+md.lhb_detail|14|float_mv_yuan|numeric|YES|
+md.lhb_detail|15|interpret|text|YES|
+md.lhb_detail|16|src_batch_id|bigint|NO|
+md.lhb_detail|17|updated_at|timestamp with time zone|NO|now()
+md.lhb_inst|1|ts_code|text|NO|
+md.lhb_inst|2|trade_date|date|NO|
+md.lhb_inst|3|reason|text|NO|
+md.lhb_inst|4|buy_inst_count|integer|YES|
+md.lhb_inst|5|sell_inst_count|integer|YES|
+md.lhb_inst|6|inst_buy|numeric|YES|
+md.lhb_inst|7|inst_sell|numeric|YES|
+md.lhb_inst|8|inst_net|numeric|YES|
+md.lhb_inst|9|market_amount|numeric|YES|
+md.lhb_inst|10|net_ratio|numeric|YES|
+md.lhb_inst|11|src_batch_id|bigint|NO|
+md.lhb_inst|12|updated_at|timestamp with time zone|NO|now()
+md.margin_detail|1|ts_code|text|NO|
+md.margin_detail|2|trade_date|date|NO|
+md.margin_detail|3|rz_balance|numeric|YES|
+md.margin_detail|4|rz_buy|numeric|YES|
+md.margin_detail|5|rz_repay|numeric|YES|
+md.margin_detail|6|rq_volume|numeric|YES|
+md.margin_detail|7|rq_sell|numeric|YES|
+md.margin_detail|8|rq_repay|numeric|YES|
+md.margin_detail|9|rq_balance|numeric|YES|
+md.margin_detail|10|rzrq_balance|numeric|YES|
+md.margin_detail|11|src_batch_id|bigint|NO|
+md.margin_detail|12|updated_at|timestamp with time zone|NO|now()
+md.market_fund_flow|1|trade_date|date|NO|
+md.market_fund_flow|2|sh_close|numeric|YES|
+md.market_fund_flow|3|sh_pct|numeric|YES|
+md.market_fund_flow|4|sz_close|numeric|YES|
+md.market_fund_flow|5|sz_pct|numeric|YES|
+md.market_fund_flow|6|main_net|numeric|YES|
+md.market_fund_flow|7|main_pct|numeric|YES|
+md.market_fund_flow|8|xl_net|numeric|YES|
+md.market_fund_flow|9|xl_pct|numeric|YES|
+md.market_fund_flow|10|lg_net|numeric|YES|
+md.market_fund_flow|11|lg_pct|numeric|YES|
+md.market_fund_flow|12|md_net|numeric|YES|
+md.market_fund_flow|13|md_pct|numeric|YES|
+md.market_fund_flow|14|sm_net|numeric|YES|
+md.market_fund_flow|15|sm_pct|numeric|YES|
+md.market_fund_flow|16|src_batch_id|bigint|NO|
+md.market_fund_flow|17|updated_at|timestamp with time zone|NO|now()
+ops.datasource_probe|1|probe_id|bigint|NO|nextval('ops.datasource_probe_probe_id_seq'::regclass)
+ops.datasource_probe|2|ds_key|text|NO|
+ops.datasource_probe|3|checked_at|timestamp with time zone|NO|now()
+ops.datasource_probe|4|health|text|NO|
+ops.datasource_probe|5|latency_ms|integer|YES|
+ops.datasource_probe|6|row_count|integer|YES|
+ops.datasource_probe|7|message|text|YES|
+ref.sector_alias|1|alias_code|text|NO|
+ref.sector_alias|2|sector_code|text|NO|
+ref.sector_alias|3|src|text|YES|
+ref.sector_alias|4|note|text|YES|
+ref.sector_alias|5|created_at|timestamp with time zone|NO|now()
+(166 rows)
+tablename|indexname|indexdef
+datasource|datasource_pkey|CREATE UNIQUE INDEX datasource_pkey ON config.datasource USING btree (ds_key)
+datasource|ix_datasource_active|CREATE INDEX ix_datasource_active ON config.datasource USING btree (layer, seq, ds_key) WHERE is_active
+datasource_probe|datasource_probe_pkey|CREATE UNIQUE INDEX datasource_probe_pkey ON ops.datasource_probe USING btree (probe_id)
+datasource_probe|ix_ds_probe_key|CREATE INDEX ix_ds_probe_key ON ops.datasource_probe USING btree (ds_key, checked_at DESC)
+etf_share|etf_share_pkey|CREATE UNIQUE INDEX etf_share_pkey ON md.etf_share USING btree (ts_code, trade_date)
+etf_share|ix_etf_share_date|CREATE INDEX ix_etf_share_date ON md.etf_share USING btree (trade_date)
+fund_flow_rank|fund_flow_rank_pkey|CREATE UNIQUE INDEX fund_flow_rank_pkey ON md.fund_flow_rank USING btree (trade_date, scope, obj_code, window_days)
+fund_flow_rank|ix_fund_flow_rank_lookup|CREATE INDEX ix_fund_flow_rank_lookup ON md.fund_flow_rank USING btree (trade_date, scope, window_days, main_net DESC)
+help_note|help_note_pkey|CREATE UNIQUE INDEX help_note_pkey ON config.help_note USING btree (note_key)
+help_note|ix_help_note_target|CREATE INDEX ix_help_note_target ON config.help_note USING btree (scope, target) WHERE enabled
+ignition|ignition_pkey|CREATE UNIQUE INDEX ignition_pkey ON fct.ignition USING btree (scope, obj_key, trade_date)
+ignition|ix_ignition_date_stage|CREATE INDEX ix_ignition_date_stage ON fct.ignition USING btree (trade_date, stage, score DESC)
+lhb_detail|ix_lhb_detail_date|CREATE INDEX ix_lhb_detail_date ON md.lhb_detail USING btree (trade_date)
+lhb_detail|lhb_detail_pkey|CREATE UNIQUE INDEX lhb_detail_pkey ON md.lhb_detail USING btree (ts_code, trade_date, reason)
+lhb_inst|ix_lhb_inst_date|CREATE INDEX ix_lhb_inst_date ON md.lhb_inst USING btree (trade_date)
+lhb_inst|lhb_inst_pkey|CREATE UNIQUE INDEX lhb_inst_pkey ON md.lhb_inst USING btree (ts_code, trade_date, reason)
+margin_detail|ix_margin_detail_date|CREATE INDEX ix_margin_detail_date ON md.margin_detail USING btree (trade_date)
+margin_detail|margin_detail_pkey|CREATE UNIQUE INDEX margin_detail_pkey ON md.margin_detail USING btree (ts_code, trade_date)
+market_fund_flow|market_fund_flow_pkey|CREATE UNIQUE INDEX market_fund_flow_pkey ON md.market_fund_flow USING btree (trade_date)
+popup_rule|ix_popup_rule_active|CREATE INDEX ix_popup_rule_active ON config.popup_rule USING btree (priority, rule_key) WHERE is_active
+popup_rule|popup_rule_pkey|CREATE UNIQUE INDEX popup_rule_pkey ON config.popup_rule USING btree (rule_key)
+sector_alias|ix_sector_alias_target|CREATE INDEX ix_sector_alias_target ON ref.sector_alias USING btree (sector_code)
+sector_alias|sector_alias_pkey|CREATE UNIQUE INDEX sector_alias_pkey ON ref.sector_alias USING btree (alias_code)
+sector_heat_daily|ix_sector_heat_daily_date|CREATE INDEX ix_sector_heat_daily_date ON fct.sector_heat_daily USING btree (trade_date)
+sector_heat_daily|sector_heat_daily_pkey|CREATE UNIQUE INDEX sector_heat_daily_pkey ON fct.sector_heat_daily USING btree (sector_code, trade_date)
+sector_trend|ix_sector_trend_date|CREATE INDEX ix_sector_trend_date ON fct.sector_trend USING btree (trade_date, win)
+sector_trend|sector_trend_pkey|CREATE UNIQUE INDEX sector_trend_pkey ON fct.sector_trend USING btree (sector_code, trade_date, win)
+(27 rows)

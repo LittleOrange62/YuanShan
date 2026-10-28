@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>YuanShan · 珠峰</title>
+  <rect width="64" height="64" rx="14" fill="#15171c"/>
+  <!-- 与侧栏 components/workspace/EverestLogo.tsx 同一几何，改一处要改两处。 -->
+  <g fill="none" stroke="#f57445" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 53 L20 32 L26 39 L36 12 L47 31 L53 24 L60 53 Z"/>
+    <path d="M30.5 24 L33.5 27 L36 24.5 L38.5 27.5 L41.5 24"/>
+    <path d="M36 12 L34.5 20"/>
+  </g>
+</svg>

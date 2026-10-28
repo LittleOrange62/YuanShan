@@ -1,0 +1,129 @@
+{
+  "created_at": "2026-08-26T09:16:40",
+  "description": "D:\\finance 散落 py 脚本归类记录，可用 revert_scripts.py 回滚",
+  "moves": [
+    {
+      "src": "D:\\finance\\_check_dup.py",
+      "dest": "D:\\finance\\脚本\\03_数据校验\\_check_dup.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\_check_dup2.py",
+      "dest": "D:\\finance\\脚本\\03_数据校验\\_check_dup2.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\_check_dup3.py",
+      "dest": "D:\\finance\\脚本\\03_数据校验\\_check_dup3.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\_check_schema.py",
+      "dest": "D:\\finance\\脚本\\03_数据校验\\_check_schema.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\check_600367.py",
+      "dest": "D:\\finance\\脚本\\03_数据校验\\check_600367.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\probe_blockmap.py",
+      "dest": "D:\\finance\\脚本\\05_辅助工具\\probe_blockmap.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\probe_day.py",
+      "dest": "D:\\finance\\脚本\\05_辅助工具\\probe_day.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\probe_hq_cache.py",
+      "dest": "D:\\finance\\脚本\\05_辅助工具\\probe_hq_cache.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\probe_schema.py",
+      "dest": "D:\\finance\\脚本\\05_辅助工具\\probe_schema.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\query_hx.py",
+      "dest": "D:\\finance\\脚本\\05_辅助工具\\query_hx.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\search_hx.py",
+      "dest": "D:\\finance\\脚本\\05_辅助工具\\search_hx.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\split_minline_by_year.py",
+      "dest": "D:\\finance\\脚本\\01_数据同步\\split_minline_by_year.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\脚本\\_verify_factor.py",
+      "dest": "D:\\finance\\脚本\\03_数据校验\\_verify_factor.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\脚本\\_verify_factor2.py",
+      "dest": "D:\\finance\\脚本\\03_数据校验\\_verify_factor2.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\脚本\\_verify_local.py",
+      "dest": "D:\\finance\\脚本\\03_数据校验\\_verify_local.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\脚本\\generate_csvs.py",
+      "dest": "D:\\finance\\脚本\\05_辅助工具\\generate_csvs.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\脚本\\query_plan1.py",
+      "dest": "D:\\finance\\脚本\\05_辅助工具\\query_plan1.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\脚本\\run_all_factors_local.py",
+      "dest": "D:\\finance\\脚本\\07_因子跑分\\run_all_factors_local.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\脚本\\run_factor_local.py",
+      "dest": "D:\\finance\\脚本\\07_因子跑分\\run_factor_local.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\脚本\\run_plan1.py",
+      "dest": "D:\\finance\\脚本\\07_因子跑分\\run_plan1.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\脚本\\run_plan1_backfill.py",
+      "dest": "D:\\finance\\脚本\\07_因子跑分\\run_plan1_backfill.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\脚本\\run_plan_backfill.py",
+      "dest": "D:\\finance\\脚本\\07_因子跑分\\run_plan_backfill.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\脚本\\verify_watchlist.py",
+      "dest": "D:\\finance\\脚本\\03_数据校验\\verify_watchlist.py",
+      "action": "moved"
+    },
+    {
+      "src": "D:\\finance\\data\\scripts\\query_hx.py",
+      "dest": "D:\\finance\\脚本\\05_辅助工具\\query_hx.py",
+      "action": "moved"
+    }
+  ],
+  "removed_dirs": [
+    "D:\\finance\\data\\scripts"
+  ]
+}

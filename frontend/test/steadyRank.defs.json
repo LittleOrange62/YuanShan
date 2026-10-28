@@ -1,0 +1,142 @@
+{
+ "definitions": {
+  "board_rank": "榜内第几行（按前进幅度降序；本次符合判据的共 372 只，接口交出前 2 只）",
+  "security_code": "代码；名次读的是这只票在打分表里那几行的 rank_in_market",
+  "name": "名称（读 reference_data.security；库里没登记中文名时这一格就是代码本身）",
+  "board": "板块归属（主板 / 创业板 / 科创板 / 北交所，同一个字典）",
+  "gain_frac": "gain_abs ÷ first_series（百分比）—— 排序用的就是这一列，因为它在两档之间尺度可比",
+  "first_series": "窗口第一场（2026-10-09）的X+Y 两轴合名次（= X 名次 + Y 名次，最小 2、最大约两倍全场只数；它不是「全场第几名」，只用来把两轴的位置合成一个可比的数）",
+  "latest_series": "最近一场（2026-10-16）的X+Y 两轴合名次；名次数字变小＝往前走",
+  "gain_abs": "first_series − latest_series（名次前进的绝对步数；两档尺度不同，别横着比）",
+  "better_steps": "相邻两场之间名次前进的步数（上限 5 步，进榜要求 ≥ 3）",
+  "worse_steps": "相邻两场之间名次后退的步数（进榜要求 ≤ 1；这一列不为 0 也能进榜，所以「稳步」不等于「每天都前进」）",
+  "tied_steps": "相邻两场名次完全相同的步数（多半是并列名次，Y 轴尤其常见）",
+  "steps_total": "better + worse + tied，应当等于 5 步；不相等就是这一行的步数与路径不是同一批行数出来的",
+  "biggest_step_gain": "单步前进最大的那一步跨了多少名 —— 用来分辨「每场挪一点」与「某天一次跨档」：后者只有一步大、其余靠均值撑",
+  "series_path": "X+Y 两轴合名次的逐日路径（早→晚，用 → 连）；这一列是文本，排序请点前面的数值列",
+  "x_path": "X 轴（stock_quality）逐日名次，缺场次的地方用 · 占位（进榜的票不该有 ·）",
+  "y_path": "Y 轴（env_resonance）逐日名次；这一轴全场只有几十个不同取值（见 y_axis_levels 那条声明），所以路径里连续几个数字相同是并列、不是没动",
+  "first_x": "X 轴名次在窗口第一场（2026-10-09）的值",
+  "latest_x": "X 轴名次在最近一场的值；xy 档要求它小于 first_x",
+  "first_y": "Y 轴名次在窗口第一场的值（2026-10-09）",
+  "latest_y": "Y 轴名次在最近一场的值；xy 档要求它小于 first_y",
+  "quadrant": "最近一场的当日象限（与上面「选股象限」那一屏同一列，不是新判据）",
+  "quadrant_label": "当日象限的中文名（读 config.setting 的 quadrant_labels，这一列只是给「档」那一格配个中文说明，不参与判据）",
+  "oper_value": "最近一场的综合分原值 —— 名次是相对量，这一列才是绝对量",
+  "sessions_used": "这一行实际用了几天（进榜的都必须 = 6，缺场次不进榜）",
+  "matched_total": "本次符合判据的总只数（榜被 limit 截断时它大于行数）"
+ },
+ "rule": "名次稳步前进榜（X+Y 两轴合名次）：取最近 6 个有名次的交易日（共 5 步），进榜要同时满足 —— ① 每场都有这个名次；② 前进的步数 ≥ 3；③ 后退的步数 ≤ 1；④ 净前进幅度 ≥ 首场名次的 10%；⑤ X 与 Y 两个轴「各自」都要净前进（防止一轴大涨掩盖另一轴恶化）。按「净前进幅度 ÷ 首场名次」从高到低取前 2；并列时先比最近一场的名次（更小者在前），再比代码。这一屏看的是「方向」，不是位置：榜顶可能是从 5,000 名走过来的票，要「现在谁最强」看上一张名次稳定榜。",
+ "metric_label": "X/Y 两轴合名次",
+ "series_label": "X+Y 两轴合名次",
+ "universe": {
+  "per_session_min": 5558,
+  "per_session_max": 5563,
+  "y_levels_min": 32,
+  "y_levels_max": 32,
+  "x_levels_min": 5535,
+  "x_levels_max": 5552,
+  "biggest_y_tie": 755,
+  "stale_rows": 0,
+  "covered_codes": null,
+  "note": "名次是「当日全场第几名」（1 = 第一），越小越靠前；各场母体只数略有出入（5558~5563 只）。只有 6 场每场都有名次的票进榜 —— 缺场次还比方向，等于让少走几步的票去和走满的票比谁更稳"
+ },
+ "window": {
+  "sessions": 6,
+  "fixed": 6,
+  "steps": 5,
+  "first_day": "2026-10-09",
+  "last_day": "2026-10-16",
+  "is_trading_days": true
+ },
+ "thresholds": {
+  "min_better_steps": 3,
+  "max_worse_steps": 1,
+  "min_gain_frac_pct": 10.0,
+  "require_both_axes": true
+ },
+ "caveats": [
+  {
+   "code": "rank_direction",
+   "text": "名次是「第几名」：**1 = 全场第一，数字越小越靠前**。所以「名次稳步前进」= 名次数字一场比一场小，不是数字变大。这一句在「名次稳定榜」与「名次稳步前进榜」两屏都适用，界面别把「增长」读成数字上涨"
+  },
+  {
+   "code": "env_rank_levels",
+   "text": "Y 轴（env_resonance）的分数本身是档位化的，全市场几千只票只落在几十个不同取值上 ⇒ 它的 `rank_in_market` 大面积并列（一档里几百只票同名次）。Y 轴路径里「数字相同」是并列、不是没动；具体档位数随本次读数交出（`universe`），别背这里的描述当现值"
+  },
+  {
+   "code": "relative_not_absolute",
+   "text": "名次前进只说明「相对全场的位置变好了」，不等于这只票本身变好：全场都在退时原地不动也是前进。绝对量看同一行的 `oper_value`（综合分原值）与 X/Y 原值，两者一起读才分得清\"它变强了\"与\"别人变弱了\""
+  },
+  {
+   "code": "coverage",
+   "text": "各表起点不同，短历史是 caveat 不是缺数。这一张表实有覆盖（起止与场数）看同一份返回里的 `coverage`，它现算自库里的 `min/max(count distinct trade_date)`，一小时内复用同一份、并由缓存条声明年龄 —— 本注释与界面都不背这些数字，背了就会过期。"
+  },
+  {
+   "code": "cached_aggregates",
+   "text": "这几项全库级聚合取自进程内缓存（一小时重算一次），不是此刻重扫：名次稳步前进榜的窗口与母体（看 2026-10-16 的「X+Y 两轴合名次」这一档）（5 秒前实算）。刚回填过场次时这一小时的旧值要留心；要立刻看新数，请求带 `refresh=1`。"
+  },
+  {
+   "code": "board_truncated",
+   "text": "符合判据的共 372 只，接口只交前 2 只 —— 榜被上限截断过，这一屏的行数不等于「全场稳步前进的票数」。"
+  },
+  {
+   "code": "y_axis_levels",
+   "text": "Y 轴（env_resonance）名次在这 6 场里每场只有 32 个不同取值，而 X 轴有 5535 个 —— 也就是说 5,00x 只票在 Y 轴上是挤在几十个档位里的（最大一档并列 755 只）。所以 y_path 里连续几个数字相同是「并列」、不是「没动」，而 Y 轴的\"前进\"往往是一次跨档跳变；两轴合名次的分辨率主要由 X 轴决定"
+  }
+ ],
+ "row_keys": [
+  "security_code",
+  "name",
+  "board",
+  "sessions_used",
+  "first_series",
+  "latest_series",
+  "gain_abs",
+  "gain_frac",
+  "better_steps",
+  "worse_steps",
+  "tied_steps",
+  "biggest_step_gain",
+  "first_x",
+  "latest_x",
+  "first_y",
+  "latest_y",
+  "series_path",
+  "x_path",
+  "y_path",
+  "quadrant",
+  "oper_value",
+  "matched_total",
+  "board_rank",
+  "quadrant_label",
+  "steps_total"
+ ],
+ "sample_row": {
+  "security_code": "600295.SH",
+  "name": "鄂尔多斯",
+  "board": "主板",
+  "sessions_used": 6,
+  "first_series": 3454,
+  "latest_series": 181,
+  "gain_abs": 3273,
+  "gain_frac": 94.8,
+  "better_steps": 4,
+  "worse_steps": 1,
+  "tied_steps": 0,
+  "biggest_step_gain": 2405,
+  "first_x": 3412,
+  "latest_x": 180,
+  "first_y": 42,
+  "latest_y": 1,
+  "series_path": "3454→1049→388→998→700→181",
+  "x_path": "3412→410→246→340→182→180",
+  "y_path": "42→639→142→658→518→1",
+  "quadrant": "Q1",
+  "oper_value": 31.9374,
+  "matched_total": 372,
+  "board_rank": 1,
+  "quadrant_label": "买入",
+  "steps_total": 5
+ }
+}

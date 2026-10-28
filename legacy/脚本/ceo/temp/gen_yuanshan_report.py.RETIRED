@@ -1,0 +1,128 @@
+"""
+远山评分卡 — 从鑫鑫评分系统读取数据，生成标准报告
+"""
+import sqlite3, os, sys
+
+DATA_DIR = '/app/working/workspaces/data_in/data'
+MASTER_DB = os.path.join(DATA_DIR, 'stocks_master.db')
+
+# 重点股FOCUS列表（15只）
+FOCUS = ['001208.SZ', '000600.SZ', '920808.BJ', '688820.SH', '688008.SH',
+         '603893.SH', '000988.SZ', '300666.SZ', '002409.SZ', '000021.SZ',
+         '002138.SZ', '600487.SH', '688106.SH', '300346.SZ', '002182.SZ']
+
+Q_ICON = {'Q1': '🟢', 'Q2': '🟡', 'Q3': '🔵', 'Q4': '🔴'}
+Q_LABEL = {'Q1': '买', 'Q2': '持', 'Q3': '探', 'Q4': '避'}
+
+def get_quadrant(x, y, db_quad):
+    """根据X,Y判定象限，DB有值且非mix则用DB值"""
+    if db_quad and db_quad != 'mix':
+        return db_quad.split('_')[0]
+    if x >= 0 and y >= 0: return 'Q1'
+    if x >= 0 and y < 0: return 'Q2'
+    if x < 0 and y >= 0: return 'Q3'
+    if x < 0 and y < 0: return 'Q4'
+    return 'N/A'
+
+def main():
+    conn = sqlite3.connect(MASTER_DB)
+    cur = conn.cursor()
+    
+    # 最新完整交易日
+    import datetime
+    today = datetime.date.today().strftime('%Y-%m-%d')
+    latest = cur.execute("SELECT MAX(date) FROM score WHERE date <= ?", (today,)).fetchone()[0]
+    
+    # 从score表取评分，从x_y取象限
+    rows = cur.execute("""
+        SELECT s.symbol, COALESCE(w.name, s.symbol), s.final, s.x, s.y, s.oper, q.quadrant
+        FROM score s
+        LEFT JOIN watchlist w ON s.symbol=w.ts_code
+        LEFT JOIN x_y q ON s.symbol=q.symbol AND s.date=q.date
+        WHERE s.date=?
+        ORDER BY s.final DESC
+    """, (latest,)).fetchall()
+    
+    focus_set = set(FOCUS)
+    
+    lines = []
+    lines.append(f"📊 远山评分卡 — {latest} 📅")
+    lines.append("")
+    lines.append(f"📌 自选股 {len(rows)}只 | 评分口径：鑫鑫版")
+    
+    # 统计象限分布
+    qcnt = {'Q1': 0, 'Q2': 0, 'Q3': 0, 'Q4': 0}
+    for r in rows:
+        quad = r[6] if r[6] else 'N/A'
+        qk = get_quadrant(r[3], r[4], r[6])
+        if qk in qcnt:
+            qcnt[qk] += 1
+    qstr = ' | '.join([f"{Q_ICON[k]}{k}{v}只" for k,v in qcnt.items() if v > 0])
+    lines.append(f"  象限分布: {qstr}")
+    lines.append("")
+    
+    # ⭐ 重点股前5
+    lines.append("⭐ 重点股前5：股票 | 评分 | 象限 | X/Y/Z")
+    focus_done = 0
+    for r in rows:
+        code, name, final, x, y, oper, quad = r[0], r[1], r[2], r[3], r[4], r[5], r[6]
+        if code not in focus_set:
+            continue
+        focus_done += 1
+        if focus_done > 5:
+            break
+        qk = get_quadrant(x, y, quad)
+        icon = Q_ICON.get(qk, '⚪')
+        lines.append(f"{icon} {name}({code.split('.')[0]}) | Final={final:.1f} | {qk} | X={x:.0f} Y={y:.0f}")
+    
+    if focus_done < 5:
+        lines.append(f"  (重点股覆盖 {focus_done}/5 只)")
+    lines.append("")
+    
+    # 📋 自选股前10（非重点）
+    lines.append("📋 自选股前10（已去重重点股）：")
+    count = 0
+    for r in rows:
+        code, name, final, x, y, oper, quad = r[0], r[1], r[2], r[3], r[4], r[5], r[6]
+        if code in focus_set:
+            continue
+        count += 1
+        if count > 10:
+            break
+        qk = get_quadrant(x, y, quad)
+        icon = Q_ICON.get(qk, '⚪')
+        lines.append(f"{icon} {name}({code.split('.')[0]}) | Final={final:.1f} | {qk} | X={x:.0f} Y={y:.0f}")
+    lines.append("")
+    
+    # 🌐 全市场前20
+    lines.append("🌐 全市场前20（含重点股）：")
+    count = 0
+    for r in rows:
+        count += 1
+        if count > 20:
+            break
+        code, name, final, x, y, oper, quad = r[0], r[1], r[2], r[3], r[4], r[5], r[6]
+        qk = get_quadrant(x, y, quad)
+        icon = Q_ICON.get(qk, '⚪')
+        star = '⭐' if code in focus_set else ''
+        lines.append(f"{icon} {name}({code.split('.')[0]}) | Final={final:.1f} | {qk} | X={x:.0f} Y={y:.0f} {star}")
+    lines.append("")
+    
+    # 评分口径
+    lines.append("🔄 评分口径：鑫鑫版 × (形态25%+趋势25%+位置20%+筹码20%+量能10%) × Y(板块65%+大盘35%)")
+    lines.append("💡 Q1=买  Q2=持有  Q3=试探  Q4=回避")
+    
+    report = '\n'.join(lines)
+    print(report)
+    
+    conn.close()
+    return report, latest
+
+if __name__ == '__main__':
+    report, report_date = main()
+    # 保存到文件
+    os.makedirs('/app/working/workspaces/manager/temp/reports', exist_ok=True)
+    fname = f'/app/working/workspaces/manager/temp/reports/远山评分卡_{report_date}.txt'
+    with open(fname, 'w', encoding='utf-8') as f:
+        f.write(report)
+    print(f"\n[已保存] {fname}")

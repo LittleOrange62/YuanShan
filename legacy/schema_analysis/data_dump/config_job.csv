@@ -1,0 +1,27 @@
+253	fill_all	一键追平到最新收盘日	ingest	{}	manual	\N	\N	\N	{"universe": "all"}	{"runner": "fill_all"}	f	2	14400	ingest	t	2026-08-31 20:38:51.660605+08
+2	sync_daily	同步日线(通达信全量)	ingest	{}	cron	10 15,16,17 * * 1-5	\N	\N	{"universe": "all"}	{"runner": "ingest_day"}	t	2	7200	ingest	t	2026-08-31 20:38:51.660605+08
+236	sync_tq_day	同步日线(TQ接口)	ingest	{}	manual	\N	\N	\N	{"universe": "all"}	{"runner": "ingest_tq_day"}	t	2	7200	ingest	t	2026-08-31 20:38:51.660605+08
+237	sync_catchup	当日补齐(按源优先级)	ingest	{}	manual	\N	\N	\N	{"universe": "all"}	{"runner": "ingest_catchup"}	t	2	5400	ingest	t	2026-08-31 20:38:51.660605+08
+3	sync_minute	同步分钟线	ingest	{}	chain	\N	\N	sync_daily	{"universe": "all"}	{}	t	2	7200	ingest	t	2026-08-31 20:38:51.660605+08
+239	sync_sector	同步板块行情	ingest	{}	manual	\N	\N	\N	{"universe": "all"}	{"runner": "ingest_sector"}	t	2	3600	ingest	t	2026-08-31 20:38:51.660605+08
+240	sync_sector_name	同步板块中文名	ingest	{}	manual	\N	\N	\N	{"universe": "all"}	{"runner": "ingest_sector_name"}	f	2	900	ingest	t	2026-08-31 20:38:51.660605+08
+356	sync_ths_block	同步同花顺板块	ingest	{}	manual	\N	\N	\N	{"universe": "all"}	{"runner": "ingest_ths_block"}	f	2	1800	ingest	t	2026-08-31 20:38:51.660605+08
+241	sync_etf_share	同步ETF份额	ingest	{}	manual	\N	\N	\N	{"universe": "all"}	{"runner": "ingest_etf_share"}	t	2	1800	ingest	t	2026-08-31 20:38:51.660605+08
+242	sync_margin	同步两融	ingest	{}	manual	\N	\N	\N	{"universe": "all"}	{"runner": "ingest_margin"}	t	2	1800	ingest	t	2026-08-31 20:38:51.660605+08
+243	sync_lhb	同步龙虎榜	ingest	{}	manual	\N	\N	\N	{"universe": "all"}	{"runner": "ingest_lhb"}	t	2	1800	ingest	t	2026-08-31 20:38:51.660605+08
+244	sync_fundflow	同步资金流	ingest	{}	manual	\N	\N	\N	{"universe": "all"}	{"runner": "ingest_fundflow"}	t	2	1800	ingest	t	2026-08-31 20:38:51.660605+08
+245	sync_dividend	同步分红与复权因子	ingest	{}	manual	\N	\N	\N	{"universe": "all"}	{"runner": "ingest_dividend"}	f	2	5400	ingest	t	2026-08-31 20:38:51.660605+08
+246	sync_share	同步股本	ingest	{}	manual	\N	\N	\N	{"universe": "all"}	{"runner": "ingest_share"}	f	2	5400	ingest	t	2026-08-31 20:38:51.660605+08
+4	quality_audit	数据质量审计	quality	{}	on_ready	\N	{md.stock_daily}	\N	{"universe": "all"}	{"runner": "quality_audit"}	f	2	1800	\N	t	2026-08-31 20:38:51.660605+08
+5	calc_base	计算基础因子	compute	{base_factors}	on_ready	\N	{md.stock_daily}	\N	{"universe": "all"}	{"runner": "compute_indicators"}	t	2	3600	compute	t	2026-08-31 20:38:51.660605+08
+6	calc_scores	计算评分	compute	{stock_quality,sector_heat,market_mood,env_resonance,oper_score,temp_score,vol_temp,vol_stage}	chain	\N	\N	calc_base	{"universe": "all"}	{"runner": "compute_scores"}	t	2	3600	compute	t	2026-08-31 20:38:51.660605+08
+7	build_review	生成复盘报告	report	{review_report}	chain	\N	\N	calc_scores	{"universe": "all"}	{"runner": "compute_scores"}	t	2	1800	\N	t	2026-08-31 20:38:51.660605+08
+8	daily_digest	每日摘要推送	notify	{}	cron	0 20 * * 1-5	\N	\N	{"universe": "all"}	{}	t	2	300	\N	t	2026-08-31 20:38:51.660605+08
+547	tdx_predownload	通达信盘后下载(前置)	ingest	{}	manual	\N	\N	\N	{"universe": "all"}	{"runner": "tdx_predownload"}	f	2	7200	ingest	t	2026-08-31 22:47:05.486463+08
+548	sync_snapshot	同步收盘快照(市值/PE)	ingest	{}	manual	\N	\N	\N	{"universe": "all"}	{"runner": "ingest_snapshot"}	f	2	1800	ingest	t	2026-09-01 16:05:35.402921+08
+9	calc_scores_fallback	评分兜底(定时)	compute	{stock_quality,sector_heat,market_mood,env_resonance,oper_score,temp_score,vol_temp,vol_stage}	cron	30 19 * * 1-5	\N	\N	{"universe": "all"}	{"runner": "compute_scores"}	t	2	3600	compute	t	2026-08-31 20:38:51.660605+08
+348	calc_sector_trend	计算板块热度趋势	compute	{}	chain	\N	\N	calc_scores	{"universe": "all"}	{"runner": "compute_sector_trend"}	t	1	1800	compute	t	2026-08-31 20:38:51.660605+08
+496	calc_ignition	计算趋势启动点	compute	{}	chain	\N	\N	calc_sector_trend	{"universe": "all"}	{"runner": "compute_ignition"}	t	2	1800	compute	t	2026-08-31 20:38:51.660605+08
+497	calc_score_trend	计算个股趋势分	compute	{}	chain	\N	\N	calc_scores	{"universe": "all"}	{"runner": "compute_score_trend"}	t	2	1800	compute	t	2026-08-31 20:38:51.660605+08
+521	calc_breadth	计算全市场情绪读数	compute	{}	on_ready	\N	{md.stock_daily}	\N	{"universe": "all"}	{"runner": "compute_breadth"}	t	2	1800	compute	t	2026-08-31 20:38:51.660605+08
+546	calc_vol_double	计算倍量震荡	compute	{}	on_ready	\N	{md.stock_daily}	\N	{"universe": "all"}	{"runner": "compute_vol_double"}	t	2	3600	compute	t	2026-08-31 20:38:51.660605+08

@@ -1,0 +1,2 @@
+on_quality_error	质量校验失败告警	quality_error	\N	local_file	\N	t	2026-08-31 20:38:51.675107+08
+on_job_failed	作业失败告警	job_failed	\N	local_file	\N	t	2026-08-31 20:38:51.675107+08

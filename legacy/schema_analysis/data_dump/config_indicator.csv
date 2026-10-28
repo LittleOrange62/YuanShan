@@ -1,0 +1,34 @@
+ma5	MA5	window	MA(close, 5)	{}	{}	yuan	4	t	t	\N	2026-08-31 20:38:51.637706+08
+ma10	MA10	window	MA(close, 10)	{}	{}	yuan	4	t	t	\N	2026-08-31 20:38:51.637706+08
+ma20	MA20	window	MA(close, 20)	{}	{}	yuan	4	t	t	\N	2026-08-31 20:38:51.637706+08
+ma30	MA30	window	MA(close, 30)	{}	{}	yuan	4	t	t	\N	2026-08-31 20:38:51.637706+08
+ma60	MA60	window	MA(close, 60)	{}	{}	yuan	4	t	t	\N	2026-08-31 20:38:51.637706+08
+ma120	MA120	window	MA(close, 120)	{}	{}	yuan	4	t	t	\N	2026-08-31 20:38:51.637706+08
+bias5	BIAS5	window	(close - MA(close, 5)) / MA(close, 5) * 100	{}	{}	pct	4	t	t	\N	2026-08-31 20:38:51.637706+08
+bias10	BIAS10	window	(close - MA(close, 10)) / MA(close, 10) * 100	{}	{}	pct	4	t	t	\N	2026-08-31 20:38:51.637706+08
+bias20	BIAS20	window	(close - MA(close, 20)) / MA(close, 20) * 100	{}	{}	pct	4	t	t	\N	2026-08-31 20:38:51.637706+08
+atr14	ATR14	window	MA(MAX(high - low, ABS(high - REF(close,1)), ABS(low - REF(close,1))), 14)	{}	{}	yuan	4	t	t	\N	2026-08-31 20:38:51.637706+08
+macd_dif	MACD DIF	window	EMA(close, 12) - EMA(close, 26)	{}	{}	yuan	4	t	t	\N	2026-08-31 20:38:51.637706+08
+macd_dea	MACD DEA	window	EMA(EMA(close, 12) - EMA(close, 26), 9)	{}	{}	yuan	4	t	t	\N	2026-08-31 20:38:51.637706+08
+macd_hist	MACD 柱	window	2 * (EMA(close,12) - EMA(close,26) - EMA(EMA(close,12) - EMA(close,26), 9))	{}	{}	yuan	4	t	t	\N	2026-08-31 20:38:51.637706+08
+cci14	CCI14	window	((high + low + close) / 3 - MA((high + low + close) / 3, 14)) / (0.015 * STD((high + low + close) / 3, 14))	{}	{}	none	4	t	t	\N	2026-08-31 20:38:51.637706+08
+amp	振幅	expr	(high - low) / pre_close * 100	{}	{}	pct	4	t	t	分母为前收盘而非开盘 —— 沿用旧系统口径，保证历史可比	2026-08-31 20:38:51.637706+08
+vol_ratio	量比	window	vol_shares / MA(vol_shares, 5)	{}	{}	ratio	4	t	t	\N	2026-08-31 20:38:51.637706+08
+std20	20日波动	window	STD(pct_chg, 20)	{}	{}	pct	4	t	t	\N	2026-08-31 20:38:51.637706+08
+amp_std20	20日振幅标准差	window	STD((high - low) / pre_close * 100, 20)	{}	{}	pct	4	t	t	\N	2026-08-31 20:38:51.637706+08
+hhv250	250日最高	window	HHV(high, 250)	{}	{}	yuan	4	t	t	\N	2026-08-31 20:38:51.637706+08
+llv250	250日最低	window	LLV(low, 250)	{}	{}	yuan	4	t	t	\N	2026-08-31 20:38:51.637706+08
+pos250	250日位置	window	(close - LLV(low,250)) / (HHV(high,250) - LLV(low,250)) * 100	{}	{}	pct	4	t	t	0=最低 100=最高	2026-08-31 20:38:51.637706+08
+chg10	10日涨幅	window	(close - REF(close,10)) / REF(close,10) * 100	{}	{}	pct	4	t	t	\N	2026-08-31 20:38:51.637706+08
+chg20	20日涨幅	window	(close - REF(close,20)) / REF(close,20) * 100	{}	{}	pct	4	t	t	\N	2026-08-31 20:38:51.637706+08
+chg10_avg	10日日均涨跌	window	MA(pct_chg, 10)	{}	{}	pct	4	t	t	近10个交易日每日涨跌幅的均值。等价于旧系统 Σ(近10日涨跌幅)/10	2026-08-31 20:38:51.637706+08
+amp10_avg	10日日均振幅	window	MA((high - low) / pre_close * 100, 10)	{}	{}	pct	4	t	t	近10个交易日每日振幅的均值。振幅分母是前收，与 amp 一致	2026-08-31 20:38:51.637706+08
+chg20_avg	20日日均涨跌	window	MA(pct_chg, 20)	{}	{}	pct	4	t	t	\N	2026-08-31 20:38:51.637706+08
+amp20_avg	20日日均振幅	window	MA((high - low) / pre_close * 100, 20)	{}	{}	pct	4	t	t	\N	2026-08-31 20:38:51.637706+08
+amp_pred	明日振幅预测	window	MA((high - low) / pre_close * 100, 20) + SLOPE((high - low) / pre_close * 100, 20) * 10.5	{}	{}	pct	4	t	t	近20日振幅回归外推第21日。不足20根交易日给空值，旧系统这种情况给 0	2026-08-31 20:38:51.637706+08
+avg_price	均价	expr	amount_yuan / vol_shares	{}	{}	yuan	4	t	t	成交额 ÷ 成交股数。旧系统写作 amount/(volume×100)，因为那边 volume 的单位是手	2026-08-31 20:38:51.637706+08
+mid_price	中价	expr	(high + low) / 2	{}	{}	yuan	4	t	t	\N	2026-08-31 20:38:51.637706+08
+slope20	20日斜率	window	SLOPE(close, 20)	{}	{}	none	6	t	t	\N	2026-08-31 20:38:51.637706+08
+amt_rank	成交额分位	rank	PCTRANK(amount_yuan)	{}	{}	ratio	4	t	t	\N	2026-08-31 20:38:51.637706+08
+chg_rank	涨幅排名	rank	RANK(pct_chg, desc)	{}	{}	count	0	t	t	\N	2026-08-31 20:38:51.637706+08
+rel_sector	相对板块强度	crosssec	pct_chg - MEAN(pct_chg BY sector)	{}	{}	pct	4	t	t	\N	2026-08-31 20:38:51.637706+08
