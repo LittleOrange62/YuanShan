@@ -154,8 +154,20 @@ export function truncationSentence(d: SteadyData): string {
   return `符合判据的 ${matched} 只全部交出（${rows} 行），没有截断`;
 }
 
-/** 窗口那一行：哪几天、共几场、几档母体。数字全是接口交的，这里只把它们连成一句。 */
-export function windowSentence(d: SteadyData): string {
+/** 截断这件事的**屏上形状**（11-02 用户：这块的说明全收进那颗按钮，但截断/缺数要留屏、有才显示）：
+ *  - 全部交出 ⇒ null，不显示（没有截断就不要摆一条「没问题」占位）；
+ *  - 接口没交 `total_matched` ⇒ `missing`（有几只说不清，这是缺数，不是截断）；
+ *  - 行数 < 只数 ⇒ `truncated`。
+ * 文字仍走 `truncationSentence`（一份措辞，别在这儿再编第二句）。 */
+export function truncationNotice(d: SteadyData): { kind: "missing" | "truncated"; text: string } | null {
+  const matched = d.total_matched, rows = (d.rows ?? []).length;
+  if (typeof matched !== "number") return { kind: "missing", text: truncationSentence(d) };
+  if (matched === 0) return { kind: "missing", text: truncationSentence(d) };
+  if (rows < matched) return { kind: "truncated", text: truncationSentence(d) };
+  return null;
+}
+
+/** 窗口那一行：哪几天、共几场、几档母体。数字全是接口交的，这里只把它们连成一句。 */export function windowSentence(d: SteadyData): string {
   const w = d.window ?? {}, u = d.universe ?? {};
   const span = `${w.first_day ?? "—"} ~ ${w.last_day ?? "—"}`;
   return `截至 ${d.date ?? "—"} 的最近 ${w.sessions ?? "—"} 个交易日（${span}，共 ${w.steps ?? "—"} 步）；`

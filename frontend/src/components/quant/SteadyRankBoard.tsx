@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { CaliberFold, ExplainBox, Panel, Row } from "@/components/ui/DataPanel";
+import { CaliberFold, Panel, Row } from "@/components/ui/DataPanel";
+import { DrawerSection } from "@/components/ui/DocDrawer";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { StockLink } from "@/components/ui/StockLink";
 import { useTableSort } from "@/lib/useSort";
@@ -9,7 +10,7 @@ import { plain } from "@/lib/agent";
 import { cn } from "@/lib/utils";
 import {
   LIMIT_OPTIONS, METRIC_BUTTONS, axisRegression, medianGainPct, nameIsCode, pathMismatch,
-  stepsSentence, truncationSentence, windowSentence,
+  stepsSentence, truncationNotice, windowSentence,
   type SteadyData, type SteadyMetric,
 } from "@/lib/steadyRank";
 import { NoticeBar } from "@/components/ui/NoticeBar";
@@ -30,6 +31,9 @@ import { NoticeBar } from "@/components/ui/NoticeBar";
  * 「稳步」在这里是**名次数字变小**（1 = 全场第一），不是数字上涨 —— 这句由后端
  * `rank_direction` 那条 caveat 原句上屏，页面不再自己写第二遍。
  */
+
+/** 这块在屏上的名字，只住这一处：`Panel` 的标题与那颗抽屉的标题都从这里拼（抄两份迟早分叉）。 */
+const PANEL_TITLE = "名次稳步前进榜（近 6 场名次一直在往前走 · xy / 总分两档可切）";
 
 /** 列的一份清单：表头与格子都从这同一个数组走（两处各写一份就会错位，全站栽过一次）。 */
 const NUM_COLS: [string, string][] = [
@@ -72,7 +76,7 @@ export function SteadyRankBoard({ state, metric, onMetricChange, limit, onLimitC
   const pick = (fn: () => void) => { x.clearAll(); setPage(1); fn(); };
 
   return (
-    <Panel title="名次稳步前进榜（近 6 场名次一直在往前走 · xy / 总分两档可切）" state={state}
+    <Panel title={PANEL_TITLE} state={state}
       slowHint="实测（2026-10-19）：首次约 6.2 秒（窗口与母体那一发全库聚合也算在内），窗口命中缓存后约 2.4 秒。"
       controls={
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
@@ -126,15 +130,16 @@ export function SteadyRankBoard({ state, metric, onMetricChange, limit, onLimitC
                 「这一档排的是什么」「进榜的门槛」这两段判据描述收进下面的说明框（点开可见，
                 数字仍逐项读接口 thresholds/window，一份都不写死）；
                 下面这句截断声明**不折**：80 行会被读成"全场只有 80 只在稳步前进"，而接口明明交了总数 */}
-            <Row label="看的是哪几天" value={windowSentence(d)} />
-            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{truncationSentence(d)}</p>
-            {med !== null && (
-              <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                已交出的这 {rows.length} 行里，前进幅度的中位是 <b className="font-mono text-foreground">{num(med, 1)}%</b>
-                —— 这是本页按已交出的行数出来的分布读数（不是判据、也不是全场的中位），
-                用来看榜顶那个数是一整批都这样，还是只有一只异常值撑着。
-              </p>
-            )}
+            {/* 11-02 用户点名：这块的说明全部收进「这块的说明 · 这张榜怎么读」一颗按钮。
+                原来这块有两颗按钮（判据那一颗 `ExplainBox` ＋ 声明/字段/覆盖那一颗 `CaliberFold`），
+                读的人要在同一块里点两次才看全 —— 现在并成一颗，内容一条不少、来源不变。
+                **仍留屏的三件**（动了就等于让屏幕会说谎，所以没跟进抽屉）：
+                榜被上限截断／`total_matched` 没交（下面那两条 `NoticeBar`，有才显示）、
+                两道自检（一轴没净前进 / 路径段数与窗口对不上）、弹窗被拦 `popHint`。 */}
+            {(() => {
+              const tn = truncationNotice(d);
+              return tn && <NoticeBar kind={tn.kind}>{tn.text}</NoticeBar>;
+            })()}
             {/* 两道自检：只在真对不上时出声。对得上什么都不说，不是"检查过了没问题"。 */}
             {back !== null && back > 0 && (
               <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">
@@ -149,28 +154,48 @@ export function SteadyRankBoard({ state, metric, onMetricChange, limit, onLimitC
                 路径与步数应当是同一次聚合数出来的，对不上就别按「近 6 场」读这几行。
               </p>
             )}
-            <ExplainBox title="这张榜怎么读（这一档排的是什么 · 进榜的门槛 · 判据原句 · 与名次稳定榜的分工）">
-              <Row label="这一档排的是"
-                value={`${dash(d.metric_label)}（${dash(d.series_label)}）—— `
-                  + (d.thresholds?.require_both_axes
-                    ? '进榜要求两轴各自都净前进'
-                    : '单一序列（综合分那一条名次），没有另一轴可查')
-                  + '；「前进」是什么意思见下面那条 rank_direction 原话（页面不另写一遍）'} />
-              <Row label="进榜的门槛"
-                value={`前进一步 ≥ ${dash(d.thresholds?.min_better_steps)} 步、后退 ≤ `
-                  + `${dash(d.thresholds?.max_worse_steps)} 步、净前进 ≥ 首场名次的 `
-                  + `${dash(d.thresholds?.min_gain_frac_pct)}%（共 ${dash(steps)} 步，门槛原句见下面「这张榜怎么读」）`} />
-              <p className="mt-1">{d.rule ? plain(d.rule) : "（判据原句后端没交，页面不自己编）"}</p>
-              <p className="mt-2">{STOCK_ROW_HINT}从「四维象限」双击过来时，来源会写在这张榜的名字里。</p>
-            </ExplainBox>
             {x.popHint && <NoticeBar kind="warning">{x.popHint}</NoticeBar>}
-            {/* 声明 / 母体那句话 / 字段含义 / 覆盖 / 出处收成一处默认收起的折叠块
-                （用户 2026-10-19 夜：「这些内容都默认收缩起来」）。summary 摆条数 ⇒ 收起不等于藏掉。
-                **不进这里的三件**：弹窗被拦 `popHint`、两道自检（一轴没前进 / 路径段数对不上）、
-                榜被上限截断那句 —— 那些是把"屏幕会说谎"那一类折起来的东西。 */}
+            {/* 一颗按钮装下这块的全部说明（11-02）：窗口与母体、这批的分布读数、这一档排的是什么、
+                进榜门槛、判据原句、怎么点这张表，再往后是声明／字段义／覆盖／出处。
+                `drawerTitle` 用「屏上那块的名字 · 这张榜怎么读」拼出来，
+                按钮文字与抽屉标题就同一处出处（`docLabelFor` 取「·」后那截当小节名）。 */}
             <CaliberFold caveats={d.caveats} definitions={d.definitions}
               coverage={d.coverage} provenance={[d.source, d.series_key, d.labels_source]}
-              notes={[d.universe?.note]} />
+              drawerTitle={`${PANEL_TITLE} · 这张榜怎么读`}
+              notes={[d.universe?.note]}
+              extra={(
+                <>
+                  <DrawerSection heading="看的是哪几天 · 这批的分布读数（不是判据）">
+                    <p>{windowSentence(d)}</p>
+                    {med !== null && (
+                      <p className="mt-1">
+                        已交出的这 {rows.length} 行里，前进幅度的中位是 <b className="font-mono text-foreground">{num(med, 1)}%</b>
+                        —— 这是本页按已交出的行数出来的分布读数（不是判据、也不是全场的中位），
+                        用来看榜顶那个数是一整批都这样，还是只有一只异常值撑着。
+                      </p>
+                    )}
+                  </DrawerSection>
+                  <DrawerSection heading="这一档排的是什么 · 进榜的门槛">
+                    <Row label="这一档排的是"
+                      value={`${dash(d.metric_label)}（${dash(d.series_label)}）—— `
+                        + (d.thresholds?.require_both_axes
+                          ? '进榜要求两轴各自都净前进'
+                          : '单一序列（综合分那一条名次），没有另一轴可查')
+                        + '；「前进」是什么意思见下面那句判据原话（页面不另写一遍）'} />
+                    <Row label="进榜的门槛"
+                      value={`前进一步 ≥ ${dash(d.thresholds?.min_better_steps)} 步、后退 ≤ `
+                        + `${dash(d.thresholds?.max_worse_steps)} 步、净前进 ≥ 首场名次的 `
+                        + `${dash(d.thresholds?.min_gain_frac_pct)}%（共 ${dash(steps)} 步）`} />
+                  </DrawerSection>
+                  <DrawerSection heading="判据原句（后端交出，页面未改写）">
+                    <p>{d.rule ? plain(d.rule) : "（判据原句后端没交，页面不自己编）"}</p>
+                  </DrawerSection>
+                  <DrawerSection heading="这一张表怎么点 · 单击高亮什么 · 双击去哪里">
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
+                    <p className="mt-1">从「四维象限」双击过来时，来源会写在这张榜的名字里。</p>
+                  </DrawerSection>
+                </>
+              )} />
             {nameOnly.length > 0 && (
               <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
                 名称列里有 {nameOnly.length} 只的「名字」就是代码本身

@@ -260,4 +260,4 @@ npm --prefix frontend run build              # tsc -b && vite build，类型错�
 
 使用边界一句话口径见上文[使用边界](#使用边界)。事件概率与回测所用代码的来源及许可见那两个 NOTICE。
 
-**上游作者：** Simon 林 · X [@linsizhen](https://x.com/linsizhen) · 邮箱：[simonlin0423@gmail.com](mailto:simonlin0423@gmail.com)（本仓库在其 v1.1.0 基础上做本地化改造，本地改动见上节文档地图）
+**作者：** 小橙子 · 微信 fin1800573（本仓库在其上游 v1.1.0 基础上做本地化改造，上游许可与归属见上节 License 表与 `docs/上游改动与归属清单.md`）
