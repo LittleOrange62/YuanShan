@@ -447,7 +447,7 @@ def verify() -> List[str]:
           f"（累计 {r['cum']} + 单季 {r['single']}），报告期 {r['a']} … {r['z']}，"
           f"最后采于 {r['fresh']}")
     print(f"  覆盖（分母＝主档 stock {gap['master']} 只）：表里有 {gap['have']} 只（"
-          f"{gap['have'] / master * 100:.2f}%），**缺 {len(gap['missing'])} 只**"
+          f"{gap['have'] / master * 100:.2f}%），缺 {len(gap['missing'])} 只"
           + (f'：{("、".join(gap["missing"][:12]))}{"…（还有 " + str(len(gap["missing"]) - 12) + " 只)" if len(gap["missing"]) > 12 else ""}'
              if gap['missing'] else ''))
     print(f"  近 5 年单季有数的票：{near5['c'] if near5 else 0} 只"

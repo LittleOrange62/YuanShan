@@ -21,7 +21,16 @@ from .evidence import EvidenceError
 MAX_BODY = 8_000_000
 SESSION_TTL = 2 * 3600
 MAX_SESSIONS = 8
-UPSTREAM_TIMEOUT = httpx.Timeout(connect=15, read=180, write=30, pool=15)
+# 三段计时（用户 2026-10-27 拍的口径）：连接 10 秒、两个分片之间最多等 45 秒、
+# 整条回答默认 180 秒（每条来源可自己填，见 `connection()` 的 `timeout_seconds`）。
+# 判据拆成三段是有原因的：昨天 12:59 同一条链成过五次（一次 39.7 秒），下午起 8 token
+# 的短问 120 秒不答、上游连回 HTTP 500。一刀切 60 秒会把"慢但通"的来源判死；
+# 不切总时长又会让引擎对着不回话的网关一直等下去，换来源的判据永远等不到那次失败。
+UPSTREAM_CONNECT_SECONDS = 10
+UPSTREAM_FIRST_BYTE_SECONDS = 45
+UPSTREAM_TOTAL_SECONDS = 180
+UPSTREAM_TIMEOUT = httpx.Timeout(connect=UPSTREAM_CONNECT_SECONDS, read=UPSTREAM_FIRST_BYTE_SECONDS,
+                                 write=30, pool=15)
 SEP = "__"
 STATE_KEY = "responses_bridge"
 
@@ -70,7 +79,7 @@ class Sessions:
         self.lock = threading.Lock()
         self.items: dict[str, dict] = {}
 
-    def add(self, base_url: str, key: str) -> str:
+    def add(self, base_url: str, key: str, total_seconds: float = UPSTREAM_TOTAL_SECONDS) -> str:
         with self.lock:
             now = time.monotonic()
             for stale in [token for token, value in self.items.items() if value["until"] < now]:
@@ -78,7 +87,8 @@ class Sessions:
             if len(self.items) >= MAX_SESSIONS:
                 raise EvidenceError("本机模型转换层的测试通道已占满，请稍后重试")
             token = secrets.token_urlsafe(32)
-            self.items[token] = {"base_url": base_url, "key": key, "until": now + SESSION_TTL}
+            self.items[token] = {"base_url": base_url, "key": key, "until": now + SESSION_TTL,
+                                 "total_seconds": total_seconds}
             return token
 
     def get(self, token: str) -> dict | None:
@@ -284,6 +294,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
     def do_POST(self):
+        streamed = False        # 是否已经把 200 + 分块头发给引擎（发过就不能再 _reject）
         try:
             length = int(self.headers.get("content-length") or 0)
         except ValueError:
@@ -334,9 +345,17 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_header("cache-control", "no-cache")
                     self.send_header("transfer-encoding", "chunked")
                     self.end_headers()
+                    streamed = True
                     for data in stream.head():
                         self._chunk(data)
+                    # 第三段计时：整条回答的总闸。前两段（连接 10 秒、分片之间 45 秒）在
+                    # `UPSTREAM_TIMEOUT` 里；只等这两段还不够 —— 网关持续"每 40 秒吐一点、
+                    # 迟迟不收尾"时永远不触发读超时，引擎会一直挂着，换来源也就等不到失败。
+                    total = float(session.get("total_seconds") or UPSTREAM_TOTAL_SECONDS)
+                    deadline = time.monotonic() + total
                     for line in upstream.iter_lines():
+                        if time.monotonic() > deadline:
+                            raise httpx.TimeoutException(f"上游 {total:g} 秒内没答完这条，已按总时长上限中断")
                         if not line.startswith("data:"):
                             continue
                         body = line[5:].strip()
@@ -365,9 +384,19 @@ class Handler(BaseHTTPRequestHandler):
                     self.wfile.flush()
                     _note_success()
         except (httpx.HTTPError, OSError) as exc:
-            # 引擎只会说"流被截断"，真因（连接被拒、读超时、对端断）在这里，也only在这里。
+            # 引擎只会说"流被截断"，真因（连接被拒、读超时、对端断、总时长到点）在这里，也只有在这里。
             # 不说话就等于把一次付费调用的失败原因丢给了一个看不见的地方。
-            _note_failure(exc, "Responses 转换层上游流中断")
+            _note_failure(exc, "Responses 转换层已发给引擎、上游未正常收尾" if streamed
+                          else "Responses 转换层上游流中断")
+            if streamed:
+                # 分块流已经开始发，就必须自己收尾：写终止块 + 关连接。
+                # 留着不关，引擎会对着一条永不结束的 keep-alive 一直等 —— 那正是"卡住"的样子。
+                self.close_connection = True
+                try:
+                    self.wfile.write(b"0\r\n\r\n")
+                    self.wfile.flush()
+                except OSError:
+                    pass        # 连接已经断了更要留着原始异常，不能被清理动作盖掉
             return  # The engine classifies the broken stream itself.
 
 
@@ -381,9 +410,9 @@ def _start() -> str:
         return f"http://127.0.0.1:{_server.server_address[1]}/v1"
 
 
-def open_session(base_url: str, key: str) -> tuple[str, str]:
+def open_session(base_url: str, key: str, total_seconds: float = UPSTREAM_TOTAL_SECONDS) -> tuple[str, str]:
     """Return the loopback Responses address plus the one-shot engine credential."""
-    return _start(), _sessions.add(base_url.rstrip("/"), key)
+    return _start(), _sessions.add(base_url.rstrip("/"), key, total_seconds)
 
 
 def close_session(token: str) -> None:

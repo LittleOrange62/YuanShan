@@ -201,7 +201,7 @@ test('描述性长句折进说明框，告警与截断声明留在框外、控�
   const before = board.slice(0, boxStart);
   assert.match(before, /同一列在不同票身上不是同一个日历日/);
   assert.match(before, /不晚于/);
-  assert.match(before, /vd\.popHint && <p role="status"/, 'popHint 渲染在框之前、默认可见');
+  assert.match(before, /vd\.popHint && <NoticeBar kind="warning"/, 'popHint 渲染在框之前、默认可见');
   // 控件那一行里不再有那段长描述（只剩输入框与按钮；那句 <span> 已搬走）
   const controls = board.slice(board.indexOf('controls={'), board.indexOf('>', board.indexOf('重取这一块')));
   assert.doesNotMatch(controls, /是两回事/, '控件行长描述已收进说明框，控件本身仍永远默认可见');

@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { CaliberFold, ExplainBox, Panel, Row } from "@/components/ui/DataPanel";
+import { DrawerSection } from "@/components/ui/DocDrawer";
 import { useNonce, useProbe } from "@/lib/probe";
 import { dash } from "@/lib/datastate";
 import { plain } from "@/lib/agent";
@@ -22,6 +23,7 @@ import { StartupSpikeDaysBoard } from "@/components/quant/StartupSpikeDaysBoard"
 import { ConceptBoard, type ConceptRow } from "@/components/quant/ConceptBoard";
 import { EnergyTrackBoard } from "@/components/quant/EnergyTrackBoard";
 import { FilterToggleButton, TableFilterPanel } from "@/components/ui/TableFilterPanel";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 倍量形态（规划 §2 维度二）。
@@ -192,7 +194,7 @@ export function VolumeDouble() {
     <div className="mx-auto max-w-5xl">
       <PageHeader title="倍量形态" level={1}
         subtitle="40 场窗口的量能加权分（日量比分档累加）、离 MA60 多远、窗口内翻转过几次。全部来自本地日线，不看盘口。"
-        actions={<div className="flex items-center gap-2">
+        actions={<div className="flex flex-wrap items-center justify-end gap-2">
           {/* 同一族的现象：倍量形态看的是"哪些天放量"（日线），异动筛查看的是"那一天盘里是怎么冲上去的"
               （分钟线）。两个入口读的是各自的表，不共用筛条件，所以这里只放一条路标、不搬数据。 */}
           <Link to="/spike" className="rounded-lg border border-border/60 px-2 py-1 text-[11px] text-muted-foreground hover:border-primary/50 hover:text-primary">
@@ -235,8 +237,7 @@ export function VolumeDouble() {
           </button>
         </div>} />
 
-      <Panel title="倍量榜" state={hits}
-        note="榜单按 dbl_energy（40 场窗口的量能加权分）排；算式原文在接口 energy.scale.formula（就在下面那一行，页面不抄第二份）——每档「这一档在窗口里出现几场 × 这一档的分值」累加，没有系数、没有占比；日量比那把基准（前 5 场均量、不含当日）见 definitions.dbl_energy 原文。档位分值在「系统配置 → 倍量加权分档」里可改，名次（rank_in_day）与它同一把尺、规则原文读接口 rank.rule。旧口径的硬计数 dbl_count 已退役，改名 dbl_count_legacy 只在悬停里作对照，不上屏、不参与筛。对昨倍量 dbl_prev_count 也只作对照口径，昨天缩量会让它虚高。">
+      <Panel title="倍量榜" state={hits}>
         {d => {
           const all = d.rows ?? [];
           const ax = d.quadrant_axes ?? {};
@@ -350,8 +351,34 @@ export function VolumeDouble() {
               )}
               {/* 用户 2026-10-21：「描述性内容全部收缩起来，避免过多占屏」。
                   缺数／截断／查询失败那一族 caveat 由 CaliberFold 自己留在屏上（分类只住一处）。 */}
+              {/* 一模块一颗（用户 10-29 第 4 条 ＋ 11-01「做」）：这块原来四处出口 ——
+                  标题行 `Panel note` 一颗、这一颗折叠块、表尾两个 `ExplainBox`。
+                  现在全部并进这一颗抽屉（那句排序口径成了 notes 第一段，「怎么点」与「日均成交额换算」成了两节），
+                  屏上只留一颗按钮。**没跟着折的**：上面的截断声明、`vd.popHint`（告警）、0 行那句、分页那行。
+                  缺数／截断／查询失败那一族 caveat 由折叠块自己分流留在屏上（分类只住一处）。 */}
               <CaliberFold caveats={d.caveats} definitions={d.definitions}
-                coverage={d.coverage} provenance={[d.source]} />
+                coverage={d.coverage} provenance={[d.source]}
+                notes={[
+                  "榜单按 dbl_energy（40 场窗口的量能加权分）排；算式原文在接口 energy.scale.formula"
+                  + "（算式原文就在这一段下面，页面不抄第二份）——每档「这一档在窗口里出现几场 × 这一档的分值」累加，"
+                  + "没有系数、没有占比；日量比那把基准（前 5 场均量、不含当日）见 definitions.dbl_energy 原文。"
+                  + "档位分值在「系统配置 → 倍量加权分档」里可改，名次（rank_in_day）与它同一把尺、"
+                  + "规则原文读接口 rank.rule。旧口径的硬计数 dbl_count 已退役，改名 dbl_count_legacy "
+                  + "只在悬停里作对照，不上屏、不参与筛。对昨倍量 dbl_prev_count 也只作对照口径，昨天缩量会让它虚高。",
+                ]}
+                extra={(
+                  <>
+                    <DrawerSection heading="这一张表怎么点 · 单击高亮什么 · 双击去哪里">
+                      <p className="text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
+                    </DrawerSection>
+                    <DrawerSection heading="日均成交额这一列的换算（页面自己说的）">
+                      <p>
+                        日均成交额这一格是<b className="text-foreground">本页唯一一次换算</b>（元 → 亿），只为可读；
+                        原值仍是接口给的 <code>avg_amt_yuan</code>，鼠标悬停列头可看口径。
+                      </p>
+                    </DrawerSection>
+                  </>
+                )} />
               
               {/* 筛选按钮 + 「只看稳步提升」那一档（10-19 定稿，同日起阈值随加权分改成浮点）。
                   这一格与象限同一族：改的是**取数参数**（`step_gap_min`），在库里筛、拼在取数上限之前 ——
@@ -560,12 +587,9 @@ export function VolumeDouble() {
                     ))}
                   </tbody>
                 </table>
-                {/* 怎么点这一张表：通用一句（实现全站一份）收进默认收起的说明框（用户 2026-10-19 夜：
-                    「把选项留出，描述内容都收缩起来」）；弹窗被拦的告警是**告警**，单独念、不折进任何框 */}
-                <ExplainBox title="这一张表怎么点 · 单击高亮什么 · 双击去哪里">
-                  <p className="text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
-                </ExplainBox>
-                {vd.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{vd.popHint}</p>}
+                {/* 怎么点这一张表那句话并进了上面那颗抽屉（一模块一颗）；
+                    弹窗被拦的告警是**告警**，单独念、不折进任何框 */}
+                {vd.popHint && <NoticeBar kind="warning">{vd.popHint}</NoticeBar>}
                 {filteredRows.length === 0 && (
                   <p className="mt-1 text-[11px] text-muted-foreground">
                     {onlyOsc ? "勾了「只看真震荡」之后没有票满足：这不是库里没数，是被这个筛条件筛空了。" : "后端交出 0 行。"}
@@ -587,12 +611,6 @@ export function VolumeDouble() {
                   </div>
                 )}
               </div>
-              <ExplainBox title="日均成交额这一列的换算（页面自己说的）">
-                <p>
-                  日均成交额这一格是<b className="text-foreground">本页唯一一次换算</b>（元 → 亿），只为可读；
-                  原值仍是接口给的 <code>avg_amt_yuan</code>，鼠标悬停列头可看口径。
-                </p>
-              </ExplainBox>
             </>
           );
         }}

@@ -129,6 +129,29 @@ def sessions_count() -> dict:
             'to': str(r['hi']) if r['hi'] else None}
 
 
+def _medians(rows: list[dict]) -> dict:
+    """当日象限分界线（= 判 `quadrant` 时用的那两个中位数）。
+
+    从前这两个数只在写侧内存里用一次就丢了 ⇒ 屏幕把线画在 50/50 还标「当日中位」（#104）。
+    现在随行落库（`app/db/sql/58_allocator_medians.sql`）并从这里交出去；
+    老库里没有这两列的那些场次交 null，前端**不画线**并说明为什么，不许拿 50 顶上。
+    """
+    def pick(key: str) -> float | None:
+        for r in rows:
+            v = r.get(key)
+            if v is not None:
+                return v
+        return None
+
+    tm, im = pick('toll_median'), pick('imagine_median')
+    return {'toll': tm, 'imagine': im,
+            'available': tm is not None and im is not None,
+            'reason': (None if (tm is not None and im is not None)
+                       else '这一场的分界线没入库（`toll_median`/`imagine_median` 是 10-30 才补的两列，'
+                            '早于那天的场次已由 58 号脚本回算过；仍然为空说明这场根本没跑过 `allocator` 步）'
+                            '⇒ 图上不画这两条线，也不拿 50 顶上。')}
+
+
 def _rows(sql: str, params=()) -> list[dict]:
     df = pg.fetch_df(sql, params)
     return [] if df is None else [
@@ -260,7 +283,7 @@ def view(date: str = '', limit: int = 300) -> dict:
                  "share_med250, amount_stability, div_yield_med, div_coverage, mv_share, mv_coverage, "
                  "toll_score, toll_rank, share_slope20, member_count, member_delta, margin_crowd, "
                  "crowding_temp, crowding_rank, mom60, breadth20, stage, stage_reason, imagine_score, "
-                 "quadrant, missing from analytics.sector_allocator where " + where +
+                 "quadrant, missing, toll_median, imagine_median from analytics.sector_allocator where " + where +
                  " order by toll_score desc nulls last limit %s", (d, SPEC_VERSION, min(limit, 1000)))
     if not base:
         return {'available': False, 'date': d,
@@ -271,7 +294,8 @@ def view(date: str = '', limit: int = 300) -> dict:
                 "from analytics.sector_allocator where " + where +
                 " order by crowding_temp desc nulls last limit %s", (d, SPEC_VERSION, min(30, limit)))
     quad = _rows("select sector_code, sector_name, sector_type, toll_score, imagine_score, quadrant, "
-                 "crowding_temp, share_pctile from analytics.sector_allocator where " + where +
+                 "crowding_temp, share_pctile, toll_median, imagine_median "
+                 "from analytics.sector_allocator where " + where +
                  " and toll_score is not null and imagine_score is not null", (d, SPEC_VERSION))
     stages = _rows("select stage, count(*) n, round(avg(crowding_temp),1) avg_temp "
                    "from analytics.sector_allocator where " + where +
@@ -289,7 +313,7 @@ def view(date: str = '', limit: int = 300) -> dict:
         'available': True, 'date': d, 'spec_version': SPEC_VERSION,
         'generated_at': dt.datetime.now().astimezone().isoformat(timespec='seconds'),
         'sessions': sc, 'universe': base[0].get('universe'),
-        'rows': base, 'crowding': hot, 'scatter': quad,
+        'rows': base, 'crowding': hot, 'scatter': quad, 'medians': _medians(base),
         'stages': stages, 'quadrants': quads,
         'heat_vs_return': heat_vs_return(d),
         'calibers': CALIBERS,

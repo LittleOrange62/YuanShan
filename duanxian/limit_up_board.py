@@ -175,15 +175,14 @@ def prev_sealed_count(day: str) -> "tuple[str | None, int | None]":
 
 
 def dt_count(day: str) -> "int | None":
-    """当日跌停只数（同一条半分容差，档位取 limit_down）。判据与写侧同源，这里只数一行。"""
-    from app.compute.limit_prices import LIMIT_EPS
+    """当日跌停只数（同一条半分容差，档位取 limit_down）。
 
-    r = pg.fetch_df("select count(*)::int n from market_data.stock_daily "
-                    "where trade_date = %s::date and limit_down is not null "
-                    "and abs(close - limit_down) <= %s", (day, LIMIT_EPS))
-    if r is None or not len(r):
-        return None
-    return int(r['n'][0])
+    **实现只住 `duanxian/limit_down_board.py` 一份**（函数内导入，避免模块级循环）：
+    首页短线情绪那一格的本数与本屏「跌停分析」那块数的是同一批行，两处各写一条 SQL
+    迟早分叉成"同一句屏幕话两个数"。这里只留这个口给 `board_on` 用。
+    """
+    from . import limit_down_board
+    return limit_down_board.sealed_count(day)
 
 
 def board_on(day: str) -> dict:

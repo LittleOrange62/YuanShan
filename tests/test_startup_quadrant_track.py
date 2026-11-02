@@ -253,7 +253,7 @@ def test_quadtrack_接进每日加工段_且排在那两张表之后():
     assert 'quadtrack' in names, '没接进每日链 ⇒ 判据表从此不再更新，页面上的"最近一场"会永远停在建表那天'
     assert names.index('quadtrack') > names.index('startupvol'), '母体名单来自 startup_volume_profile'
     assert names.index('quadtrack') > names.index('fbshape'), 'outcome_len 来自 first_board_shape'
-    assert names.index('quadtrack') == 30, f'quadtrack 该是加工段第 31 步（实得第 {names.index("quadtrack") + 1}）'
+    assert names.index('quadtrack') == 32, f'quadtrack 该是加工段第 33 步（实得第 {names.index("quadtrack") + 1}）'
     row = [s for s in e1.STAGES if s[0] == 'quadtrack'][0]
     assert row[2] is False, '分析产出缺一天不该把"追平"整条判失败'
     assert 'quadtrack' in e1.STEP_TIMEOUTS and e1.step_timeout('quadtrack') <= 900
@@ -265,8 +265,9 @@ def test_链里那条命令就是_months_12_且文档步数与代码一致():
     assert m, 'plan 里读不到 quadtrack 的入参（跑到那一步会 KeyError）'
     assert "'--months', '12'" in m.group(1), m.group(1)
     import ingest.jobs.e1_fill_all as e1
-    assert len(e1.STAGES) == 42, ('又加了一步却没改文档：docs 里那些手抄数由 test_volume_ratio 钉住'
-                                  '（10-21 加 `fbdaily` 首板分析 → 42，quadtrack 从第 30 顺延到第 31）')
+    assert len(e1.STAGES) == 45, ('又加了一步却没改文档：docs 里那些手抄数由 test_volume_ratio 钉住'
+                                  '（10-21 加 `fbdaily` 首板分析 → 42，10-28 加 `index_mv` + `national_team` → 44，'
+                                  '10-28 深夜加 `xyrank` → 45；quadtrack 仍是第 33 步，新步排在它之后）')
     # 10-18 的 anyfirst 档必须由链默认带到：plan 里不带 --cohort ⇒ 写侧 cohort=None 两路母体都跑，
     # 这一档才跟着每日链刷新（否则 backfill 那天之后它就永远停在旧批）。
     assert "--cohort" not in m.group(1), 'quadtrack 若被钉死单档，anyfirst 就不再随每日链更新'

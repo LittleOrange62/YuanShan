@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { LineChart } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { CaveatText, Contract, Definitions, ExplainBox, Measured, Panel, Provenance, Row } from "@/components/ui/DataPanel";
+import { CaveatText, Contract, Definitions, Measured, Panel, Provenance, Row } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { useTableSort } from "@/lib/useSort";
 import { dash, hasData, num, type DataState } from "@/lib/datastate";
@@ -206,9 +207,24 @@ export function GroupAnalyticsBoard({ got }: { got: DataState<Analytics> }) {
       </Panel>
 
       <GlassCard>
-        <h2 className="flex items-center gap-1.5 text-sm font-bold">
-          <LineChart className="h-4 w-4 text-primary" /> 各组的分数趋势（这 20 场怎么走过来的）
-        </h2>
+        {/* 用户 2026-10-31：「这块的说明」摆在这一块标题这一行的最右边。上面那段「为什么表与图并排」
+            里嵌着可选组的按钮（<GroupChips/>），是可点的功能，留在标题下面不许搬进抽屉；
+            抽屉里放的是下面那两句纯读法说明（原来就摊在图下面）。 */}
+        <div className="mb-1 flex flex-wrap items-center gap-1.5">
+          <h2 className="flex items-center gap-1.5 text-sm font-bold">
+            <LineChart className="h-4 w-4 text-primary" /> 各组的分数趋势（这 20 场怎么走过来的）
+          </h2>
+          <span className="ml-auto flex flex-wrap items-center gap-1.5">
+            <DocDrawer title="各组的分数趋势（这 20 场怎么走过来的）">
+              <DrawerSection heading="这一张图怎么点">
+                <p>
+                  前 3 条默认常亮（按斜率选，不是按当日分），其余点组名展开、再点收回。
+                  前 3 条点不掉 —— 它们是默认读数本身。
+                </p>
+              </DrawerSection>
+            </DocDrawer>
+          </span>
+        </div>
         <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
           表给的是今天这一个点和一条斜率，图给的是这段路怎么走 —— 斜率一样的两个组，
           一个稳步爬升、一个暴涨后回落，只看数字分不出来。默认只画<b className="text-foreground">斜率最好的 3 组</b>
@@ -216,56 +232,73 @@ export function GroupAnalyticsBoard({ got }: { got: DataState<Analytics> }) {
           所以这 3 条<b className="text-foreground">很可能分还是负的</b>。谁最强看上面那张表的第一行。
         </p>
         <TrendChart d={cur} />
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          前 3 条默认常亮（按斜率选，不是按当日分），其余点组名展开、再点收回。
-          前 3 条点不掉 —— 它们是默认读数本身。
-        </p>
       </GlassCard>
 
       <GlassCard>
-        <h2 className="text-sm font-bold">这一块的口径</h2>
-        <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-          下面每一条都是接口原样交出的（<code>calibers</code>），不是前端另写一份 ——
-          两处各写一份迟早对不上。
-        </p>
-        <div className="mt-2">
-          {cur?.calibers ? <Definitions map={cur.calibers} />
-            : <p className="text-[11px] text-muted-foreground">口径条文由接口随数据一起交出，这一块没取到数据时不预先描述算法。</p>}
+        {/* 用户 2026-10-31：这一整块的说明（口径条文字典 + 两句人工实查）搬进标题行这颗按钮开的抽屉，
+            原来 `Definitions` 在正文里自己长出的那颗同名按钮随之收掉（一块只留一颗）。
+            没取到数据时那句「这一块没取到数据时不预先描述算法」是缺数声明，留在屏上、不长空按钮。 */}
+        <div className="mb-1 flex flex-wrap items-center gap-1.5">
+          <h2 className="text-sm font-bold">这一块的口径</h2>
+          <span className="ml-auto flex flex-wrap items-center gap-1.5">
+            {cur?.calibers && (
+              <DocDrawer title="这一块的口径">
+                <p>下面每一条都是接口原样交出的（<code>calibers</code>），不是前端另写一份 ——
+                  两处各写一份迟早对不上。</p>
+                <div className="mt-2">
+                  <Definitions map={cur.calibers} bare />
+                </div>
+                <div className="mt-3 grid gap-1 text-[11px] leading-relaxed sm:grid-cols-2">
+                  <Measured>
+                    单位混排是刻意的：涨跌类给 <b className="text-foreground">%</b> 与 <b className="text-foreground">bp</b>，
+                    振幅给 <b className="text-foreground">%/日</b>，分数给 <b className="text-foreground">分</b>。
+                    <b className="text-foreground">10/20 日均涨跌用 bp 不用 %</b>：组内均值只剩 ±1% 以内，
+                    两位小数的百分数满屏是「−0.25」看不出组间差别；标成 % 又会把 −25bp 读成 −25%，量级差 100 倍。
+                  </Measured>
+                  <Measured>
+                    不合成「组热度单一指数」：加权分、等权分、趋势、振幅是四件不同的事，
+                    乘成一个数之后就看不出这一组是「整组在走强」还是「一只大成交额的票把均值顶起来」。
+                    所以两者<b className="text-foreground">并列给</b>，看差值本身就是读数。
+                  </Measured>
+                </div>
+              </DocDrawer>
+            )}
+          </span>
         </div>
-        <div className="mt-3 grid gap-1 text-[11px] leading-relaxed text-muted-foreground sm:grid-cols-2">
-          <Measured>
-            单位混排是刻意的：涨跌类给 <b className="text-foreground">%</b> 与 <b className="text-foreground">bp</b>，
-            振幅给 <b className="text-foreground">%/日</b>，分数给 <b className="text-foreground">分</b>。
-            <b className="text-foreground">10/20 日均涨跌用 bp 不用 %</b>：组内均值只剩 ±1% 以内，
-            两位小数的百分数满屏是"−0.25"看不出组间差别；标成 % 又会把 −25bp 读成 −25%，量级差 100 倍。
-          </Measured>
-          <Measured>
-            不合成「组热度单一指数」：加权分、等权分、趋势、振幅是四件不同的事，
-            乘成一个数之后就看不出这一组是"整组在走强"还是"一只大成交额的票把均值顶起来"。
-            所以两者<b className="text-foreground">并列给</b>，看差值本身就是读数。
-          </Measured>
-        </div>
+        {!cur?.calibers && (
+          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+            口径条文由接口随数据一起交出，这一块没取到数据时不预先描述算法。
+          </p>
+        )}
       </GlassCard>
 
       <GlassCard>
-        <h2 className="text-sm font-bold">这一块不做什么</h2>
-        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-          按 2026-09-27 的裁定撤掉了三列：<b className="text-foreground">涨/跌/未取到的只数</b>（"未取到"没有消失，
-          它现在是"上涨占比"的分母，仍然看得见）、<b className="text-foreground">平均成本</b>与
-          <b className="text-foreground">备注（同花顺导入）</b>—— 成本与备注逐票记在本页下面的明细表里，组级均价没有决策价值。
-        </p>
-        <ExplainBox title="曲线的历史怎么连 · 成员回溯 · is_focus 与空组">
-          <p>
-            曲线的历史<b className="text-foreground">不拿当日一列去拼</b>：图里每个点都是那一场真的加权分。
-            缺数的那一天<b className="text-foreground">断线不连过去</b>，也不补 0。
-            成员用今天的分组回溯整条历史（<code>config.watchlist_stock</code> 没有时间维度），
-            刚加进去的票会把它过去的分数算进本组趋势线 —— 这一条改不了，只能在读数时知道。
-          </p>
-          <p>
-            <code>is_focus</code> 全库无一为真，那是"没勾过重点组"、不是同步坏了；
-            本表只列有成员的组（{dash(cur?.group_count)} 个），空组不占行。
-          </p>
-        </ExplainBox>
+        {/* 用户 2026-10-31：这一块的说明（撤列裁定 + 原 ExplainBox 那段曲线/成员回溯）
+            整段搬进标题行这颗按钮开的抽屉，屏上不再摊第二遍。 */}
+        <div className="mb-1 flex flex-wrap items-center gap-1.5">
+          <h2 className="text-sm font-bold">这一块不做什么</h2>
+          <span className="ml-auto flex flex-wrap items-center gap-1.5">
+            <DocDrawer title="这一块不做什么">
+              <p>
+                按 2026-09-27 的裁定撤掉了三列：<b className="text-foreground">涨/跌/未取到的只数</b>（「未取到」没有消失，
+                它现在是「上涨占比」的分母，仍然看得见）、<b className="text-foreground">平均成本</b>与
+                <b className="text-foreground">备注（同花顺导入）</b>—— 成本与备注逐票记在本页下面的明细表里，组级均价没有决策价值。
+              </p>
+              <DrawerSection heading="曲线的历史怎么连 · 成员回溯 · is_focus 与空组">
+                <p>
+                  曲线的历史<b className="text-foreground">不拿当日一列去拼</b>：图里每个点都是那一场真的加权分。
+                  缺数的那一天<b className="text-foreground">断线不连过去</b>，也不补 0。
+                  成员用今天的分组回溯整条历史（<code>config.watchlist_stock</code> 没有时间维度），
+                  刚加进去的票会把它过去的分数算进本组趋势线 —— 这一条改不了，只能在读数时知道。
+                </p>
+                <p>
+                  <code>is_focus</code> 全库无一为真，那是「没勾过重点组」、不是同步坏了；
+                  本表只列有成员的组（{dash(cur?.group_count)} 个），空组不占行。
+                </p>
+              </DrawerSection>
+            </DocDrawer>
+          </span>
+        </div>
       </GlassCard>
     </>
   );

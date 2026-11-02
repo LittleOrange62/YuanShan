@@ -3,7 +3,8 @@ import { RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { CaveatText, Contract, ExplainBox, Panel, Provenance, Row } from "@/components/ui/DataPanel";
+import { CaveatText, Contract, Panel, Provenance, Row } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 import { dash } from "@/lib/datastate";
 import { cn } from "@/lib/utils";
 import { useNonce, useProbe } from "@/lib/probe";
@@ -152,29 +153,34 @@ export function Quality() {
         </Panel>
 
         <GlassCard>
-          <h2 className="text-sm font-bold">这一页拦的是什么，以及现在拦不动的部分</h2>
+          {/* 用户 10-31：这一段分工与口径的说明原先是正文折框（长在卡底像"数下面的一段话"），
+              搬进标题行最右边的抽屉。**上面第一段没跟着搬**：
+              「审 0 条不是货没问题，是闸没落下」是三态判读的告警，藏起来等于没写；
+              下面的 Contract（缺触发端点）同样留在屏上。 */}
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <h2 className="text-sm font-bold">这一页拦的是什么，以及现在拦不动的部分</h2>
+            <span className="ml-auto"><DocDrawer title="这一页拦的是什么，以及现在拦不动的部分">
+              <DrawerSection heading="与 preflight 的分工 · 为什么只报本场不累计历史">
+                <p>
+                  还有两处闸口与本页语义正交，都保留、不许合并：preflight（复盘前体检）判的是
+                  <b className="text-foreground">「这场数据够不够格进复盘」</b>，本页判的是
+                  <b className="text-foreground">「这批数据进库之后坏没坏」</b>。合成一张表的后果，
+                  是这些入库规则被复盘前的那份检查表顶掉 —— 谁也没拦谁，但两把尺子不能互翻。
+                  （规则现在登记了几条，以上面那行「本场审了 N / M 条登记规则」为准，本页不另抄一份数。）
+                </p>
+                <p className="mt-1">
+                  另一处口径本页刻意不做：把历史结果按条数累计成「共未通过 N 条」。
+                  结果表存在同一批被重复写入的情况，未去重前相加会凭空放大数字 —— 所以只报<b className="text-foreground">本场</b>的分布。
+                </p>
+              </DrawerSection>
+            </DocDrawer></span>
+          </div>
           <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
             登记在册的规则绝大多数拦的是同一类事故：<b className="text-foreground">静默的数据错误</b> ——
             单位从元变成千元、某天起少了三成行、涨跌停用今天的 ST 状态回算历史。
             这类问题不会让任何页面报错，只会让数字一直「看着正常」。
             所以<b className="text-foreground">「本场审了几条」本身就是故障信号</b>：审 0 条不是「货没问题」，是闸没落下。
           </p>
-          {/* 说明与分工折进通用说明框（用户 10-14）。**上面第一段没跟着折**：
-              「审 0 条不是货没问题，是闸没落下」是三态判读的告警，藏进折叠框等于没写；
-              下面的 Contract（缺触发端点）同样留在屏上。 */}
-          <ExplainBox title="与 preflight 的分工 · 为什么只报本场不累计历史">
-            <p className="mt-1">
-              还有两处闸口与本页语义正交，都保留、不许合并：preflight（复盘前体检）判的是
-              <b className="text-foreground">「这场数据够不够格进复盘」</b>，本页判的是
-              <b className="text-foreground">「这批数据进库之后坏没坏」</b>。合成一张表的后果，
-              是这些入库规则被复盘前的那份检查表顶掉 —— 谁也没拦谁，但两把尺子不能互翻。
-              （规则现在登记了几条，以上面那行「本场审了 N / M 条登记规则」为准，本页不另抄一份数。）
-            </p>
-            <p className="mt-1">
-              另一处口径本页刻意不做：把历史结果按条数累计成「共未通过 N 条」。
-              结果表存在同一批被重复写入的情况，未去重前相加会凭空放大数字 —— 所以只报<b className="text-foreground">本场</b>的分布。
-            </p>
-          </ExplainBox>
           <div className="mt-2">
             <Contract path="POST /api/quality/audit" source="按 config.quality_rule 逐条实跑并写 operations.quality_result" fields={[
               ["（触发端点）", "本页只读结果。要「现在重跑一次」得有个能落库的触发端点；没有就不摆一个点了没反应的按钮"],

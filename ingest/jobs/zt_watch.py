@@ -43,7 +43,7 @@ except Exception:  # noqa: BLE001
     pass
 
 from app.db import engine                                    # noqa: E402
-from app.intraday import store                               # noqa: E402
+from app.intraday import store, tasks                             # noqa: E402
 from app.intraday.pool_events import (KIND_LABELS, KIND_ORDER, SPEC_VERSION,   # noqa: E402
                                       digest, diff_events, fmt_rows, normalize)
 from duanxian.live_emotion import POOL_SORT                  # noqa: E402  排序键只有一份定义
@@ -55,7 +55,6 @@ STATE_FILE = ROOT / 'var' / 'intraday_watch_state.json'
 #: （limit/min_energy/signal_type…），而播报正文是渲染成品，两者契约不同，
 #: 硬塞会让面板能勾、执行体读不到（那是本项目明令禁止的半截功能）。
 TPL_FILE = ROOT / 'app' / 'intraday' / 'templates.json'
-CHANNEL_DEFAULT = 'feishu-main'
 _TPL_CACHE: dict = {}
 
 
@@ -203,7 +202,8 @@ def report_text(now: dt.datetime, cur: dict, cur_dt: dict, prev: dict, prev_dt: 
     return '\n'.join(lines)
 
 
-def one_round(*, dry_run: bool, send: bool, channel: str, quiet_first: bool) -> int:
+def one_round(*, dry_run: bool, send: bool, channel: str | None,
+              quiet_first: bool) -> int:
     now = dt.datetime.now()
     open_day = is_trade_day(now)
     if open_day is False or (open_day is None and now.weekday() > 4):
@@ -295,12 +295,14 @@ def one_round(*, dry_run: bool, send: bool, channel: str, quiet_first: bool) -> 
 
     if send and due and not dry_run:
         from duanxian import notify
-        res = notify.send_to([channel], '涨停动态', text)
+        keys = tasks.send_channels(channel)        # 不给就读系统配置里的盘中播报渠道
+        res = notify.send_to(keys, '涨停动态', text)
         store.write_broadcast(now, task='watcher', what='sent', body=text,
                               ok=bool(res.get('ok')), delivered=bool(res.get('ok')),
-                              channel_key=channel,
+                              channel_key=','.join(keys),
                               err=str(res.get('detail'))[:300] if not res.get('ok') else None)
-        print(f'  发送 → {channel}：{"已确认" if res.get("ok") else "未确认：" + str(res.get("detail"))[:160]}'
+        print(f'  发送 → {",".join(keys)}：'
+              f'{"已确认" if res.get("ok") else "未确认：" + str(res.get("detail"))[:160]}'
               f'（判据是渠道业务码，不是 HTTP 200）')
     elif send and dry_run:
         print('  （dry-run：没有发送）')
@@ -312,7 +314,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument('--once', action='store_true', help='只跑一针（调度器就这么调）')
     ap.add_argument('--dry-run', action='store_true', help='不落库、不发送，只打印')
     ap.add_argument('--send', action='store_true', help='落库后推渠道（默认不推）')
-    ap.add_argument('--channel', default=CHANNEL_DEFAULT)
+    ap.add_argument('--channel', default=None,
+                    help='逗号分隔的渠道串；不给就读系统配置「盘中播报」那一格')
     ap.add_argument('--announce-first', action='store_true',
                     help='首轮也播一条基线摘要（默认静默建基线）')
     args = ap.parse_args(argv)

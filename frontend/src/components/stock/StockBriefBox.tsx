@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Definitions, ExplainBox } from "@/components/ui/DataPanel";
 import { TemplatePicker } from "@/components/ui/TemplatePicker";
 import { hasLlm } from "@/lib/llm";
+import { blockedReason, readSources } from "@/lib/agent-api";
 import { plain } from "@/lib/agent";
 import { useTemplatePicker } from "@/lib/prompts";
 import {
@@ -38,8 +39,13 @@ export function StockBriefBox({ facts, refresh }: { facts: FactsPayload; refresh
   const [auto, setAuto] = useState(false);
   const row = facts.brief ?? null;
   const hasBrief = !!row?.brief;
+  // 顺序不能反：`hasLlm()` 走的是 `currentSource()`，那句"整轮停住"的话是它顺手写进模块状态的，
+  // 先问它一次才读得到 `blockedReason()`。
+  const llmReady = hasLlm();
+  const parked = llmReady ? "" : blockedReason();
   const prereq = missingPrerequisites({
-    hasLlm: hasLlm(), available: facts.available === true, numeric: numericOf(facts.code ?? ""),
+    hasLlm: llmReady, available: facts.available === true, numeric: numericOf(facts.code ?? ""),
+    blocked: parked && readSources().length > 0 ? parked : "",
   });
   const templateReady = !!tpl.current?.template;
   const decision = autoRunDecision({
@@ -141,7 +147,11 @@ export function StockBriefBox({ facts, refresh }: { facts: FactsPayload; refresh
         </>
       ) : !busy ? (
         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-          还没生成过这一份（库里没有这一行，不是"生成出来是空的"）。
+          {/* 「库里没有这一行」与「有这一行、但只记下过失败」是两件事 —— 自动跑一上线，
+              后一种会变成常态，再念「还没生成过」就是把失败说成没跑。 */}
+          {row
+            ? "这一格还没有成功的正文：库里这一行只记下过失败（原因见下面那句告警），不是「还没跑过」。"
+            : "还没生成过这一份（库里没有这一行，不是「生成出来是空的」）。"}
           它由模型读下面「个股研究」那一整块（行情 · 估值 · 研报 · 新闻 · 财务 · 公告 · 资金面）写成，
           这一页会自己发起这一趟 —— 要出网、用你在「AI 探索 · 接入设置」里配的那个模型，一次几十秒到几分钟。
           写成之后存进本机库，以后进这一页直接显示那一份，不再自动打；要换一份点右上角那个按钮。
@@ -160,7 +170,7 @@ export function StockBriefBox({ facts, refresh }: { facts: FactsPayload; refresh
       )}
 
       {receipt.length > 0 && (
-        <ExplainBox title="写这一份时看了哪些材料（每段喂几条 · 源本轮共几条）" count={receipt.length}>
+        <ExplainBox title="写这一份时看了哪些材料（每段喂几条 · 源本轮共几条）" block="这家公司是做什么的" count={receipt.length}>
           <ul className="space-y-1">
             {receiptLines(receipt).map((line, i) => (
               <li key={receipt[i].key}>
@@ -175,7 +185,7 @@ export function StockBriefBox({ facts, refresh }: { facts: FactsPayload; refresh
         </ExplainBox>
       )}
       {!!row?.caliber && (
-        <ExplainBox title="这一格的口径 · 每个字段在说什么话">
+        <ExplainBox title="这一格的口径 · 每个字段在说什么话" block="这家公司是做什么的">
           <p>{plain(row.caliber)}</p>
           {row.definitions && Object.keys(row.definitions).length > 0 && (
             <Definitions map={row.definitions} bare />

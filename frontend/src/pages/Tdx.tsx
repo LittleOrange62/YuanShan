@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Contract, Measured, Panel, Row } from "@/components/ui/DataPanel";
+import { DocDrawer } from "@/components/ui/DocDrawer";
 import { useNonce, useProbe } from "@/lib/probe";
 import { TdxTrail } from "@/components/TdxTrail";
 import { dash } from "@/lib/datastate";
@@ -81,19 +82,27 @@ export function Tdx() {
         </Panel>
 
         <GlassCard>
-          <h2 className="text-sm font-bold">自动动作的边界在哪</h2>
-          <Measured>
-            这一页没有"一键启动通达信"的按钮，是因为<b className="text-foreground">不需要按钮</b>：
-            15:59 收盘链到点会自己判数据、自己拉起并登录、自己开下载窗勾线；
-            下载阶梯每 10 分钟按<b className="text-foreground">整目录条数</b>判一次
-            （判全就关窗收进程，两档都没全就全重启客户端再下一遍）。
-            还守着的边界有两条：① <b className="text-foreground">绝不动主客户端进程</b>
-            —— 只收赖着的 `TPyth*`，TQ 那条腿要 `TdxW.exe` 登录着；
-            ② <b className="text-foreground">有链在跑时阶梯不接管</b> —— 两双手抢一个客户端必然互相取消。
-            要收回去就在系统配置把 `tdx_watch.auto_launch` / `auto_restart` 关掉；
-            关掉之后剩下的那一下确实是鼠标点的，<b className="text-foreground">没人点就是零</b>，
-            这一页不会替它遮羞。
-          </Measured>
+          {/* 用户 10-31：这一整段是「边界在哪」的说明散文（人工实查结论），原先摊在卡底像
+              "数下面的一段话"，搬进标题行最右边的抽屉；`Measured` 那句「来自人工实查、不是本轮接口返回」
+              的出处声明原样跟着走，不许悄悄把它洗成读数。真正会动到机器的开关在系统配置的循环面板上，
+              那些确认与逐条警示一律留在它们自己的屏上，没有收起来。 */}
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <h2 className="text-sm font-bold">自动动作的边界在哪</h2>
+            <span className="ml-auto"><DocDrawer title="自动动作的边界在哪">
+              <Measured>
+                这一页没有「一键启动通达信」的按钮，是因为<b className="text-foreground">不需要按钮</b>：
+                15:59 收盘链到点会自己判数据、自己拉起并登录、自己开下载窗勾线；
+                下载阶梯每 10 分钟按<b className="text-foreground">整目录条数</b>判一次
+                （判全就关窗收进程，两档都没全就全重启客户端再下一遍）。
+                还守着的边界有两条：① <b className="text-foreground">绝不动主客户端进程</b>
+                —— 只收赖着的 <code>TPyth*</code>，TQ 那条腿要 <code>TdxW.exe</code> 登录着；
+                ② <b className="text-foreground">有链在跑时阶梯不接管</b> —— 两双手抢一个客户端必然互相取消。
+                要收回去就在系统配置把 <code>tdx_watch.auto_launch / auto_restart</code> 关掉；
+                关掉之后剩下的那一下确实是鼠标点的，<b className="text-foreground">没人点就是零</b>，
+                这一页不会替它遮羞。
+              </Measured>
+            </DocDrawer></span>
+          </div>
         </GlassCard>
       </div>
 

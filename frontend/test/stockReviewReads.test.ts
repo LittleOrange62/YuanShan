@@ -16,9 +16,11 @@ import {
   readingSentences, scoreBand, sparkPath, topPartsSentence, type SimRow, type SimilarityPayload,
 } from '../src/lib/volumeSimilarity.ts';
 import {
-  amtText as pvAmtText, barLabel as pvBarLabel, barTooltip as pvBarTooltip, isUp as pvIsUp,
-  maPoints as pvMaPoints, pctText as pvPctText, price as pvPrice, priceExtent as pvPriceExtent,
-  seriesCaption as pvSeriesCaption, volText as pvVolText, type PvBar,
+  amtText as pvAmtText, barDate as pvBarDate, barLabel as pvBarLabel, barTooltip as pvBarTooltip,
+  isUp as pvIsUp, maPoints as pvMaPoints, pctText as pvPctText, pickBarIndex as pvPickBarIndex,
+  price as pvPrice, priceExtent as pvPriceExtent, readoutCells as pvReadoutCells,
+  readoutSource as pvReadoutSource, seriesCaption as pvSeriesCaption, volText as pvVolText,
+  type PvBar,
 } from '../src/lib/priceVolumeTrend.ts';
 
 /**
@@ -292,8 +294,10 @@ test('涨跌方向缺开或缺收时是「不知道」，不是判成阴线', ()
 // ============================================================ 五、页面接线（漏一处就是屏幕少一块）
 
 test('这一轮新加的五块都挂在个股深度复盘上，且顺序是定下来的那个', () => {
-  const order = ['StockFacts', 'StockDossier', 'TrendQuant', 'FinancialPeriodBoard',
-    'PriceVolumeTrend', 'VolumeSimilarityBoard', 'StockData', 'DeepDive', 'StockMetricsLedger'];
+  // 2026-10-28 用户点名「量价走势移动到这只票的量化档案的前面」⇒ pv 从第 5 位提到第 2 位。
+  // 块序的另一份真源是 `duanxian/stock_metrics_ledger.py::BLOCKS`，后端那条测试钉它，两处必须一起改。
+  const order = ['StockFacts', 'PriceVolumeTrend', 'StockDossier', 'TrendQuant',
+    'FinancialPeriodBoard', 'VolumeSimilarityBoard', 'StockData', 'DeepDive', 'StockMetricsLedger'];
   const pos = order.map(n => page.indexOf(`<${n}`));
   pos.forEach((v, i) => assert.ok(v >= 0, `页面里没有 <${order[i]}，调用点没接上`));
   assert.deepEqual([...pos], [...pos].sort((a, b) => a - b),
@@ -358,16 +362,145 @@ test('相似样本榜本票那一行不参与排序（第一行钉住）', () =>
   assert.match(simComp, /rows: Row\[\] = \[targetRow, \.\.\.sorted/, '本票必须在排完序的榜之前拼进去');
 });
 
-test('10-19 夜「描述收缩」自查（近 30 根量价相似样本）：怎么点那句折进说明框，caveat 与截断留在外面', () => {
-  // 用户 2026-10-19：「把选项留出，描述内容都收缩起来」。
-  const boxStart = simComp.indexOf('<ExplainBox title="这一张表怎么点');
-  const boxEnd = simComp.indexOf('</ExplainBox>', boxStart);
-  assert.ok(boxStart > 0 && boxEnd > boxStart, '相似样本榜要有默认收起的"怎么点"说明框');
+test('10-19 夜「描述收缩」自查（近 30 根量价相似样本）：怎么点那句收进抽屉，caveat 与截断留在外面', () => {
+  // 用户 2026-10-19：「把选项留出，描述内容都收缩起来」；11-01 又点名「一模块一颗说明按钮」
+  // ⇒ 这块原来三处出口（标题行 note + 表前折叠 + 表尾两个 ExplainBox）合成一颗抽屉。
+  // 判的还是同一件事：描述收起来、告警与缺数摊在外面。
+  const foldStart = simComp.indexOf('<CaliberFold caveats={p.caveats ?? []}');
+  assert.ok(foldStart > 0, 'caveat 与字段义仍要交给全站那一处共用件（不许自己拼一份）');
+  const boxStart = simComp.indexOf('<DrawerSection heading="这一张表怎么点', foldStart);
+  const boxEnd = simComp.indexOf('</DrawerSection>', boxStart);
+  assert.ok(boxStart > foldStart && boxEnd > boxStart, '相似样本榜要有收起来的"怎么点"一节，而且在这一颗折叠/抽屉体里');
   const box = simComp.slice(boxStart, boxEnd);
   assert.match(box, /\{STOCK_ROW_HINT\}/);
-  assert.doesNotMatch(box, /popHint|text-warning|text-destructive|<Caveats/);
-  const before = simComp.slice(0, boxStart);
-  assert.match(before, /<CaliberFold caveats=\{p\.caveats \?\? \[\]\}/,
-    'caveat 交给共用折叠块，且排在"怎么点"框之前＝缺数类仍在默认可见位置');
-  assert.ok(simComp.indexOf('it.popHint') < boxStart, '弹窗被拦的告警排在说明框之前、不在框内');
+  assert.doesNotMatch(box, /popHint|text-warning|text-destructive|<Caveats/, '告警不许被收进抽屉');
+  // 标题行那颗 `Panel note` 撤了、表尾那两个 ExplainBox 也没了 ⇒ 整块只剩一颗出口
+  assert.doesNotMatch(simComp, /<ExplainBox\b/, '还留着第二颗说明出口（合并没做完）');
+  assert.doesNotMatch(simCodeWithoutNotes(), /\bnote=\{/,
+    '`Panel note` 那颗要撤——留着就是同一块两颗同名按钮（`notes=` 是抽屉里的读法段，不算出口）');
+  // 找的是**渲染那一处**（`it.popHint` 这四个字在注释里也出现过，按第一次出现位置判会读到解释）
+  const pop = simComp.indexOf('it.popHint && <NoticeBar');
+  assert.ok(pop > 0, '弹窗被拦那句告警必须还在屏上，而且走公用组件那一种形状（不散着写）');
+  // 那句"本票排第一行"要在 `notes={[…]}` 这一段里（这四个字在上面的解释里也出现过，按全文找会读到自己写的注释）
+  const notesStart = simComp.indexOf('notes={[', foldStart);
+  const notesEnd = simComp.indexOf('extra={', notesStart);
+  assert.ok(notesStart > foldStart && notesEnd > notesStart, '共用件要还带着 notes 与 extra 两段');
+  assert.match(simComp.slice(notesStart, notesEnd), /本票排第一行/,
+    '那句"本票排第一行、点列头只排这十只"并进了抽屉的 notes，不再占标题行一颗按钮');
+});
+
+/** `notes={` 里也有 "note=" 这三个字符的前缀，判 `Panel note` 之前先把 `notes={` 摘掉。 */
+function simCodeWithoutNotes() {
+  return simComp.replace(/notes=\{\[[\s\S]*?\]\}/g, '');
+}
+
+// ——— 2026-10-28 用户点名：三块 K 线要做到跟股票软件那样（悬停出开高低收与涨跌幅、点一根在图下显数字）———
+
+test('读数行：悬停 > 点选钉住 > 最新一根，且换票后旧下标一律作废', () => {
+  assert.equal(pvPickBarIndex(10, 3, 7), 3, '鼠标在哪儿就看哪儿，钉住的那根要让位');
+  assert.equal(pvPickBarIndex(10, null, 7), 7, '鼠标移开要回到钉住的那根（"点一下之后下面还看得见"就是这一条）');
+  assert.equal(pvPickBarIndex(10, null, null), 9, '谁都没选时停在最新一根，与股票软件一致');
+  assert.equal(pvPickBarIndex(10, 20, 5), 5, '悬停下标越界（换了一只票、根数变少）要作废，不许拿旧下标指新数组');
+  assert.equal(pvPickBarIndex(10, null, 20), 9,
+    '钉住的下标越界（换了一只票）要退回默认那一档＝最新一根；拿着 20 去指只有 10 根的新数组会读成 undefined，'
+    + '而有柱子时把读数行留空比停在最新一根更让人找不到北');
+  assert.equal(pvPickBarIndex(0, null, null), null, '一根都没有就没有可显示的读数（不硬编成第 0 根）');
+  assert.equal(pvReadoutSource(3, 7), '悬停这一根');
+  assert.equal(pvReadoutSource(null, 7), '已钉住这一根（再点同一根取消）');
+  assert.match(pvReadoutSource(null, null), /最新一根/, '默认那一档要说出这是最新一根，不能让人以为是选中的');
+});
+
+test('读数行那一排：开高低收与涨跌一个都不能少，缺数给「—」不给 0，不复权收永远给', () => {
+  const cells = pvReadoutCells({
+    date: '2026-10-28', open: 10, high: 12, low: 9, close: 11.5, close_raw: 13, pct: 2.5,
+    volume_wan_shares: 20000, amount_yi: 3.4, turnover_sum: 1.2, bars: 1,
+  } as PvBar);
+  const g = (k: string) => cells.find(c => c.k === k)?.v;
+  assert.deepEqual([g('开'), g('高'), g('低'), g('收')], ['10.00', '12.00', '9.00', '11.50']);
+  assert.equal(g('涨跌'), '+2.50%');
+  assert.equal(g('不复权收'), '13.00', '图上那根是前复权形状，只给一个价就会被当成当天真成交的价');
+  assert.equal(cells.find(c => c.k === '收')?.tone, 'up', '涨要用涨的那一档（红涨绿跌的映射住在组件，这里只交三态）');
+  const hole = pvReadoutCells({ date: '2026-10-28' } as PvBar);
+  assert.equal(hole.find(c => c.k === '收')?.v, '—', '缺数不是 0.00');
+  assert.equal(hole.find(c => c.k === '涨跌')?.tone, 'none', '没有 pct 时不许蒙一个方向');
+  assert.deepEqual(pvReadoutCells(null), [], '没有那一根就交空数组，组件那一行自己说"没有可显示的读数"');
+  assert.equal(pvBarDate({ date: '2026-10-28' } as PvBar, 'day'), '2026-10-28', '日线要念到完整日期');
+  assert.match(pvBarDate({ date: '2026-10-26' } as PvBar, 'week'), /那一周/);
+  assert.equal(pvBarDate({ date: '2026-10-01' } as PvBar, 'month'), '2026年10月');
+});
+
+test('三块图真的接上了悬停与点选（不是只写了判读函数没挂调用点）', () => {
+  assert.match(pvComp, /const \[hover, setHover\] = useState/, '没有悬停状态＝鼠标放上去什么也不会变');
+  assert.match(pvComp, /const \[pinned, setPinned\] = useState/, '没有点选状态＝"点一根在下方显示"没实现');
+  assert.match(pvComp, /onMouseEnter=\{\(\) => setHover\(i\)\}/, '透明命中条要挂上悬停');
+  assert.match(pvComp, /onMouseLeave=\{\(\) => setHover\(null\)\}/, '移开要清悬停，否则读数卡在最后一根上');
+  assert.match(pvComp, /setPinned\(p => \(p === i \? null : i\)\)/, '再点同一根要能取消钉住');
+  assert.match(pvComp, /<ReadoutRow bar=\{active\} kind=\{kind\} source=\{readoutSource\(hover, pinned\)\} \/>/);
+  assert.match(pvComp, /pickBarIndex\(n, hover, pinned\)/, '组件自己不许再写一套优先级');
+  // 原生 `<title>` 从命中条挪到了读数行：整块信息仍在（悬停那一格的完整话没被丢掉）
+  assert.match(pvComp, /title=\{barTooltip\(bar, kind, barLabel\(bar, kind\)\)\}/);
+  assert.doesNotMatch(pvComp, /<title>\{barTooltip/, '命中条上再挂原生 tooltip＝同一件事两种控件，鼠标移开就没了的那个才是用户要的');
+  assert.match(pvComp, /本期未走完/, 'partial 那一根在读数行上也要说，不能只在图上的虚线框里');
+});
+
+// ——— 2026-10-28 用户点名：个股信息那几段说明进统一的那个弹窗（`DocDrawer`）———
+
+test('个股信息的五段说明都进了统一说明抽屉，缺数与告警仍然摊在块内（红线）', () => {
+  assert.match(factsComp, /import \{ DocDrawer, DrawerSection \} from "@\/components\/ui\/DocDrawer"/,
+    '要用全站那一只统一组件，不是自己搭一个 details');
+  assert.match(factsComp, /<DocDrawer title="个股信息">/,
+    '抽屉标题要与屏上那块标题同一个词，两处不同名会让人不确定他说的是哪一块');
+  const drawer = factsComp.slice(factsComp.indexOf('<DocDrawer'), factsComp.indexOf('</DocDrawer>'));
+  assert.equal((drawer.match(/<DrawerSection heading=/g) ?? []).length, 5,
+    '五段说明（口径 / 格子怎么读 / 为什么没有那四格 / 后端原句 / 字段字典）少一段就是没搬完');
+  for (const h of ['这一块读什么、为什么可能晚一场', '屏幕上这些格子怎么读',
+    '为什么这一块不显示每股收益、ROE、上市日、总股本', '取数口径（后端原句，页面未改写）',
+    '这些字段是什么意思']) {
+    assert.ok(drawer.includes(`heading="${h}"`), `抽屉里少了那一段：${h}`);
+  }
+  // 搬进弹窗不等于把后端的原句重抄一遍：口径与字段义仍来自 payload
+  assert.match(drawer, /\{d\?\.caliber \? plain\(d\.caliber\)/, '口径那一格仍要念后端原句（只剥成对粗体）');
+  assert.match(drawer, /<Definitions map=\{d\?\.definitions\} bare \/>/,
+    '字段字典仍用那一份共用 markup（bare＝抽屉自己已有标题，不再套一层摘要行）');
+  // 红线：`<Caveats>` 必须在抽屉**外面**
+  assert.ok(factsComp.indexOf('</DocDrawer>') < factsComp.indexOf('<Caveats items={d.caveats'),
+    '缺数与告警跟进弹窗＝让屏幕说假话（DocDrawer 顶部第 4 条）');
+  assert.doesNotMatch(factsComp.slice(factsComp.indexOf('</Panel>')), /Caveats/, 'Panel 之后不该再有第二次 Caveats');
+  // 旧的三处裸说明要真的退场，不能新旧两份并存（同一件事两个地方念，迟早分叉）
+  assert.doesNotMatch(factsComp, /<Caliber\b|<ExplainBox\b/, '口径问号角标与裸说明框该一起撤掉');
+  assert.doesNotMatch(factsComp, /note=\{<p className="mt-2 border-t/, '表下那句后端原句不再单独占一行');
+});
+
+// ——— 2026-10-29 用户第 4 条（三型的规矩）＋ 2026-10-31 第 1、2 条（按钮摆标题行、一模块一颗）———
+
+test('量价走势：说明按钮搬到了标题行最右（刷新在它后面），缺数／上限／告警仍留屏上，一个模块只一颗', () => {
+  // 用户 2026-10-29 第 4 条「缺数声明、截断上限、告警应该留，有的时候才显示，没有的时候就不显示」
+  // ——`foldAll` 那一闸不许重开；10-31 再把长在表尾的 `CaliberFold` 按钮搬进标题行（正文不许再长一颗），
+  // 分流仍只住 `lib/caveatKind.ts` 一处：纯口径散文进抽屉，`partial_last`／`too_few` 留屏上、有才出现。
+  // 只看代码，不看注释：这一块的解释里本来就要写「不再开 foldAll」这句纪律话，
+  // 按整份文本比会把解释本身当成违规（同 `docDrawer.test.ts`/`lazySection.test.ts` 那条教训）。
+  const pvCode = pvComp.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.doesNotMatch(pvCode, /\bfoldAll\b/, '这一块不许再开 foldAll：纯口径进抽屉，坏消息留屏上');
+  assert.doesNotMatch(pvCode, /<CaliberFold\b|<Caliber\b/,
+    '10-31：表尾那颗长在正文里的按钮与标题行那枚问号角标都退场，句子原样搬进抽屉（不是删话）');
+  assert.match(pvCode, /splitCaveats\(d\?\.caveats \?\? \[\]\)/,
+    '留在屏上与进抽屉的分流仍只走 `lib/caveatKind.ts` 那一处，页面不自拼一份');
+  assert.match(pvCode, /<Caveats items=\{visible\} \/>/,
+    '缺数／上限那一半仍在屏上（走共用出口 `Caveats`，不是自己写 <p>）');
+  // 标题行那一叠：h2 之后、`<Panel` 之前，说明按钮必须排在「重新取数」前面
+  const row = pvCode.slice(pvCode.indexOf('量价走势（日线 · 周线 · 月线）</h2>'), pvCode.indexOf('<Panel title="左：日线'));
+  assert.ok(row.includes('<DocDrawer title="量价走势（日线 · 周线 · 月线）">'),
+    '按钮没摆在这块标题这一行（或抽屉标题与屏上标题分了叉）');
+  assert.ok(row.indexOf('<DocDrawer') < row.indexOf('onClick={refresh}'),
+    '用户 10-31：按钮排在刷新这类元信息**前面**');
+  assert.ok(row.includes('ml-auto'), '按钮要落在这一行的最右（`ml-auto` 那一叠）');
+  // 一个模块一颗按钮：Panel 那颗 note（会自己长出第二颗同名「这块的说明」）仍然不许挂回来
+  assert.doesNotMatch(pvCode, /<Panel title="左：日线[^>]*note=/, '同一张卡片里不许有两颗同名说明按钮');
+  // 搬进抽屉的句子一句不许在屏上出现第二遍，也不许丢
+  assert.match(pvComp, /上图下量；鼠标放到哪一根/, '那句读法没被删，只是搬进抽屉');
+  assert.match(pvComp, /<Definitions map=\{d\.definitions\} bare \/>/, '字段义仍在同一口抽屉里（bare＝不再套一层摘要）');
+  assert.match(pvComp, /取数口径（后端原句，页面未改写）/, '后端口径原句仍在这口抽屉里');
+  // 三型"有才显示"的出口本身仍全站一份（这条是防有人把 NoticeBar 拆回散 <p>）
+  const notice = read('../src/components/ui/NoticeBar.tsx');
+  assert.match(notice, /if \(!when \|\| children == null/, '条件为假整条消失：没有就不显示');
 });

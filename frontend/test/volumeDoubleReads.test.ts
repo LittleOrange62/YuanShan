@@ -148,21 +148,22 @@ test('倍量榜分页而不是只画前 60 行，且选中态按整批行号记'
 test('10-19 夜「描述收缩」自查：怎么点那句折进说明框，截断声明与 caveat 仍在默认可见位置', () => {
   // 用户 2026-10-19：「把选项留出，描述内容都收缩起来」——本页那一长段 note 早就由 Panel
   // 收进默认折叠的说明框（闸在 explainBox.test.ts），这一轮把表下裸渲染的 STOCK_ROW_HINT 也收进框。
-  const boxStart = src.indexOf('<ExplainBox title="这一张表怎么点');
-  const boxEnd = src.indexOf('</ExplainBox>', boxStart);
-  assert.ok(boxStart > 0 && boxEnd > boxStart, '倍量榜要有"这一张表怎么点"的默认收起说明框');
+  const boxStart = src.indexOf('<CaliberFold caveats={d.caveats} definitions={d.definitions}');
+  const boxEnd = src.indexOf('/>', src.indexOf(')} />', boxStart)) + 2;
+  assert.ok(boxStart > 0, '倍量榜要有那一颗共用折叠块（全站唯一出口）');
   const box = src.slice(boxStart, boxEnd);
-  assert.match(box, /\{STOCK_ROW_HINT\}/, '"怎么点"那句在框里（点开可见，措辞原样）');
+  assert.match(box, /<DrawerSection heading="这一张表怎么点 · 单击高亮什么 · 双击去哪里">[\s\S]{0,220}\{STOCK_ROW_HINT\}/,
+    '"怎么点"那句在这颗抽屉里的一节（点开可见，措辞原样）');
+  assert.match(box, /榜单按 dbl_energy/, '原来长在标题行那句 note 现在是抽屉的第一段');
   assert.doesNotMatch(box, /popHint|text-warning|<Caveats/, '告警与 caveat 不许在框里');
-  // 截断声明（filter.limit 到顶那段）与 Caveats 渲染在第一个说明框之前＝默认可见位置
-  const firstBox = src.indexOf('<ExplainBox');
-  const before = src.slice(0, firstBox);
+  assert.doesNotMatch(src, /<ExplainBox title="这一张表怎么点|<ExplainBox title="日均成交额/,
+    '11-01「一模块一颗」：这块不许再长出第二、第三颗按钮（并成同一颗抽屉的两节）');
+  // 截断声明（filter.limit 到顶那段）渲染在这一颗折叠块之前＝默认可见位置
+  const before = src.slice(0, boxStart);
   assert.match(before, /交出行数已到上限/, '截断声明不许折');
   assert.match(before, /全场实有 \{qcTotal\} 只/);
-  assert.match(before, /<CaliberFold caveats=\{d\.caveats\} definitions=\{d\.definitions\}/,
-    'caveat／字段义／覆盖交给共用折叠块（用户 10-21 要密度），位置仍在第一个说明框之前＝缺数类没被折');
-  assert.match(before, /coverage=\{d\.coverage\}/, '覆盖区间跟着进折叠块，但同一段里，不缺出处');
+  assert.match(box, /coverage=\{d\.coverage\}/, '覆盖区间跟着进折叠块，但同一段里，不缺出处');
   // popHint 留在框外（这块 box 之后紧跟告警行）
-  assert.match(src.slice(boxEnd, boxEnd + 400), /vd\.popHint && <p role="status"/,
-    '弹窗被拦的告警渲染在收起的说明框外面');
+  assert.ok(src.indexOf('vd.popHint && <NoticeBar kind="warning"') > boxStart,
+    '弹窗被拦的告警渲染在收起的说明框外面（排在折叠块之后，且没被搬进框里）');
 });

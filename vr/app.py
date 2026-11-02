@@ -308,6 +308,53 @@ def market_emotion():
         raise HTTPException(502, f"短线情绪异常：{e}") from e
 
 
+@app.get("/api/market/limit-move")
+def market_limit_move(date: str = Query('', max_length=10),
+                      tiers: str = Query('', max_length=32)):
+    """「涨停分析」：连板股清单 + 交易日选择 + 连板档位多选（`1,2,3,4p`，逗号分隔）。
+
+    母体与首页那块短线情绪**是同一份实现**（`vr/market.py::_emotion`，读库里 `lup-1` 那批行），
+    所以封板强度／几天几板／节点／首板日大盘情绪这些列在两个屏幕上必然同数。
+    不传 `tiers` 就是默认那批（2 板及以上）；传了只筛这张表，**上面那些全场比率跟着不动**，
+    payload 里 `lianban_parent` 说清这次给的是筛后批还是默认批。
+    库里没有那一场 → `available:false` 并交"该跑哪一步"，不回退抓在线池子顶数。
+    """
+    try:
+        return {"data": market.get_limit_move(date, tiers)}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"涨停分析取数异常：{e}") from e
+
+
+@app.get("/api/market/limit-down")
+def market_limit_down(date: str = Query('', max_length=10),
+                      tiers: str = Query('', max_length=32)):
+    """「跌停分析」：收盘封住跌停的清单 + 交易日选择 + 连续跌停档位多选（`1,2,3,4p`）。
+
+    母体是本地日线 `market_data.stock_daily`（判据只住 `duanxian/limit_down_board.py`），
+    与涨停那一侧的 `analytics.limit_up_pool_daily` 是两张底表 —— 跌停侧本机没有封单额、
+    首封时刻、编辑归因那三族读数，所以那一族整列不出现（不是摆 `—` 占位）。
+    档位键与涨停同一套（`market.TIER_KEYS`），中文档名另给一份（跌停没有「板」这个字）。
+    """
+    try:
+        return {"data": market.get_limit_down(date, tiers)}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"跌停分析取数异常：{e}") from e
+
+
+@app.get("/api/market/first-board-deep")
+def market_first_board_deep(date: str = Query('', max_length=10),
+                            limit: int = Query(0, ge=0, le=400)):
+    """首板四层过滤深析：所选交易日首板的「题材 / 盘口 / 资金」三层逐票读数 ＋ 第四层那张场次卡。
+
+    母体与「涨停分析」同一把尺（lup-1 当日封住且 `consec=1`）。判据、外部阈值与本机分位的
+    对照、以及"本机做不出哪几族"（席位明细、分时波数）只住 `duanxian/first_board_deep.py` 一份。
+    """
+    try:
+        return {"data": market.get_first_board_deep(date, limit)}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"首板四层深析取数异常：{e}") from e
+
+
 @app.get("/api/monitor/snapshot")
 def monitor_snapshot(watch: str = Query("")):
     """每日盯盘快照：持仓/自选/500亿大票异动/三板+/昨日成交前十 + 异动事件流。
@@ -1635,6 +1682,34 @@ def quant_risk_signal(months: str = Query('3', description='窗口：3 / 6 / 12 
         raise HTTPException(502, f"风险提示取数异常：{e}") from e
 
 
+@app.get("/api/market/national-team")
+def market_national_team(range: str = Query('1y', description='时间档：3m / 6m / 1y / 2y / all（非法值退回 1y 并在 caveats 点名）'),
+                         date: str = Query('', description='锚定场次 YYYY-MM-DD（含当天）；空＝库里最晚一场')):
+    """国家队代理指标：被动沪深300 ETF 的份额/规模 ÷ 沪深300市值（两把尺并排）。
+
+    用户 2026-10-26 点名「头部沪深300基金市值占沪深300流通市值比例的变化，可以用来判断国家队的持仓」，
+    并裁定「四大 和 全部 都计算一次，但凡有一个报警或有风险或低估都提示」⇒ 两把尺各一份，
+    任一越界都进 `alert.items` 并点名是哪一把、哪一条序列、越的是哪个阈值。
+    事实只住 `analytics.national_team_etf_daily`（写侧 `app/compute/national_team.py`，
+    加工段步骤 `national_team`）；窗口、分档、异动三件判据只住 `duanxian/national_team.py` 一处，
+    界面不重算、阈值也从返回体的 `thresholds` 读。四句必须一起读的话：
+    ① 这是**代理指标**：被动 300ETF 的持有人是全部申购者，国家队只是其中一部分，
+       方向可参考、绝对值不等于国家队持仓；
+    ② 分母是本地自算（`stock_snapshot` 每票流通市值 × 沪深300成分求和，与东财当日对照差 −0.08%），
+       而那张快照表最早只到 2026-07-22 ⇒ 更早的占比就是 null（界面 `—`），不插值、不问模型；
+       所以「近 2 年 / 全部」两档画的必然是份额与净申赎那两条长线；
+    ③ 份额源 T+1 才落，最新那一天可能算不出占比 —— 那是「还没到」，不是「没有」；
+    ④ 异动与分档都不落库（阈值型判据，阈值一改历史行就挂旧含义），按当次请求现算，
+       样本底永远是整段可用历史，不是当前窗口。
+    """
+    from duanxian import national_team as NT
+
+    try:
+        return {"data": NT.panel(range=range, date=date)}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"国家队代理指标取数异常：{e}") from e
+
+
 @app.get("/api/quant/first-board-daily")
 def quant_first_board_daily(date: str = Query('', description='场次 YYYY-MM-DD；空＝库里最新一场'),
                            limit: int = Query(80, ge=10, le=240, description='一次交几行（默认 80；一场首板实测 30~60 只）'),
@@ -2575,6 +2650,98 @@ def notify_preview(payload: NotifyPreview, request: Request):
     """
     from duanxian import notify
     return {"data": notify.preview(payload.plan or {}, payload.date)}
+
+
+def _intraday_broadcast_payload() -> dict:
+    """盘中播报四条的读数：配置 × 机器上真注册的任务 × 今天的留痕。
+
+    三样必须并排给：只看配置会说出"四条都开着"，而机器上可能有人已经在任务计划程序里
+    停过；只看留痕又分不出"这一路没发"是配置关了、到点没跑、还是跑起来取不到数。
+    """
+    import datetime as dt
+
+    from app.intraday import store, tasks
+
+    day = dt.date.today()
+    ledger, ledger_reason = {}, None
+    try:
+        ledger = store.broadcast_ledger(day)
+    except Exception as exc:  # noqa: BLE001  读不出来要说"判断不了"，不许当成"今天一条没发"
+        ledger_reason = f"今天的播报留痕读不出来：{type(exc).__name__}: {str(exc)[:160]}"
+    data = tasks.plan(ledger=ledger)
+    data["ledger_day"] = f"{day:%Y-%m-%d}"
+    data["ledger_reason"] = ledger_reason
+    try:
+        import notifyconfig as NC
+
+        # 渠道候选一个都不写死：面板上能勾的就是后端认得的（写死一份候选，
+        # 第二天就会出现"界面上选得到、存下去发不出"）
+        data["channel_options"] = [
+            {"key": c["key"], "label": c.get("label") or c["key"],
+             "usable": c.get("enabled") is not False and not c.get("invalid_reason")}
+            for c in NC.masked_channels(NC.load())]
+    except Exception as exc:  # noqa: BLE001
+        data["channel_options"] = []
+        data["channel_options_reason"] = f"渠道名单读不出来：{type(exc).__name__}，先按在册值显示"
+    data["can_edit"] = True
+    return data
+
+
+@app.get("/api/intraday/broadcast")
+def intraday_broadcast_status():
+    """系统配置 →「盘中播报」：四条各自的时点、渠道、开关，与机器实况、当天留痕的对账。"""
+    try:
+        return {"data": _intraday_broadcast_payload()}
+    except Exception as exc:  # noqa: BLE001
+        return {"data": {"generated_at": None, "tasks": [], "readable": False,
+                         "can_edit": False, "warnings": [],
+                         "reason": f"盘中播报状态读不出来：{type(exc).__name__}: {str(exc)[:180]}"}}
+
+
+class IntradayBroadcastPatch(BaseModel):
+    """改「盘中播报」那一张配置表。整笔原子：一个键非法就**既不写配置、也不碰机器**。"""
+    settings: dict | None = None
+    #: 保存后按新配置重新注册 Windows 计划任务（默认是）。
+    #: 留这一档只给一种正当用法：先定下配置、等收盘后再对齐机器 —— 那种情况下界面会写明
+    #: "这一笔没动任务计划程序，时点改动还没生效"。
+    reregister: bool = True
+
+
+@app.post("/api/intraday/broadcast")
+def intraday_broadcast_update(payload: IntradayBroadcastPatch, request: Request):
+    """改时点／渠道／开关，并（默认）按新配置重注册那四条 Windows 计划任务。
+
+    ⚠️ 这一步真的会动任务计划程序：开着的用 `Register-ScheduledTask -Force` 覆盖注册，
+    关掉的那一路 `Unregister-ScheduledTask` 注销（不留"每天空跑一次然后不出声"的任务）。
+    所以校验不过就整笔不写，机器也不碰。起 PowerShell 的唯一出口在
+    `app/intraday/tasks.py::run_powershell`，pytest 进程里硬挡真注册。
+    """
+    from app.intraday import tasks
+
+    who = f"api:/api/intraday/broadcast@{request.client.host if request.client else '未知来源'}"
+    kv = dict(payload.settings or {})
+    if not kv and not payload.reregister:
+        raise HTTPException(400, "既没有要改的键，也没让重注册，这一笔不做任何事")
+    if kv:
+        why, applied = tasks.apply_patch(kv, via=who, register=payload.reregister)
+        if why:
+            raise HTTPException(400, why)
+    else:
+        applied = tasks.plan()
+        if payload.reregister:
+            applied["apply"] = tasks.register_all(applied["config"], via=who)
+    data = _intraday_broadcast_payload()
+    rows = applied.get("apply") or []
+    data["apply"] = rows
+    bad = [f"{r['task_name']}｜{r['action']}：{r['detail']}" for r in rows if not r.get("ok")]
+    if not payload.reregister:
+        data["apply_note"] = ("配置已保存，但这一笔**没有动任务计划程序** —— "
+                              "时点与开关的改动要等重注册（再点一次保存，或跑 --apply）才真生效")
+    elif bad:
+        data["apply_note"] = f"配置已保存；{len(rows) - len(bad)} 路对齐，{len(bad)} 路没对齐：{'；'.join(bad)[:300]}"
+    else:
+        data["apply_note"] = f"配置已保存，{len(rows)} 路计划任务已按新配置重注册"
+    return {"data": data, "reason": data["apply_note"]}
 
 
 def _wxpush_payload(request: Request, cfg: dict | None = None) -> dict:

@@ -11,6 +11,7 @@ import { WorkspaceProvider, useWorkspace } from '@/lib/workspace/state';
 import { AgentToggle } from '@/components/workspace/AgentToggle';
 import { EverestLogo } from '@/components/workspace/EverestLogo';
 import { AiAnalysisPanel } from '@/components/workspace/AiAnalysisPanel';
+import { useReadPageCrumb } from '@/lib/workspace/pageCrumb';
 import { WorkspaceChat } from '@/components/workspace/WorkspaceChat';
 import { Dialog } from '@/components/workspace/Dialog';
 import product from "../../../../product.json";
@@ -39,6 +40,9 @@ function Shell() {
   // 不拿 chatPageFor() 顶替 —— 那是会话/恢复用的稳定标识，与界面标题是两套词（如 /backtest 显示「历史统计」而标识是「涨停样本统计」）。
   const title = activeModule?.pages.find(page => page.to === navigationPath(pathname))?.title
     ?? (pathname === '/settings' ? 'AI 探索' : pathname === '/system' ? '系统配置' : pathname === '/jobs' ? '任务调度' : '工作空间');
+  // 页面登记的"这一屏吃的是哪一只"（用户 2026-10-28 要求撤掉深度复盘页里那个展示框，改跟在标题后面）。
+  // 只有登记过的页面才有；没登记就是原来那句标题，顶栏不自己猜一只票出来。
+  const crumb = useReadPageCrumb();
   useEffect(() => { setMobileOpen(false); setChatOpen(false); }, [pathname, search]);
   useEffect(() => {
     const query = window.matchMedia('(min-width: 768px)');
@@ -104,7 +108,7 @@ function Shell() {
       <aside aria-label="产品侧栏" className={cn('workspace-sidebar hidden shrink-0 flex-col md:flex', collapsed ? 'w-16' : 'w-64')}>{sidebar(collapsed)}</aside>
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="workspace-topbar flex min-h-16 shrink-0 items-center justify-between gap-2 px-4 md:px-8">
-          <div className="flex min-w-0 items-center gap-3 text-xs"><button type="button" aria-label="打开导航" onClick={() => setMobileOpen(true)} className="p-2 md:hidden"><Menu className="h-4 w-4" /></button><span className="hidden text-muted-foreground sm:inline">工作空间 /</span><strong className="truncate font-medium">{title}</strong></div>
+          <div className="flex min-w-0 items-center gap-3 text-xs"><button type="button" aria-label="打开导航" onClick={() => setMobileOpen(true)} className="p-2 md:hidden"><Menu className="h-4 w-4" /></button><span className="hidden text-muted-foreground sm:inline">工作空间 /</span><strong className="truncate font-medium">{title}</strong>{crumb && <span className="min-w-0 shrink truncate rounded bg-primary/15 px-1.5 py-0.5 font-semibold text-primary" title={crumb.hint} aria-label="这一屏现在吃的对象">{crumb.text}</span>}</div>
           <div className="flex shrink-0 items-center gap-2"><span className="hidden text-[10px] text-muted-foreground lg:inline">{APP_VERSION}</span><button type="button" onClick={toggle} aria-label={dark ? '切换为浅色' : '切换为深色'} className="rounded p-2 text-muted-foreground hover:bg-muted">{dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button>{pathname !== '/' && pathname !== '/settings' && <button type="button" onClick={() => setChatOpen(true)} className="ai-chat-trigger inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs"><Sparkles className="h-4 w-4" />{state.enabled ? '问 Agent' : '问模型'}</button>}</div>
         </header>
         <main ref={mainRef} id="workspace-main" tabIndex={-1} className="min-h-0 flex-1 overflow-auto"><div className="workspace-content"><Outlet /></div></main>

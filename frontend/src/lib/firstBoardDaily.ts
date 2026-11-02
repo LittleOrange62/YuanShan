@@ -88,6 +88,9 @@ export interface FbdRow {
   /** 近 5 场四维象限与全市场名次（由早到晚；`stale`＝旧系统迁入的基准，名次不参与对比） */
   quad?: { day: string; quadrant?: string | null; rank?: number | null;
            value?: number | null; stale?: boolean }[];
+  /** 近 5 场 XY 合计名次（X 名次 + Y 名次，越小越靠前）。数由加工段第 37 步落库，读侧与屏面都不再加一遍。 */
+  xy?: { day: string; rank?: number | null; x?: number | null; y?: number | null;
+         universe?: number | null; stale?: boolean }[];
   /** 近 10 / 近 20 场的倍量分布（分母是「对昨日量倍数」vr-1，与倍量加权分那把尺不同）；
    *  一格两个数（倍量次／准倍量次），没有单一大小，所以这两列不给排序。后端平铺交，不嵌一层。 */
   dbl10?: { bars?: number | null; dbl?: number | null; near?: number | null } | null;
@@ -190,6 +193,13 @@ export interface FirstBoardDaily {
   recent?: {
     boards_window?: number | null;
     quad_sessions?: number | null;
+    quad_dates?: string[] | null;
+    xy_sessions?: number | null;
+    xy_dates?: string[] | null;
+    xy_spec?: string | null;
+    xy_universe?: number | null;
+    xy_keys?: { x?: string | null; y?: string | null } | null;
+    xy_window_matches_quad?: boolean | null;
     dbl_windows?: number[] | null;
     dbl_mult?: number | null;
     dbl_near?: number | null;
@@ -384,12 +394,52 @@ export function prevSealedHits(rows: FbdRow[]): number {
   return rows.filter(r => r.prev_sealed === true).length;
 }
 
-/** 近 5 场四维象限：一格摆「MM-DD 象限 名次」的序列，缺场次就少几段（不拿 — 凑满五段）。 */
+/** 近 5 场四维象限：格子里**只有象限**（`Q4Q3Q4Q4Q3`，用户 2026-10-28 点名去掉日期、日期写进列名）。
+ *  缺场次就少几段（不拿 — 凑满五段）；缺象限但有名次的那一段留 `—`，名次与完整日期在悬停里。 */
 export function quadCell(row: FbdRow): string {
   const q = row.quad || [];
   if (!q.length) return "—";
-  return q.map(x => `${String(x.day).slice(5)} ${x.quadrant || "—"}${x.rank == null ? "" : ` ${x.rank}`}${x.stale ? "〈旧〉" : ""}`)
-    .join(" → ");
+  return q.map(x => `${x.quadrant || "—"}${x.stale ? "〈旧〉" : ""}`).join("");
+}
+
+/** 列名上那串日期（用户 2026-10-28 点名「不用显示日期，日期写在列名上」）：日期一律由接口交
+ *  （`recent.quad_dates` / `recent.xy_dates`），页面不自己按本机日历推 —— 交易日不是天天有数。
+ *  接口没交日期就退回只写场数，绝不拿"今天往前数五天"冒充。 */
+export function datedColLabel(base: string, days: (string | null | undefined)[] | null | undefined,
+                              want: number | null): string {
+  const list = (days ?? []).filter(Boolean).map(x => String(x).slice(5));
+  if (!list.length) return want === null ? base : `${base}（近 ${want} 场）`;
+  return `${base}（${list.join("·")}）`;
+}
+
+/** 这两列读到的是不是同一批场次（后端现查交 `xy_window_matches_quad`）。
+ *  只有真同一批时，屏上那句"同一批日期"才说得出嘴。 */
+export function sameWindow(a: string[] | null | undefined, b: string[] | null | undefined): boolean {
+  const x = (a ?? []).join("|"), y = (b ?? []).join("|");
+  return !!x && x === y;
+}
+
+/** 近 5 场 XY 合计名次：摆成 `21-20-19-18-5` 那样（用户 10-28 点名的形式，由早到晚）。
+ *  数读 `analytics.xy_rank_daily`（加工段第 37 步 `xyrank` 落的），**这里一个加法都不做**——
+ *  在屏上再算一遍就是第二份真相源，与「名次稳步前进榜」各加各的那种分叉以前犯过。
+ *  那一天没落到库里就少一段（不补 0、不补"未上榜"）；整列空是 `—`。 */
+export function xyCell(row: FbdRow): string {
+  const p = row.xy || [];
+  if (!p.length) return "—";
+  return p.map(x => `${x.rank == null ? "·" : x.rank}${x.stale ? "〈旧〉" : ""}`).join("-");
+}
+
+/** 悬停逐场给全日期、两个加数、和与当日分母；整列空那句必须说清是"库里没行"。 */
+export function xyTitle(row: FbdRow, base?: string): string {
+  const p = row.xy || [];
+  const head = p.length
+    ? p.map(x => `${x.day}｜合计 ${x.rank ?? "—"} ＝ X ${x.x ?? "—"} + Y ${x.y ?? "—"}｜`
+      + `当日两轴都有名次的 ${x.universe ?? "—"} 只${x.stale ? "（旧基准，名次不参与对比）" : ""}`)
+      .join("\n")
+    : "这一格是 —：`analytics.xy_rank_daily` 里没有这只票那几场的行 —— "
+      + "X 轴与 Y 轴少任一轴当天没名次就不落行（没有和可算），"
+      + "不是「排在最后」，也不是 0；加工段那一步没跑过时会在这屏的告警里点名。";
+  return base ? `${head}\n${base}` : head;
 }
 
 /** 悬停里逐场给全日期、名次与分值；`stale` 那一段必须点名（旧基准的名次不参与对比）。 */

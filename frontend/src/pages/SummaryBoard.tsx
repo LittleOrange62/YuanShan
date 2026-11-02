@@ -11,6 +11,8 @@ import {
 import { Caliber } from "@/components/ui/Caliber";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { ExplainBox } from "@/components/ui/DataPanel";
+import { DrawerSection } from "@/components/ui/DocDrawer";
+import { DocDrawer } from "@/components/ui/DocDrawer";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { RecentReports } from "@/components/workspace/RecentReports";
@@ -418,23 +420,32 @@ function Block({ title, channel, asOf, caliber, note, noteTitle, warn, children 
     );
   }
   return (
-    <GlassCard>
+    <GlassCard docTitle={title}>
       <div className="mb-1 flex flex-wrap items-center gap-1.5">
         <h2 className="text-base font-bold">{title}</h2>
         {caliber && <Caliber text={caliber} />}
-        <span className="ml-auto text-[11px] text-muted-foreground">as-of {dash(asOf)}</span>
-        {(verdict.level === "unknown" || verdict.level === "noNewest") && (
-          <span className="text-[11px] text-warning">{verdict.label}</span>
-        )}
-        {verdict.collapsed && (
-          <button type="button" onClick={() => setOpen(false)}
-            className="text-[11px] text-muted-foreground underline hover:text-foreground">收起</button>
-        )}
+        {/* 右边那一叠：「这块的说明」在最左、紧接着才是 as-of（用户 10-31：按钮要摆在标题这一行的
+            最右边、摆在 as-of 之前；原来它长在正文里，看起来像"数下面的一段话"而不是"这一块的说明"）。
+            没有说明可摆时不许长出一颗空按钮 —— 那一格整个不渲染。 */}
+        <span className="ml-auto flex flex-wrap items-center gap-1.5">
+          {(note || channel) && <DocDrawer title={title}>
+            {/* 11-01「屏上只留读数」：「来源：…」那一整行（最长的一条 131 字）从卡顶搬进这一颗抽屉。
+                来源是出处、不是三型声明，读的人要的是"这数哪来的"，那一句问一次就够，不必每天占一行。 */}
+            <DrawerSection heading="来源与渠道（数字出自哪张表、哪一列是在线源）">{plain(channel)}</DrawerSection>
+            {note && <DrawerSection heading={noteTitle ?? "这一块的说明"}>{plain(note)}</DrawerSection>}
+          </DocDrawer>}
+          <span className="text-[11px] text-muted-foreground">as-of {dash(asOf)}</span>
+          {(verdict.level === "unknown" || verdict.level === "noNewest") && (
+            <span className="text-[11px] text-warning">{verdict.label}</span>
+          )}
+          {verdict.collapsed && (
+            <button type="button" onClick={() => setOpen(false)}
+              className="text-[11px] text-muted-foreground underline hover:text-foreground">收起</button>
+          )}
+        </span>
       </div>
-      <p className="mb-1 text-[11px] text-muted-foreground">来源：{channel}</p>
-      {note && (noteTitle
-        ? <ExplainBox title={noteTitle}>{plain(note)}</ExplainBox>
-        : <p className="mb-3 mt-1 text-[11px] leading-relaxed text-muted-foreground">{plain(note)}</p>)}
+      {/* `note` 与「来源」都进上面那颗抽屉了（一模块一颗，同一句不许在屏上再摊一遍）；
+          缺数、截断、误读提醒那三类走 `warn`/`NoticeBar`，**永远摊在屏上、不进抽屉**。 */}
       {warn && <p className="mb-3 rounded-lg border border-warning/40 bg-warning/10 p-2.5 text-[11px] leading-relaxed text-warning">{warn}</p>}
       <div className="mt-2">{children}</div>
     </GlassCard>

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Caveats, ExplainBox, Panel, Row } from "@/components/ui/DataPanel";
+import { CaliberFold, Caveats, Panel, Row } from "@/components/ui/DataPanel";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { useTableSort } from "@/lib/useSort";
 import { dash, type DataState } from "@/lib/datastate";
@@ -59,7 +59,7 @@ export function ConceptBoard<T extends ConceptBoardData>({ state, note, poolLine
   const srt = useTableSort({ key: "stocks", dir: "desc" });
   const [page, setPage] = useState(1);
   return (
-    <Panel title="概念板块 · 这批票里的出现次数" state={state} note={note}>
+    <Panel title="概念板块 · 这批票里的出现次数" state={state}>
       {d => {
         const cs = d.concepts ?? [];
         const pool = d.concept_pool ?? {};
@@ -132,11 +132,11 @@ export function ConceptBoard<T extends ConceptBoardData>({ state, note, poolLine
                 </p>
               )}
             </div>
-            {d.concept_rule && (
-              <ExplainBox title="概念口径（后端原句，页面未改写）">
-                <p>{plain(d.concept_rule)}</p>
-              </ExplainBox>
-            )}
+            {/* 一模块一颗（用户 10-29 第 4 条、11-01「做」）：原来标题行那颗 `note` 与表尾这颗 `ExplainBox` 并存，
+                而且后者只在后端交了 concept_rule 时才长出来 —— 没交就一块只剩一颗、交了就有两颗。
+                现在调用方那句 `note` 与概念口径都进这同一颗抽屉，屏上恒一颗。 */}
+            <CaliberFold
+              notes={[note, d.concept_rule ? `概念口径（后端原句，页面未改写）：${plain(d.concept_rule)}` : null]} />
             {footer}
           </>
         );

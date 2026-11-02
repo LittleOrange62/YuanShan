@@ -1,21 +1,24 @@
 import { RefreshCw, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { Caliber } from "@/components/ui/Caliber";
 import { SortHeader } from "@/components/ui/SortHeader";
-import { CaliberFold, ExplainBox, QuietFold } from "@/components/ui/DataPanel";
+import { Caveats, Definitions, QuietFold } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 import { StockLink } from "@/components/ui/StockLink";
 import { useNonce, useProbe } from "@/lib/probe";
 import { PAGE_SIZES, canStep, pageSentence, slicePage } from "@/lib/paging";
 import { useTableSort } from "@/lib/useSort";
 import { STOCK_ROW_HINT, useStockRowInteraction } from "@/lib/useStockRowInteraction";
 import { dash, describeState } from "@/lib/datastate";
+import { plain } from "@/lib/agent";
+import { splitCaveats } from "@/lib/caveatKind";
 import { cn } from "@/lib/utils";
 import {
-  bandText, boardSpanText, devCell, forwardHeadline, hotHeadline, moveStatusText,
+  bandText, boardSpanText, devCell, devClause, devLineNote, forwardHeadline, hotHeadline, moveStatusText,
   nextDayState, pctText, ptsText, priceText, recentHeadline, severeState, truncationNote,
   type AbnormalMove, type AbnForwardRow, type AbnHotRow, type AbnRecentRow,
 } from "@/lib/abnormalMove";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 首页「短线情绪」下面的异动提醒（用户 2026-10-15 点名三块）。
@@ -74,6 +77,19 @@ export function AbnormalMoveBoard() {
   const cell = (i: number, k: string, cls: string, body: React.ReactNode) => (
     <td {...ri.cellProps(i, k, cls)}>{body}</td>
   );
+  // 10-31 用户点名：这一块唯一的说明出口是标题行最右边那颗「这块的说明」。
+  // 原先标题旁一枚「口径」芯片、正文卧着 CaliberFold 与 ExplainBox 两只折框，三处都不像"这一块的说明"；
+  // 现在母体口径（后端原句）、caveats（含 10-22 用户点名一起收的缺数那四条，条数仍写在按钮后面）、
+  // 字段字典与「这三块为什么分开摆」全部进同一口抽屉。分流仍走 lib/caveatKind 那一份，内容来源一个字没换。
+  const { visible: unhealthyCav, foldable: foldableCav } = splitCaveats(am?.caveats);
+  const heldCav = [...foldableCav, ...unhealthyCav];
+  const defsCount = Object.entries(am?.definitions ?? {}).length;
+  const caliberNote = am?.caliber ? `取数口径（后端原句，页面未改写）：${am.caliber}` : null;
+  const drawerTally = (heldCav.length || defsCount) ? [
+    heldCav.length - unhealthyCav.length ? `${heldCav.length - unhealthyCav.length} 条口径声明` : null,
+    unhealthyCav.length ? `${unhealthyCav.length} 条缺数与告警（本场有读不到／判不了的行）` : null,
+    defsCount ? `${defsCount} 个字段解释` : null,
+  ].filter(Boolean).join(" · ") : "";
   const nameCell = (r: { security_code: string; name?: string | null }) => cell(
     rowNo(r.security_code), "security_code", "whitespace-nowrap px-2 py-1",
     <>
@@ -91,20 +107,18 @@ export function AbnormalMoveBoard() {
       : severeState(r).tone === "warn" ? "text-warning" : "text-muted-foreground"}>
       {moveStatusText(r)}
     </span>);
+  /** 累计偏离那一格：后端判它踩到哪一条，那一格就标红（用户 2026-10-31 点名 10 日 ≥100、30 日 ≥200）。
+   *  颜色判据只认后端 `severe_how` 里的条款码，页面不拿数字再比一遍阈值 —— 窗口根数不够那一格写
+   *  「窗口不够」，永远不上色（判不了既不是"没踩到"也不是"踩到"）。 */
+  const devCls = (r: AbnHotRow | AbnRecentRow, clause: "dev10" | "dev30") => cn(
+    "px-2 py-1 font-mono tabular-nums", devClause(r, clause) && "font-semibold text-danger");
 
   return (
-    <GlassCard className="mt-3">
+    <GlassCard className="mt-3" docTitle={`异动提醒 · ${dash(am?.date) || "资料日待确认"}`}>
       <div className="mb-1.5 flex flex-wrap items-center gap-2">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
           <TriangleAlert className="h-4 w-4" /> 异动提醒 · {dash(am?.date) || "资料日待确认"}
         </h3>
-        <Caliber text={
-          "单日偏离值 = 个股当日涨跌幅 − 对应分类指数当日涨跌幅；累计偏离是区间复利"
-          + "（窗口内逐日复利的个股区间涨幅 − 同样复利的指数区间涨幅，10-27 起这把尺）。\n"
-          + "异常波动 = 连续 3 个交易日累计偏离 ≥ +20%（主板）／≥ +30%（双创）。\n"
-          + "严重异常波动 = 10 日内 4 次（主板）／3 次（双创）同向异常波动，或 10 日累计 ≥ +100%/≤ −50%，"
-          + "或 30 日累计 ≥ +200%/≤ −70%。完整口径见表下那句后端原句。"
-        } />
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] text-muted-foreground">近期回看</span>
           {RECENTS.map(n => (
@@ -123,6 +137,55 @@ export function AbnormalMoveBoard() {
             {[10, 20, 30, 50].map(v => <option key={v} value={v}>{v} 只</option>)}
           </select>
         </label>
+        {/* 「这块的说明」摆在标题这一行的最右边（用户 10-31），控件那排仍在它右边；
+            三块榜的判据句子逐字搬进抽屉，一条不重写。 */}
+        <span className="ml-auto flex flex-wrap items-center gap-1.5">
+          <DocDrawer title={`异动提醒 · ${dash(am?.date) || "资料日待确认"}`}>
+            <p className="whitespace-pre-line leading-relaxed">{
+              "单日偏离值 = 个股当日涨跌幅 − 对应分类指数当日涨跌幅；累计偏离是区间复利"
+              + "（窗口内逐日复利的个股区间涨幅 − 同样复利的指数区间涨幅，10-27 起这把尺）。\n"
+              + "异常波动 = 连续 3 个交易日累计偏离 ≥ +20%（主板）／≥ +30%（双创）。\n"
+              + "严重异常波动 = 10 日内 4 次（主板）／3 次（双创）同向异常波动，或 10 日累计 ≥ +100%/≤ −50%，"
+              + "或 30 日累计 ≥ +200%/≤ −70%。完整口径见下一句后端原句。"
+            }</p>
+            {caliberNote && <p className="mt-1 leading-relaxed">{plain(caliberNote)}</p>}
+            {/* 2026-10-31 用户点名：10 日累计偏离过了 100、30 日过了 200 要标红。
+                颜色不是装饰，所以这一节把"红是怎么判出来的"写清楚：读后端 severe_how 的条款码，
+                页面不拿数字自己比一遍阈值（那会长出第二套真相，且窗口不够的格子会被误判成踩线）。 */}
+            <DrawerSection heading="② 与 ③ 里那一格为什么标红">
+              <p>{devLineNote({ thresholds: am?.thresholds ?? null }, "dev10")}</p>
+              <p className="mt-0.5">{devLineNote({ thresholds: am?.thresholds ?? null }, "dev30")}</p>
+              <p className="mt-0.5">
+                红色只说「这一条被后端判成踩到了」，不改口说它明天会怎样：① 那张榜问的是另一件事
+                （明日涨停会不会新踩到下一条），它的格子一律不上这个色。
+              </p>
+            </DrawerSection>
+            {heldCav.length > 0 && (
+              <DrawerSection heading="口径声明（后端 caveats 原句，页面未改写）">
+                <Caveats items={heldCav} />
+              </DrawerSection>
+            )}
+            {defsCount > 0 && (
+              <DrawerSection heading="这一列是什么（字段含义，后端 definitions）">
+                <Definitions map={am?.definitions ?? null} bare />
+              </DrawerSection>
+            )}
+            <DrawerSection heading="这三块为什么分开摆 · 这一张表怎么点 · 双击去哪里">
+              <p>
+                ① 是还没发生的：它只说明涨到那个位置时累计偏离会过线，不说明它会不会涨到那里。
+                这张榜里两类并存 —— 明天涨停就新踩到一条的，和今天已经踩到某一条、明天涨停还够不着
+                下一条的（后一类旧版整只挡在榜外，10-27 起放回来并在「明日涨停会怎样」那一格点名它已踩到哪条）。
+                ② 是正在走得远的：用 10 日累计偏离这把尺子排出来的热门股，走得多不代表踩线。
+                ③ 是已经算出踩到的：连同次日涨幅与停牌一起看（严重异动之后的停牌核查，
+                在库里就是「指数那天有这根线、这只票没有日线行」那种形状）。
+                三块的母体都是筛出来的提醒榜（一场约几百只），不是全市场五千多只的快照 ——
+                这里读不到某只票，不等于它没有偏离值。
+              </p>
+              <p className="mt-1">{STOCK_ROW_HINT}</p>
+            </DrawerSection>
+          </DocDrawer>
+          {drawerTally && <span className="text-[10px] text-muted-foreground">{drawerTally}</span>}
+        </span>
         <button type="button" onClick={() => { ri.clearAll(); refresh(); }} title="重新取数"
           className="ml-auto flex items-center gap-1 rounded-lg bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25">
           <RefreshCw className="h-3.5 w-3.5" /> 重新取数
@@ -176,14 +239,9 @@ export function AbnormalMoveBoard() {
               {truncationNote(am)}
             </p>
           )}
-          {/* 用户 2026-10-21「描述性内容全部收缩」：这一屏的字段义与取数口径原句收进同一处折叠块，
-              缺数/截断那一类仍由 CaliberFold 自己留在屏上（分流只住 lib/caveatKind.ts） */}
-          {/* 用户 2026-10-22（第二次点名首页密度）：这四条也收 —— 走 `foldAll`。
-              收的条件仍然成立：summary 会写「2 条缺数与告警（本场有读不到／判不了的行）」，
-              "有东西没读到／判不了"这件事本身还在屏上，只是原句要点开。
+          {/* 用户 2026-10-21「描述性内容全部收缩」＋10-22「这四条也收」＋10-31「摆到标题行那颗按钮里」：
+              字段义、取数口径原句与缺数那四条全部在标题行最右边那一颗后面，屏上不再卧折叠框；
               上面那行「判据版本 abn-2，这一场算于 …」不动：那是新鲜度，不是描述。 */}
-          <CaliberFold foldAll caveats={am.caveats} definitions={am.definitions}
-            notes={[am.caliber ? `取数口径（后端原句，页面未改写）：${am.caliber}` : null]} />
 
           {/* ① 明日涨幅至涨停会触发严重异动 */}
           <section className="mt-3">
@@ -279,9 +337,10 @@ export function AbnormalMoveBoard() {
                         {cell(i, "board_span.days", "whitespace-nowrap px-2 py-1 font-mono", boardSpanText(r))}
                         {cell(i, "pct_change", "px-2 py-1 font-mono tabular-nums", pctText(r.pct_change))}
                         {cell(i, "dev_3", "px-2 py-1 font-mono tabular-nums", devCell(r.dev_3, r.dev_3_complete))}
-                        {cell(i, "dev_10", "px-2 py-1 font-mono font-semibold tabular-nums",
-                          devCell(r.dev_10, r.dev_10_complete))}
-                        {cell(i, "dev_30", "px-2 py-1 font-mono tabular-nums", devCell(r.dev_30, r.dev_30_complete))}
+                        {cell(i, "dev_10", devCls(r, "dev10"),
+                          <span title={devLineNote(am, "dev10")}>{devCell(r.dev_10, r.dev_10_complete)}</span>)}
+                        {cell(i, "dev_30", devCls(r, "dev30"),
+                          <span title={devLineNote(am, "dev30")}>{devCell(r.dev_30, r.dev_30_complete)}</span>)}
                         {cell(i, "up_cnt_10", "px-2 py-1 font-mono tabular-nums",
                           <span title="近 10 场里同向异常波动出现几次：主板 4 次、双创 3 次即踩到严重异动的一条">
                             {dash(r.up_cnt_10)} / {dash(r.down_cnt_10)}
@@ -334,7 +393,8 @@ export function AbnormalMoveBoard() {
                           {boardCell(r)}
                           {severeCell(i, r)}
                           {cell(i, "pct_change", "px-2 py-1 font-mono tabular-nums", pctText(r.pct_change))}
-                          {cell(i, "dev_10", "px-2 py-1 font-mono tabular-nums", ptsText(r.dev_10))}
+                          {cell(i, "dev_10", devCls(r, "dev10"),
+                            <span title={devLineNote(am, "dev10")}>{ptsText(r.dev_10)}</span>)}
                           {cell(i, "up_cnt_10", "px-2 py-1 font-mono tabular-nums",
                             `${dash(r.up_cnt_10)} / ${dash(r.down_cnt_10)}`)}
                           {cell(i, "next_pct", "whitespace-nowrap px-2 py-1 font-mono tabular-nums",
@@ -380,21 +440,7 @@ export function AbnormalMoveBoard() {
           </section>
 
           {/* 弹窗被拦这句不许折进说明框：收着等于没说 */}
-          {ri.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{ri.popHint}</p>}
-
-          <ExplainBox title="这三块为什么分开摆 · 这一张表怎么点 · 双击去哪里">
-            <p>
-              ① 是还没发生的：它只说明涨到那个位置时累计偏离会过线，不说明它会不会涨到那里。
-              这张榜里两类并存 —— 明天涨停就新踩到一条的，和今天已经踩到某一条、明天涨停还够不着
-              下一条的（后一类旧版整只挡在榜外，10-27 起放回来并在「明日涨停会怎样」那一格点名它已踩到哪条）。
-              ② 是正在走得远的：用 10 日累计偏离这把尺子排出来的热门股，走得多不代表踩线。
-              ③ 是已经算出踩到的：连同次日涨幅与停牌一起看（严重异动之后的停牌核查，
-              在库里就是"指数那天有这根线、这只票没有日线行"那种形状）。
-              三块的母体都是筛出来的提醒榜（一场约几百只），不是全市场五千多只的快照 ——
-              这里读不到某只票，不等于它没有偏离值。
-            </p>
-            <p className="mt-1">{STOCK_ROW_HINT}</p>
-          </ExplainBox>
+          {ri.popHint && <NoticeBar kind="warning">{ri.popHint}</NoticeBar>}
         </>
       )}
     </GlassCard>

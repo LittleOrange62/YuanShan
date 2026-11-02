@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { RefreshCw, Search } from "lucide-react";
-import { Caliber } from "@/components/ui/Caliber";
-import { Caveats } from "@/components/ui/DataPanel";
-import { Panel } from "@/components/ui/DataPanel";
+import { Caveats, Panel } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
+import { plain } from "@/lib/agent";
 import { useNonce, useProbe } from "@/lib/probe";
 import { dash } from "@/lib/datastate";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,12 @@ import { cn } from "@/lib/utils";
  *  · 没有独立 definitions 的块只登记出处与逻辑，字段义留在各接口自己的 payload 里，
  *    这一句必须上屏，否则读者会以为"总账里没有＝这块没指标"。
  * 搜索框只筛这一屏已经交出的行，不改后端取数口径。
+ *
+ * 2026-10-31（用户全站第 1 条）：这一块原来把口径散在两处 —— 标题行那枚 `Caliber` 问号角标
+ * （悬停才念）与 `Panel note=` 那颗长在 Panel 标题行上的按钮（一句搜筛状态话术）。
+ * 现在合成标题行**最右**的一颗「这块的说明」，刷新/搜索框那两件元信息排在按钮后面；
+ * 后端那句 `how_to_read` 原来裸摊在表头上面一行，同属说明，一起进抽屉（屏上不再出现第二遍）。
+ * 每一块自己的 `fields_note`（「字段义在该接口 payload 里」那类）按文件头那条纪律**留在屏上**。
  */
 
 interface LedgerField { name: string; says: string }
@@ -45,33 +51,51 @@ export function StockMetricsLedger({ code }: { code: string | null }) {
       ? { ...b, fields: needle ? fields : b.fields, field_count: fields.length } : null;
   }).filter(Boolean) as LedgerBlock[], [blocks, needle]);
   const totalFields = blocks.reduce((n, b) => n + (b.field_count ?? 0), 0);
+  const led = state.kind === "ok" ? state.data : null;
+  // 原来挂在 `Panel note=` 上那句筛法状态话，现在进标题行那颗按钮的抽屉（一模块一颗）。
+  const searchNote = `搜到 ${shown.length} 块（只在已交出的行里筛，不改后端口径）`
+    + `${code ? `；本屏选的是 ${code}` : "；还没选一只，总账与代码无关，照样能看"}`;
 
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h2 className="text-base font-bold">全指标总账</h2>
-        <Caliber text={
-          "这一屏有哪几块、每块的数出自哪张表或哪个模块、每个字段在说什么话，全在这张表里；"
-          + "字段清单是后端现场取各模块那份 definitions，不是第二份措辞。\n"
-          + "某一格此刻是「有数／判不了／库里没这一列」由那一块自己上屏，这张总账不替读数下结论。"
-        } />
-        <label className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
-          <Search className="h-3.5 w-3.5" />
-          <input value={q} onChange={e => setQ(e.target.value)}
-            placeholder="搜字段名或说法，如 倍量 / 情景带"
-            className="w-56 rounded border border-border/60 bg-muted/30 px-2 py-1 text-[11px] text-foreground" />
-        </label>
-        <button type="button" onClick={refresh} title="重新取总账"
-          className="flex items-center gap-1 rounded-lg bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25">
-          <RefreshCw className="h-3.5 w-3.5" /> 重新取数
-        </button>
+        {/* 用户 2026-10-31：说明按钮摆在这块标题行的最右，按钮在前，搜索框与「重新取数」排在它后面。
+            抽屉里只有原先就摊在屏上/悬停里的句子与后端原句，页面不新写一句口径。 */}
+        <span className="ml-auto flex flex-wrap items-center gap-2">
+          <DocDrawer title="全指标总账">
+            <DrawerSection heading="这一屏有哪几块、字段义从哪来">
+              <p>
+                这一屏有哪几块、每块的数出自哪张表或哪个模块、每个字段在说什么话，全在这张表里；
+                字段清单是后端现场取各模块那份 definitions，不是第二份措辞。
+                某一格此刻是「有数／判不了／库里没这一列」由那一块自己上屏，这张总账不替读数下结论。
+              </p>
+            </DrawerSection>
+            <DrawerSection heading="怎么读这一屏（后端原句）">
+              <p>{led?.how_to_read ? plain(led.how_to_read) : '后端这一次没交出这句话（没读到数时本来就没有）。'}</p>
+            </DrawerSection>
+            <DrawerSection heading="搜字段时这一屏在说什么">
+              <p>{searchNote}。</p>
+            </DrawerSection>
+          </DocDrawer>
+          <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Search className="h-3.5 w-3.5" />
+            <input value={q} onChange={e => setQ(e.target.value)}
+              placeholder="搜字段名或说法，如 倍量 / 情景带"
+              className="w-56 rounded border border-border/60 bg-muted/30 px-2 py-1 text-[11px] text-foreground" />
+          </label>
+          <button type="button" onClick={refresh} title="重新取总账"
+            className="flex items-center gap-1 rounded-lg bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25">
+            <RefreshCw className="h-3.5 w-3.5" /> 重新取数
+          </button>
+        </span>
       </div>
 
-      <Panel title={`这块屏上一共 ${totalFields} 个字段，分 ${blocks.length} 块`} state={state}
-        note={`搜到 ${shown.length} 块（只在已交出的行里筛，不改后端口径）${code ? `；本屏选的是 ${code}` : "；还没选一只，总账与代码无关，照样能看"}`}>
+      <Panel title={`这块屏上一共 ${totalFields} 个字段，分 ${blocks.length} 块`} state={state}>
         {p => (
           <>
-            <p className="mb-2 text-[11px] leading-relaxed text-muted-foreground">{p.how_to_read}</p>
+            {/* `p.how_to_read` 搬进了上面那颗按钮的抽屉；每一块自己的 `fields_note` 仍摊在块内
+                （文件头那条纪律：不写这一句，读者会以为"总账里没有＝这块没指标"）。 */}
             {shown.map(b => (
               <section key={b.key} className="mb-3 rounded-lg border border-border/60 bg-muted/20 p-2">
                 <h3 className="text-[12px] font-bold text-foreground">

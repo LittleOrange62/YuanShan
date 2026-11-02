@@ -17,6 +17,7 @@ import {
   optionsFor, queryParams, rangeText, shortTitle, versionWarning,
   type SqOption, type SqPayload,
 } from "@/lib/quadrantTrack";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 倍量形态页 →「启动前 30 场四维象限轨迹」（挂在「启动前量能画像」那一屏下面）。
@@ -106,7 +107,6 @@ export function StartupQuadrantTrackBoard() {
 
   return (
     <Panel title={`启动前 ${p.window} 场四维象限轨迹：七个分量的名次走向`}
-      note="母体＝启动事件（五档母体切换，默认「全部首板（不筛结果）」）；每一行读的是它启动日之前那一串有效交易日里、该分量在全市场的名次怎么走。名次、象限、中位数都由库里的打分表现算现交，这一屏不新算判据。"
       slowHint="七族各自的名次轨迹与中位数都在库里现算：第一发约 2~5 秒（近 6 个月、启动日前 30 场）"
       state={state} contract="/api/quant/startup-quadrant-track"
       controls={<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -254,7 +254,7 @@ export function StartupQuadrantTrackBoard() {
           {/* `popHint` 是弹窗被拦的**告警**，留在屏上单独念；「这一张表怎么点」那句是描述，
               已收进本块下面那个默认收起的说明框（用户 2026-10-21：
               「把页面上的描述性内容全部收缩起来，避免过多占屏」） */}
-          {!!x.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{x.popHint}</p>}
+          {!!x.popHint && <NoticeBar kind="warning">{x.popHint}</NoticeBar>}
           {/* 「前 4 日涨幅」的量纲必须写在框外：接口交的是小数比例，界面乘回一百才是屏上那个数 */}
           <p className="mt-1 text-[11px] leading-relaxed text-foreground">
             明细里「前 4 日涨幅」这一列后端交的是小数比例（definitions 原句：0.4641＝+46.41%），
@@ -310,8 +310,9 @@ export function StartupQuadrantTrackBoard() {
           <Caveats items={caveatItems(d.caveats)} />
           <Caliber text={`这一块的取数口径（接口原句，页面未改写）：${d.caliber ?? "接口没交 caliber —— 这一屏没有出处可念"}`} />
           <Definitions map={d.definitions} />
-          <ExplainBox title="这一块与上面两屏的分工 · 象限那几列要怎么读 · 这一张表怎么点">
-            <p>上面「启动前量能分布」读的是量（倍量天数、离 MA60 多远），「首板形状预示」读的是形状与段长的关系；
+          <ExplainBox title="这一块读的是哪些天 · 与上面两屏的分工 · 象限那几列怎么读">
+            <p>母体＝启动事件（五档母体切换，默认「全部首板（不筛结果）」）；每一行读的是它启动日之前那一串有效交易日里、该分量在全市场的名次怎么走。名次、象限、中位数都由库里的打分表现算现交，这一屏不新算判据。</p>
+            <p className="mt-1">上面「启动前量能分布」读的是量（倍量天数、离 MA60 多远），「首板形状预示」读的是形状与段长的关系；
               这一块读的是<b>位置的变化</b>：同一只票在窗口第一场与最后一场（T−1）各自的全市场名次，
               以及 oper_score 那一族在窗口里换过几次象限。</p>
             <p className="mt-1">窗口刻意不含启动日当天（当天已经涨停，分数被启动本身污染），

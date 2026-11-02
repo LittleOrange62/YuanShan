@@ -13,6 +13,7 @@ import { useNonce, useProbe } from "@/lib/probe";
 import { useTableSort } from "@/lib/useSort";
 import { STOCK_ROW_HINT, useCellSelection, useStockRowInteraction, type CellStore } from "@/lib/useStockRowInteraction";
 import { dash } from "@/lib/datastate";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 选股汇总（用户 2026-10-13）：把各条量化链**当天选出来的票**并到一张榜上，
@@ -191,8 +192,7 @@ export function Confluence() {
       <PageHeader title="选股汇总" level={1}
         subtitle="各条量化链当天选出的票并到一起，重点看被多个判据重复点到的那几只。排序＝命中榜数优先，其次各榜里最好的名次；没有合成总分。" />
 
-      <Panel title="交叉命中榜" state={hits} controls={controls}
-        note="这一屏不重新判任何东西，只把各条量化链当天选出的名单并到一起（这一场有哪几个源、每个源进了几只，读上面那一排勾选与每行「重复出现在哪些榜」，页面不自己数）。各榜彼此不独立，所以「命中 3 榜」只等于值得多看一眼，不等于涨跌概率。点任意一行：下面两块（这只票的量化档案、它历史上重复出现的那些天）一起换到那一票；再点同一格取消。">
+      <Panel title="交叉命中榜" state={hits} controls={controls}>
         {d => {
           const all = d.rows ?? [];
           const dist = d.hits_distribution;
@@ -212,6 +212,7 @@ export function Confluence() {
               {/* 用户 2026-10-21：「描述性内容全部收缩起来」。缺数／截断那一族由 CaliberFold 自己留在屏上，
                   这里不需要每屏再判一次（分类只住 `lib/caveatKind.ts` 一处）。 */}
               <CaliberFold caveats={d.caveats} definitions={d.definitions}
+                notes={["这一屏不重新判任何东西，只把各条量化链当天选出的名单并到一起（这一场有哪几个源、每个源进了几只，读上面那一排勾选与每行「重复出现在哪些榜」，页面不自己数）。各榜彼此不独立，所以「命中 3 榜」只等于值得多看一眼，不等于涨跌概率。点任意一行：下面两块（这只票的量化档案、它历史上重复出现的那些天）一起换到那一票；再点同一格取消。"]}
                 coverage={d.coverage} provenance={[d.source, d.caliber]} />
               <div className="mt-2 overflow-x-auto">
                 <table className="w-full text-[11px]">
@@ -298,7 +299,7 @@ export function Confluence() {
                 <ExplainBox title="这一张表怎么点 · 单击展开什么 · 双击去哪里">
                   <p className="text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
                 </ExplainBox>
-                {cell.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{cell.popHint}</p>}
+                {cell.popHint && <NoticeBar kind="warning">{cell.popHint}</NoticeBar>}
               </div>
             </>
           );
@@ -353,15 +354,15 @@ function FocusPane({ store, date, nonce, codeAt }: {
           所以那边改界面、这边跟着一起改。对象就是上面点中的那一行；没点中时组件根本不发请求。 */}
       <StockDossier code={focus} date={date} />
 
-      <Panel title="这只票历史上重复出现过哪些天" state={hist}
-        note="选中上面任意一行就换到那只票。这一列只回答时间维度：它过去多少天被两个及以上判据同时点到过、最近一次是哪天。">
+      <Panel title="这只票历史上重复出现过哪些天" state={hist}>
         {d => (
           <>
             <Row label="代码" value={dash(d.code || focus)} />
             <Row label="读到的一场数" value={`${dash(d.sessions_read)} 场（判据版本 ${dash(d.spec_version)}）`} />
             <Row label="重复出现（>=2 榜）"
               value={`${dash(d.repeat_total)} 场${(d.repeat_days ?? []).length ? `｜最近：${(d.repeat_days ?? []).slice(0, 6).join("、")}` : ""}`} />
-            <CaliberFold caveats={d.caveats} provenance={[d.caliber]} />
+            <CaliberFold caveats={d.caveats} provenance={[d.caliber]}
+              notes={["选中上面任意一行就换到那只票。这一列只回答时间维度：它过去多少天被两个及以上判据同时点到过、最近一次是哪天。"]} />
             <div className="mt-2 overflow-x-auto">
               <table className="w-full text-[11px]">
                 <thead><tr className="text-left text-muted-foreground">

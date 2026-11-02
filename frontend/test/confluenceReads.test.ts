@@ -169,6 +169,6 @@ test('10-19 夜「描述收缩」自查：怎么点那句折进说明框，全�
   assert.match(before, /已达取数上限/, '截断告警不许折');
   assert.match(before, /<CaliberFold caveats=\{d\.caveats\}/,
     'caveat 交给共用折叠块的位置在框之前；缺数／截断那几族由它渲染在屏上（分流见 lib/caveatKind）');
-  assert.match(page.slice(boxEnd, boxEnd + 400), /cell\.popHint && <p role="status"/,
+  assert.match(page.slice(boxEnd, boxEnd + 400), /cell\.popHint && <NoticeBar kind="warning"/,
     '弹窗被拦的告警留在说明框外面');
 });

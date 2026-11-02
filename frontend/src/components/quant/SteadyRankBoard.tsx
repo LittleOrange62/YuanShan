@@ -12,6 +12,7 @@ import {
   stepsSentence, truncationSentence, windowSentence,
   type SteadyData, type SteadyMetric,
 } from "@/lib/steadyRank";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 名次稳步前进榜（近 6 场**名次**一直在往前走的票）。
@@ -162,7 +163,7 @@ export function SteadyRankBoard({ state, metric, onMetricChange, limit, onLimitC
               <p className="mt-1">{d.rule ? plain(d.rule) : "（判据原句后端没交，页面不自己编）"}</p>
               <p className="mt-2">{STOCK_ROW_HINT}从「四维象限」双击过来时，来源会写在这张榜的名字里。</p>
             </ExplainBox>
-            {x.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{x.popHint}</p>}
+            {x.popHint && <NoticeBar kind="warning">{x.popHint}</NoticeBar>}
             {/* 声明 / 母体那句话 / 字段含义 / 覆盖 / 出处收成一处默认收起的折叠块
                 （用户 2026-10-19 夜：「这些内容都默认收缩起来」）。summary 摆条数 ⇒ 收起不等于藏掉。
                 **不进这里的三件**：弹窗被拦 `popHint`、两道自检（一轴没前进 / 路径段数对不上）、

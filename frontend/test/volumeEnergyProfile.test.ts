@@ -153,9 +153,11 @@ test('界面那一卡：算式、上限、实测分位、名次规则全部读�
   assert.doesNotMatch(panel, /const DEFAULT[A-Z_]*\s*=/, '界面里不许有一份本地默认分值常量');
   assert.doesNotMatch(panel.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\r\n]*/g, ''), /18 档/,
     '屏幕上不许抄档位条数（读接口 bands 的长度）');
-  // 算式原文与单位逐字念接口 scale（第二稿：formula 是接口给的，界面不自己拼一句）
+  // 算式原文与单位逐字念接口 scale（第二稿：formula 是接口给的，界面不自己拼一句）。
+  // 10-31：这两句原文搬进标题行那颗「这块的说明」开的抽屉，屏上只留「后端没交」那句缺数声明。
   assert.match(panel, /cfg\?\.scale\?\.formula/, '算式读 scale.formula');
-  assert.match(panel, /scale\?\.formula \?\? "后端没交 formula/);
+  assert.match(panel, /plain\(cfg\.scale\.formula\)/, '抽屉里念的是接口原文，页面不另拼一句');
+  assert.match(panel, /后端没交/, '后端没交 formula/unit 那句缺数声明仍留在屏上');
   assert.match(panel, /plain\(cfg\.scale\.note\)/, 'scale.note 那句「没有系数」的原文也要原样透出');
   // 上限与实测分布并排（都是接口那份）
   assert.match(panel, /trimNum\(cfg\?\.scale\?\.max_score\)/);
@@ -166,8 +168,11 @@ test('界面那一卡：算式、上限、实测分位、名次规则全部读�
   // 顶档动态：界面上不许出现"最高档＝2.5-3.5"那种写死，也不许自称固定的第几档
   assert.match(panel, /l\.isTop/, '上限来源那一档由分值判');
   assert.match(panel, /上限来源/);
-  // 名次规则念接口（rank_rule），配置卡不自造那句话
-  assert.match(panel, /cfg\?\.rank_rule \?\?/);
+  // 名次规则念接口（rank_rule），配置卡不自造那句话（10-31 起原文在标题行那颗按钮的抽屉里，
+  // 「后端没交 rank_rule」那句缺数声明留在屏上）
+  assert.match(panel, /cfg\?\.rank_rule/, '名次规则读接口 rank_rule');
+  assert.match(panel, /plain\(cfg\.rank_rule\)/);
+  assert.match(panel, /后端没交 rank_rule/);
   assert.doesNotMatch(strip(panel), /同分同名|按位置顺延|不占号/, '配置卡自己写了一句名次规则');
   // 作用域仍只有 global／market，选项来自接口 scopes；没单配的市场落回全局这句还在
   assert.match(panel, /cfg\?\.scopes \?\? \[\]/);

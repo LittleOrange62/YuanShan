@@ -4,7 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  bandText, boardSpanText, devCell, forwardHeadline, hotHeadline, moveStatusText,
+  bandText, boardSpanText, devCell, devClause, devLineNote, forwardHeadline, hotHeadline, moveStatusText,
   nextDayState, pctText, ptsText, priceText, recentHeadline, severeState, truncationNote,
   type AbnormalMove, type AbnForwardRow, type AbnHotRow, type AbnRecentRow,
 } from '../src/lib/abnormalMove.ts';
@@ -92,6 +92,36 @@ test('窗口根数不够那一格写窗口不够，不写一个偏小的累计�
   assert.equal(devCell(null, false), '窗口不够');
   assert.equal(devCell(12.3, true), '+12.3 点');
   assert.equal(devCell(12.3, null), '+12.3 点');   // 后端没交 complete 时不谎称"窗口不够"
+});
+
+// 2026-10-31 用户点名：② 那张表里 10 日累计偏离过了 100、30 日过了 200 的格子要标红。
+// 钉三件事：颜色只认后端 severe_how 的条款码（页面不比自己数一遍阈值，那样窗口不够的会被误判成踩线）、
+// 悬停那句里的数字读接口 thresholds（后端没交就承认没有出处，不退回页面写死的 100/200）。
+test('累计偏离踩过严重异动那条线就标红，且判据与数字都只认后端那一份', () => {
+  assert.equal(devClause(hot({ severe_how: 'dev10, times' }), 'dev10'), true);
+  assert.equal(devClause(hot({ severe_how: 'dev10, times' }), 'dev30'), false);
+  assert.equal(devClause(hot({ severe_how: 'times' }), 'dev10'), false,
+    '只踩到「同向次数」那一条时，10 日累计偏离那一格不许红（两把尺各判各的）');
+  assert.equal(devClause(hot({ severe_how: 'dev30' }), 'dev30'), true);
+  assert.equal(devClause(hot({ severe_how: null }), 'dev10'), false);
+  assert.equal(devClause(hot({ severe_how: 'dev10,dev30' }), 'dev30'), true, '逗号后没空格也要认');
+
+  const t = { thresholds: { dev10_up: 100, dev10_down: -50, dev30_up: 200, dev30_down: -70 } };
+  assert.match(devLineNote(t, 'dev10'), /≥ \+100 点，或 ≤ -50 点/);
+  assert.match(devLineNote(t, 'dev30'), /≥ \+200 点/);
+  assert.match(devLineNote(t, 'dev30'), /窗口不够/);
+  const noTh = devLineNote({ thresholds: null }, 'dev10');
+  assert.match(noTh, /后端没交/);
+  assert.doesNotMatch(noTh, /≥ \+100/, '后端没交阈值时页面不许把自己那份数字念出来');
+
+  // 接线：两列都走这一处判据，且红是 text-danger（不是又一处各写一遍的类名）
+  assert.match(comp, /devCls\(r, "dev10"\)/);
+  assert.match(comp, /devCls\(r, "dev30"\)/);
+  assert.match(comp, /devClause\(r, clause\) && "font-semibold text-danger"/);
+  assert.match(comp, /devLineNote\(am, "dev10"\)/);
+  assert.doesNotMatch(comp, /dev_10[^}]*>= *100|>= *100[^}]*dev_10/, '组件里不许出现页面自己比的 100');
+  // 「为什么标红」要说得出来：那一节进抽屉（读法），颜色本身不是装饰
+  assert.match(comp, /② 与 ③ 里那一格为什么标红/);
 });
 
 test('没有一只会触发时也要把判不了的那几只点名', () => {
@@ -212,7 +242,7 @@ test('三块榜都挂在首页短线情绪下面（不是又开一页）', () =>
 test('交叉高亮用的是全站那一份交互块，且被拦那句不折', () => {
   assert.match(comp, /useStockRowInteraction\("异动提醒"\)/);
   assert.match(comp, /\{STOCK_ROW_HINT\}/);
-  assert.match(comp, /ri\.popHint && <p role="status"/);
+  assert.match(comp, /ri\.popHint && <NoticeBar kind="warning"/);
   assert.match(comp, /\{truncationNote\(am\)/);
 });
 
@@ -226,12 +256,17 @@ test('这一屏没有把后端的星号带进渲染文本，也没自己造条�
   assert.doesNotMatch(lib.replace(/\/\*[\s\S]*?\*\//g, ''), /\*\*/, '判读层交出的文本里不该有 **');
   const rendered = comp.match(/<p[^>]*>([\s\S]*?)<\/p>/g) ?? [];
   for (const b of rendered) assert.doesNotMatch(b, /\*\*/, '组件自己写的句子不该含 **');
-  // 用户 2026-10-21「描述性内容全部收缩」之后，这一屏的 caveat/字段义/口径原句都走共用折叠块：
-  // 组件不再自己摊一份，也不自己 plain()——plain 与"缺数不许折"的分流都在 `CaliberFold` + `lib/caveatKind.ts` 那一处。
-  assert.match(comp, /<CaliberFold foldAll caveats=\{am\.caveats\} definitions=\{am\.definitions\}/,
-    'caveat 与字段义只能念后端那一套（走共用折叠块；foldAll＝用户 10-22 点名首页这四条也收，缺数条数由 summary 报出来）');
-  assert.match(comp, /notes=\{\[am\.caliber \? `取数口径（后端原句，页面未改写）：\$\{am\.caliber\}` : null\]\}/,
-    '后端口径原文仍逐字上屏（只是收进折叠块，页面没改写它）');
-  assert.doesNotMatch(comp, /plain\(/, '页面不该再自己 plain 一遍——折叠块出口已经剥过星号，两处剥＝两处可能不一致');
+  // 用户 10-31 定形：这一块唯一的说明出口是标题行最右边那颗 DocDrawer —— 原先正文里的
+  // CaliberFold 与 ExplainBox 全部搬进那一口抽屉，屏上不再卧折框，也不长第二颗同名按钮。
+  // 分流（缺数与告警那一族报条数）仍走 lib/caveatKind 那一份；抽屉里后端原句仍过同一个 plain 出口。
+  assert.match(comp, /<span className="ml-auto flex flex-wrap items-center gap-1\.5">\s*<DocDrawer/,
+    '「这块的说明」摆在标题这一行的最右边');
+  assert.doesNotMatch(comp, /<CaliberFold|<ExplainBox|<Caliber /,
+    '正文折框与「口径」芯片都撤了：同一张卡不许有两颗同名说明按钮');
+  assert.match(comp, /取数口径（后端原句，页面未改写）：\$\{am\.caliber\}/,
+    '后端口径原文仍逐字上屏（只是收进抽屉，页面没改写它）');
+  assert.match(comp, /splitCaveats\(am\?\.caveats\)/, '缺数与纯口径的分流只住 lib/caveatKind.ts 一处');
+  assert.equal((comp.match(/plain\(/g) ?? []).length, 1,
+    '这一屏只许一处 plain：抽屉里那句后端 `caliber` 原句（caveat 与字段义由共用组件剥）');
   assert.doesNotMatch(comp, /caveats\?\.filter/, '不许在这一个组件里按 code 挑着念（分流只住 lib/caveatKind.ts，那边有自己的闸）');
 });

@@ -4,6 +4,8 @@ import { Dialog } from "@/components/workspace/Dialog";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
+import { plain } from "@/lib/agent";
 import { fetchJobs, snapshotAgeText, triggerJob, type JobsPayload, type JobsState, type TriggerOutcome } from "@/lib/jobs";
 import { counterLine, dash, deriveJobView, hasValue, successLabel, type Job } from "@/lib/jobsView";
 import { jobCardClass, jobLabelClass } from "@/lib/colors";
@@ -86,10 +88,19 @@ function JobsBoard({ snapshot, onTriggered, results, confirming, setConfirming }
       <GlassCard>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           {/* 标题不叫"调度器"：那个词在本机同时指五件东西（对照表见
-              docs/系统配置工作指南/05 §4b）。这张卡说的只有一件事 —— 本进程那一组常驻循环的汇总读数。 */}
+              docs/系统配置工作指南/05 §4b）。这张卡说的只有一件事 —— 本进程那一组常驻循环的汇总读数。
+              用户 10-31：「这块的说明」摆标题行最右边、排在快照时间戳前面；抽屉里只放后端交出的
+              `scheduler.note` 原句（原先摊在正文里那句「后端原话（不美化）」），没交就不长这颗按钮。 */}
           <h2 className="text-base font-bold">本进程宿主的循环读数</h2>
-          <span className="font-mono text-[11px] text-muted-foreground">
-            快照生成于 {dash(snapshot.generated_at)}（{snapshotAgeText(snapshot.generated_at, Date.now())}）
+          <span className="flex flex-wrap items-center gap-1.5">
+            {hasValue(sched?.note) && (
+              <DocDrawer title="本进程宿主的循环读数">
+                <DrawerSection heading="后端原话（不美化）">{plain(String(sched?.note))}</DrawerSection>
+              </DocDrawer>
+            )}
+            <span className="font-mono text-[11px] text-muted-foreground">
+              快照生成于 {dash(snapshot.generated_at)}（{snapshotAgeText(snapshot.generated_at, Date.now())}）
+            </span>
           </span>
         </div>
         {snapshot.scheduler_available === false && (
@@ -105,11 +116,6 @@ function JobsBoard({ snapshot, onTriggered, results, confirming, setConfirming }
             <Field label="启动于" value={dash(sched?.started_at)} />
             <Field label="最近心跳" value={dash(sched?.heartbeat_at)} />
           </div>
-        )}
-        {hasValue(sched?.note) && (
-          <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-            后端原话（不美化）：<span className="text-foreground">{sched?.note}</span>
-          </p>
         )}
         {schedulerOff && (
           <Banner tone="warn" className="mt-2"
@@ -164,6 +170,8 @@ function JobCard({ job, top, result, onAskRun }: {
   const disabledReason = job.enabled === false ? "作业自身开关为关"
     : job.available === false ? (hasValue(job.reason) ? String(job.reason) : "后端未给 reason")
     : unreadable ? "作业清单不可读" : "";
+  /** 这张卡的「这块的说明」＝后端交出的 `entry` 那一行（原先摊在正文里）；没给就不长这颗按钮 */
+  const docEntry = job.available !== false && !unreadable && hasValue(job.entry) ? String(job.entry) : null;
 
   return (
     <GlassCard className={cn(view.neverRan && "ring-1 ring-destructive/50", jobCardClass(view.tone))}>
@@ -171,7 +179,15 @@ function JobCard({ job, top, result, onAskRun }: {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-semibold">{hasValue(job.name) ? job.name : "（缺 name）"}</h3>
-            <span className={cn("rounded px-1.5 py-0.5 text-[11px] font-medium", jobLabelClass(view.tone))}>{view.label}</span>
+            {/* 用户 10-31：说明按钮排在状态标签这类元信息之前，一起钉在这一行右边 */}
+            <span className="ml-auto flex flex-wrap items-center gap-2">
+              {docEntry && (
+                <DocDrawer title={hasValue(job.name) ? String(job.name) : String(job.key ?? "作业")}>
+                  <p>说明（仅供人读，不是可执行命令）：<code>{docEntry}</code></p>
+                </DocDrawer>
+              )}
+              <span className={cn("rounded px-1.5 py-0.5 text-[11px] font-medium", jobLabelClass(view.tone))}>{view.label}</span>
+            </span>
           </div>
           <p className="mt-1 font-mono text-[11px] text-muted-foreground">{dash(job.key)}</p>
           {view.detail && <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{view.detail}</p>}
@@ -191,7 +207,7 @@ function JobCard({ job, top, result, onAskRun }: {
 
       {job.available === false || top.jobsAvailable === false ? null : (
         <div className="mt-3 space-y-2 text-[12px]">
-          {hasValue(job.entry) && <p className="break-all text-[11px] text-muted-foreground">说明（仅供人读，不是可执行命令）：<span className="font-mono">{job.entry}</span></p>}
+          {/* 「说明（仅供人读…）」那一行搬进了标题行的抽屉（用户 10-31），这里不再摊第二遍 */}
 
           <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
             <Field label="调度种类" value={`${dash(job.schedule_kind)}${hasValue(job.schedule_spec) ? ` · ${job.schedule_spec}` : ""}`} />

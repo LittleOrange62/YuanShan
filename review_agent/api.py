@@ -27,6 +27,8 @@ class ModelInput(BaseModel):
     model: str = Field(min_length=1, max_length=100)
     baseURL: str = Field(default="", max_length=200)
     apiKey: SecretStr = Field(default=SecretStr(""))
+    # 这一条来源的整条回答总时长（秒）；留空按 180。自动切换的判据就是它 + 上游两段计时。
+    timeoutSeconds: int | None = Field(default=None, ge=30, le=600)
 
 
 class DailyInput(BaseModel):

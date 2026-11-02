@@ -178,7 +178,35 @@ def get_overview() -> dict:
     return _cached("overview", build, valid=lambda v: bool(v.get("sentiment") or v.get("sectors")))
 
 
-def _emotion() -> dict:
+#: 连板档位键：与首板页那四个按钮一一对应（1=首板、4p=四板及以上）。
+#: 档位语义只住这一处，界面不许自己再数一遍（`_tier_key` 是唯一的换算口）。
+TIER_KEYS = ('1', '2', '3', '4p')
+#: 档名只住这一处：界面要念「首板/二板/三板/四板及以上」就从这里 join，不许自写一份中文
+TIER_LABELS = {'1': '首板', '2': '二板', '3': '三板', '4p': '四板及以上'}
+#: 跌停那一侧的同一套档位（档位数字与 `TIER_KEYS` 共用，只有中文不同 —— 跌停没有"板"这个字）
+DOWN_TIER_LABELS = {'1': '首跌', '2': '二连续跌停', '3': '三连续跌停', '4p': '四场及以上连续跌停'}
+
+
+def _tier_key(consec) -> str:
+    c = consec or 1
+    return '1' if c <= 1 else ('4p' if c >= 4 else str(c))
+
+
+def _tier_filter(sealed: list, tiers: str, key: str = 'consec') -> "tuple[list, list]":
+    """按连板档位筛母体行，交 (筛后的行, 不认识的档名)。
+
+    空 `tiers` = 不筛；坏档名**点名交出去**而不是静默丢掉 —— 静默丢就等于界面选了四档、
+    实际筛了三档，屏幕上的家数与用户以为的那批不是一回事。
+    `key` 是那一列在行里的字段名（涨停侧 `consec`、跌停侧 `streak`），档位判法两边同一份。
+    """
+    keys = [t.strip() for t in (tiers or '').split(',') if t.strip()]
+    good = [t for t in keys if t in TIER_KEYS]
+    bad = [t for t in keys if t not in TIER_KEYS]
+    rows = [r for r in sealed if not good or _tier_key(r.get(key)) in good]
+    return rows, bad
+
+
+def _emotion(date: str = '', tier_select: str = '') -> dict:
     """短线情绪：连板梯队 / 最高连板 / 炸板率 / 封板率 / 晋级率 / 涨跌停家数 + 2 板以上清单。
 
     母体＝**本地库** `analytics.limit_up_pool_daily`（判据只住写侧
@@ -195,7 +223,12 @@ def _emotion() -> dict:
     #   改成过日历之后母体又落进了库里，这条判据现在有两条腿：**日历判哪天、库判有没有数**。
     import firstboard  # 函数内导入：firstboard 顶部 import market，避免循环依赖
 
-    want, gap = firstboard.data_session()
+    if date:
+        # 界面指定场次（短线复盘那一屏的交易日选择器）：照它读，不再判"最近一场"，
+        # 也不报陈旧 —— 但场次候选仍由 `limit_up_board` 的库覆盖给出，问不出的日子会走 available=false。
+        want, gap = date, ''
+    else:
+        want, gap = firstboard.data_session()
     if not want:
         return {}
     from duanxian import limit_up_board
@@ -226,10 +259,14 @@ def _emotion() -> dict:
     # 这一列的名字一直叫「概念」，而原来是东财池的行业板块名（如"照明设备"）—— 名实不符，
     # 现在两处都从库里出，取不到交 None，界面显示 —，不等于"这只票没有题材"（北证基本无行）。
     from duanxian import pg_sources
-    concepts = pg_sources.concepts_by_code([r["code"] for r in board["lianban"]])
+    # 表母体：不传 tiers 就是首页那一屏的「2 板及以上」（与上面的 `lianban`、比率同源同批）；
+    # 传了就按档筛（含首板档）。**筛只筛这一张表，不动上面那些比率的分母** ——
+    # 封板率／晋级率说的是全场，把它们跟着筛后的行数走就是假数（这一族老毛病）。
+    parent, bad_tiers = (board["lianban"], []) if not tier_select else _tier_filter(board["sealed"], tier_select)
+    concepts = pg_sources.concepts_by_code([r["code"] for r in parent])
 
     rows = []
-    for p in board["lianban"]:
+    for p in parent:
         st = seal_strength.seal_strength(p.get("order_amount"), p.get("float_cap"),
                                          p.get("reopen_count"), p.get("seal_raw"))
         parts = st["parts"]
@@ -336,6 +373,13 @@ def _emotion() -> dict:
     promotion_rate = round(len(lianban) / prev_n, 3) if prev_n else None
 
     notes = [gap] if gap else []
+    if bad_tiers:
+        notes.append('档位名不认识：' + '、'.join(bad_tiers)
+                     + ' —— 这一档没有参与筛选（认识的档照常筛）。可选的就这四档：'
+                     + '、'.join(f'{k}（{n}）' for k, n in TIER_LABELS.items()))
+    if tier_select:
+        notes.append(f'这张表按所选档位筛过（{tier_select}）：行数与上面「涨停家数／封板率／晋级率」那些比率'
+                     '不是同一个母体 —— 那些说的都是**全场**，不跟着筛走')
     if board.get("seal_backfilled"):
         notes.append(f'{board["seal_backfilled"]} 只的首封取的是源站秒级值：这一场本地分钟线没读到'
                      '（2026-08-14 之前的场次、以及没采到分钟线的那几天）—— 同一个列名底下两把尺，'
@@ -365,6 +409,19 @@ def _emotion() -> dict:
         "lianban_count": len(lianban),
         "ladder": ladder,
         "lianban_stocks": lianban_stocks,
+        # 这一张表的母体是怎么框出来的，随表一起交出：界面不许自己数档、也不许把筛后的行数
+        # 标成"全场涨停家数"（那是 `zt_count` 那一档全场数）。
+        "lianban_parent": 'tier_filtered' if tier_select else 'lianban_default',
+        "tiers_requested": tier_select or '',
+        "tier_labels": TIER_LABELS,
+        # 档位的顺序也在这里（前端不许自己排一遍：排两次就会出现"两屏档位不同序"）
+        "tier_keys": list(TIER_KEYS),
+        # 每一档的家数：母体是**本场全部封住的行**，不跟着这一屏的勾选走（勾选只筛表）。
+        # 按钮上那个数要是筛后的数，用户就再也数不出"漏了哪一档"（全站那条老毛病）。
+        "tier_counts": {k: sum(1 for r in board["sealed"] if _tier_key(r.get("consec")) == k)
+                        for k in TIER_KEYS},
+        "tier_parent_total": len(board["sealed"]),
+        "lianban_shown": len(lianban_stocks),
         # 「封板强度」这一列的算法说明与口径版本：**判据只住 `duanxian/seal_strength.py`，
         # 文字由那一份现拼**，页面悬停直接显示后端给的这段（前端不许另写一套分档）。
         "seal_spec": seal_strength.spec_text(),
@@ -391,6 +448,119 @@ def _emotion() -> dict:
 def get_short_term_emotion() -> dict:
     """短线情绪（含缓存，5 分钟）。"""
     return _cached("emotion", _emotion)
+
+
+def get_limit_move(date: str = '', tiers: str = '') -> dict:
+    """「涨停分析」那一屏要的整块读数：指定交易日 + 连板档位多选。
+
+    **与首页那块共用同一份 `_emotion`**（判据、封板强度、几天几板、节点、首板日情绪
+    在两条路上必然给出同一个数）—— 再写一遍接法迟早分叉成"同一格两种说法"，
+    那是本项目反复登记过的那类缺陷。缓存按 `日期:档位` 分键，两个入参换一档就重取一次。
+    """
+    return _cached(f"limit-move:{date}:{tiers}", lambda: _emotion(date, tiers))
+
+
+def _limit_down(date: str = '', tier_select: str = '') -> dict:
+    """「跌停分析」：收盘封住跌停的清单 + 交易日 + 连续跌停档位多选。
+
+    母体＝**本地日线**（`duanxian/limit_down_board.py`），与涨停那一侧的 `lup-1` 库表无关：
+    跌停侧本机没有封单额、首封时刻、编辑归因那三族读数，所以那一族**整列不出现**
+    （用户 2026-10-28 裁的呈现口径 —— 不是摆 `—` 占位，占位会让读者以为"今天没有"）。
+    档位判法与涨停侧共用 `_tier_filter`（只是行里那一列叫 `streak` 不叫 `consec`）：
+    两边各写一遍筛选，四档的边界就会在不同屏幕上长成不同的数。
+    """
+    import firstboard
+
+    if date:
+        want, gap = date, ''
+    else:
+        want, gap = firstboard.data_session()
+    if not want:
+        return {}
+    from duanxian import limit_down_board
+    board = limit_down_board.board_on(want)
+    if not board.get('available'):
+        return {'date': want, 'available': False,
+                'reason': board.get('reason') or '库里这一场读不到',
+                'caliber_note': gap or '', 'rows': []}
+
+    parent, bad_tiers = (board['rows'], []) if not tier_select \
+        else _tier_filter(board['rows'], tier_select, key='streak')
+    notes = [gap] if gap else []
+    if bad_tiers:
+        notes.append('档位名不认识：' + '、'.join(bad_tiers)
+                     + ' —— 这一档没有参与筛选（认识的档照常筛）。可选的就这四档：'
+                     + '、'.join(f'{k}（{n}）' for k, n in DOWN_TIER_LABELS.items()))
+    if tier_select:
+        notes.append(f'这张表按所选档位筛过（{tier_select}）：行数与上面「跌停家数／盘中打开／续跌率」'
+                     '那些比率不是同一个母体 —— 那些说的都是**全场**，不跟着筛走')
+    if board.get('streak_warn'):
+        notes.append(board['streak_warn'])
+    if board.get('days_boards_warn'):
+        notes.append(board['days_boards_warn'])
+    if board.get('float_cap_missing'):
+        notes.append(f'{board["float_cap_missing"]} 只没有流通市值：那一格读的是 '
+                     'market_data.stock_snapshot，那一场没有这一只的行 ⇒ 显示 —，不是 0 元')
+    if board.get('no_limit_rows'):
+        notes.append(f'这一场有 {board["no_limit_rows"]} 行日线没有跌停档位记录（limit_down 为空）：'
+                     '这些票**没法判**，既没算进跌停家数也没算进触及 ⇒ 家数是下限，不是全场清点')
+
+    # 排序与涨停那一侧同形状：先按连续跌停场次从高到低，同一档再按当日跌幅从低到高
+    # （跌得越狠越在前）；streak 没数出来的（None）排最后，不当成 1。
+    rows = sorted(parent, key=lambda r: (-(r.get('streak') or 0) if r.get('streak') is not None
+                                         else 10 ** 6, r.get('pct') if r.get('pct') is not None else 0,
+                                         str(r.get('code'))))
+    return {
+        'date': want,
+        'available': True,
+        'dt_count': board['dt_count'],
+        'touched_count': board['touched_count'],
+        'opened_count': board['opened_count'],
+        'seal_rate': board['seal_rate'],
+        'open_rate': board['open_rate'],
+        'prev_date': board['prev_date'],
+        'prev_sealed': board['prev_sealed'],
+        'streak_ge2_count': board['streak_ge2_count'],
+        'continuation_rate': board['continuation_rate'],
+        'rows': rows,
+        'rows_shown': len(rows),
+        'float_cap_missing': board.get('float_cap_missing'),
+        'no_limit_rows': board.get('no_limit_rows'),
+        'parent': 'tier_filtered' if tier_select else 'all_sealed',
+        'tiers_requested': tier_select or '',
+        'tier_labels': DOWN_TIER_LABELS,
+        'tier_keys': list(TIER_KEYS),
+        # 同涨停那一侧：档位计数走**本场全部封住跌停的行**，不跟着勾选走
+        'tier_counts': {k: sum(1 for r in board['rows'] if _tier_key(r.get('streak')) == k)
+                        for k in TIER_KEYS},
+        'tier_parent_total': len(board['rows']),
+        'caliber': board['caliber'],
+        'streak_rule': board['streak_rule'],
+        'days_boards_rule': board['days_boards_rule'],
+        'coverage': board['coverage'],
+        'window_sessions': board['window_sessions'],
+        'eps': board['eps'],
+        'caliber_note': '；'.join(x for x in notes if x),
+    }
+
+
+def get_limit_down(date: str = '', tiers: str = '') -> dict:
+    """「跌停分析」整块读数（含缓存，按 `日期:档位` 分键）。与涨停那块同一份缓存层，同一份 TTL。"""
+    return _cached(f"limit-down:{date}:{tiers}", lambda: _limit_down(date, tiers))
+
+
+def get_first_board_deep(date: str = '', limit: int = 0) -> dict:
+    """首板四层过滤深析（短线复盘页最下方那一块，含缓存，按 `日期:条数` 分键）。
+
+    与「涨停分析」同一把尺（母体＝lup-1 当日封住且 `consec=1`），四层读数的判据与
+    本机分位只住 `duanxian/first_board_deep.py` 一份；这里只加缓存，不再写第二套算式。
+    """
+    return _cached(f"fb-deep:{date}:{limit}", lambda: _first_board_deep(date, limit))
+
+
+def _first_board_deep(date: str, limit: int) -> dict:
+    from duanxian import first_board_deep as FBD
+    return FBD.panel(date=date, limit=limit)
 
 
 def get_turnover_top() -> dict:

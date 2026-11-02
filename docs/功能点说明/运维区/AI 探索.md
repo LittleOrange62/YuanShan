@@ -266,7 +266,7 @@ state.previouslyTested && (state.status === 'authenticated' || state.status === 
   内置三类：`lianban`（盘面数据·连板股那一行，13 个字段）、`firstboard`（首板分析·首板股那一行，11 个字段）、
   `stock_brief`（10-22 加：个股深度复盘·400 字公司说明，5 个字段）。
   ⚠️ 这一档**刻意没有 `{material}` 占位符**：材料走这条通道的 `context`（硬顶 8,000 字），话术走最后一条消息（硬顶 4,000 字），
-  合进一个模板会让两个上限互相挤。见《个股研究/个股深度复盘.md》§3.2。
+  合进一个模板会让两个上限互相挤。见《个股研究与回测/个股深度复盘.md》§3.2。
 - **内置槽位 `SLOTS`**：`lianban_dive`、`firstboard_dive`、`stock_brief`，每个＝「类型(scope)＋一份默认话术」。
 - 页面配置渲染：`GET /api/prompts` 把 `list_slots()`（内置在前＋自建，`:241-243`）与 `scopes`（字段清单唯一来源）一起交出（`vr/app.py:1136`）。
 - 选中哪份记在浏览器本地：`localStorage` 键 `yuanshan-prompt-choice-{scope}`（`lib/prompts.ts:104-112 useTemplatePicker`）。

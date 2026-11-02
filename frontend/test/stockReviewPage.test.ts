@@ -33,7 +33,8 @@ test('新页真的挂在路由上，两条老地址只做跳转、不再各自�
 
 test('导航与主界面那个入口不带传参（双击那一路才带）', () => {
   // 一级模块的入口与它唯一的页面条目都是 /stock-review（`modules.test.ts` 那条不变量也在管）
-  assert.match(modules, /title: '个股研究', to: '\/stock-review'/);
+  // 10-27 裁定：这一组改名「个股研究与回测」（回测并进来，内部两页）—— 路径与判据没动，跟着登记。
+  assert.match(modules, /title: '个股研究与回测', to: '\/stock-review'/);
   assert.match(modules, /\{ to: '\/stock-review', title: '个股深度复盘' \}/);
   assert.match(features, /\{ to: '\/stock-review', title: '个股深度复盘'/);
   // 「按钮不带传参」= 导航/卡片给的就是裸路径，不带 `?symbol=`

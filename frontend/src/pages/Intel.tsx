@@ -6,8 +6,10 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { DocDrawer } from "@/components/ui/DocDrawer";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { SaveNoteButton } from "@/components/ui/SaveNoteButton";
+import { plain } from "@/lib/agent";
 import { api, ApiError, type RadarData, type Industry, type Announcement, type NewsItem } from "@/lib/api";
 import { loadWatch } from "@/lib/watchlist";
 import { hasLlm, chatStream } from "@/lib/llm";
@@ -350,11 +352,17 @@ export function Intel() {
         ))}
       </div>
 
-      <GlassCard glow>
-        <div className="mb-3 flex items-center gap-2">
+      <GlassCard glow docTitle={cur.label}>
+        {/* 每切到一档 tab，标题行最右边跟着换那一档的「这块的说明」（用户 10-31）；
+            抽屉里就是 TABS 登记的那句本档描述（含合规读法），不在这里新写口径；
+            investment-news 那颗档名徽标属元信息，按 10-31 的排法放在按钮右边。 */}
+        <div className="mb-3 flex flex-wrap items-center gap-2">
           <cur.icon className="h-5 w-5 text-primary" />
           <h3 className="font-semibold">{cur.label}</h3>
-          {cur.key === "investment-news" && <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] text-primary">investment-news</span>}
+          <span className="ml-auto flex flex-wrap items-center gap-2">
+            {cur.desc && <DocDrawer title={cur.label}>{plain(cur.desc)}</DocDrawer>}
+            {cur.key === "investment-news" && <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] text-primary">investment-news</span>}
+          </span>
         </div>
         {cur.key === "investment-news" ? (
           <InvestmentNewsPanel />

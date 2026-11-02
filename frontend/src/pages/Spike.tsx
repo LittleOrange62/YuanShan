@@ -11,6 +11,7 @@ import { useNonce, useProbe } from "@/lib/probe";
 import { STOCK_ROW_HINT, useStockRowInteraction } from "@/lib/useStockRowInteraction";
 import { useTableSort } from "@/lib/useSort";
 import { cn } from "@/lib/utils";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 异动筛查（用户 2026-10-13 点名的新功能，第一块是「最近两个月盘中瞬间冲高 / 冲到涨停之后怎么样」）。
@@ -296,8 +297,7 @@ export function Spike() {
       <PageHeader title="异动筛查" level={1}
         subtitle="盘中「一瞬间冲上去」或「摸到涨停」的票，逐事件列出它什么时候冲的、冲得有多快、之后守没守住，以及这类形状接下来几天的真实分布。" />
 
-      <Panel title="复盘：冲高之后怎么样（与同期基线并排）" state={hits} controls={controls}
-        note="一行 = 一次事件，不是「一票一天」：同一只票连着两天冲高就是两条。母体与阈值都在后端一份，这里一块都不重算。">
+      <Panel title="复盘：冲高之后怎么样（与同期基线并排）" state={hits} controls={controls}>
         {d => {
           const review = d.review ?? null;
           return (
@@ -314,6 +314,7 @@ export function Spike() {
               {review?.available && <ReviewTable rv={review} cal={d.calibers ?? {}} />}
               {/* 用户 2026-10-21：描述性内容收进一处折叠；缺数/截断类由 CaliberFold 分流留在屏上 */}
               <CaliberFold caveats={d.caveats} definitions={d.calibers} coverage={d.coverage}
+                notes={["一行 = 一次事件，不是「一票一天」：同一只票连着两天冲高就是两条。母体与阈值都在后端一份，这里一块都不重算。"]}
                 provenance={[d.spec_version ? `判据版本 ${d.spec_version}` : null,
                   d.as_of ? `数出自 ${String(d.as_of)}` : null]} />
             </>
@@ -408,7 +409,7 @@ export function Spike() {
                   </p>
                 )}
                 <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
-                {cell.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{cell.popHint}</p>}
+                {cell.popHint && <NoticeBar kind="warning">{cell.popHint}</NoticeBar>}
               </div>
             </>
           );

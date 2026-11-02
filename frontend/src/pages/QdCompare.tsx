@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
 import { Disclaimer } from "@/components/ui/Disclaimer";
-import { ExplainBox } from "@/components/ui/DataPanel";
+import { DocDrawer } from "@/components/ui/DocDrawer";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { BoardLadderPanel } from "@/components/qd/BoardLadderPanel";
@@ -99,15 +99,16 @@ export function QdCompare() {
   );
 }
 
-/** 每一块的口径说明走通用说明框（用户 2026-10-14：说明别摊在读数上面、默认收起）。
- *  改这一处，这一屏四块跟着收；这里只上屏页面自己写的句子，后端交来的告警不走这条路。 */
+/** 每一块的口径说明走统一的说明抽屉（用户 2026-10-31：那颗「这块的说明」要摆在
+ *  标题这一行的最右边，不再长在正文里像"数下面的一段话"）。
+ *  改这一处，这一屏四块跟着搬；这里只上屏页面自己写的句子，后端交来的告警不走这条路。 */
 function Section({ title, note, children }: { title: string; note: string; children: React.ReactNode }) {
   return (
-    <GlassCard>
-      <h2 className="text-base font-bold">{title}</h2>
-      <ExplainBox title={`${title} · 这一块的口径与边界`}>
-        <p>{plain(note)}</p>
-      </ExplainBox>
+    <GlassCard docTitle={title}>
+      <div className="mb-1 flex flex-wrap items-center gap-1.5">
+        <h2 className="text-base font-bold">{title}</h2>
+        <span className="ml-auto"><DocDrawer title={title}>{plain(note)}</DocDrawer></span>
+      </div>
       {children}
     </GlassCard>
   );

@@ -4,7 +4,8 @@ import { RefreshCw, Microscope } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { CaliberFold, CaveatText, ExplainBox, Measured, Panel, Row } from "@/components/ui/DataPanel";
+import { CaveatText, Measured, Panel, Row } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 import { useNonce, useProbe } from "@/lib/probe";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { useTableSort } from "@/lib/useSort";
@@ -18,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { loadWatch } from "@/lib/watchlist";
 import { Watchlist } from "./Watchlist";
 import { StockLink } from "@/components/ui/StockLink";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 分组自选（规划 §2 维度三）。
@@ -90,7 +92,7 @@ function Td({ i, k, cell, className, tone, mono, muted, title, children }: {
 
 /** 「已经选中哪一只」那一行提示单独成一个组件，只为一件事：**把选中态的订阅圈在这里**。
  *  10-26 之前这句是在页面组件里读 `cell.selectedCell` 的，于是每一次单击都要把这张
- *  150 行 × 十几列的明细表整个再协调一遍（与倍量页那张 800 格的表同一族：单击一次 461 毫秒的长任务）。
+ *  首屏那几十行 × 十几列的明细表整个再协调一遍（与倍量页那张 800 格的表同一族：单击一次 461 毫秒的长任务）。
  *  交叉高亮现在写在 DOM 上、页面组件不因点击而渲染，只有这一行跟着换标的。
  *  ⚠️ 别把 `useCellSelection` 提回页面组件 —— 那等于把这条链又接回整张表。
  *  行序只算一份：`rowAt` 读的就是表格渲染的同一个 `shownRows`，高亮的那一行与这里说的不是两只票的可能没有。 */
@@ -187,10 +189,10 @@ export function Grouped() {
   const cell = useStockRowInteraction("分组自选");
   const local = useMemo(() => loadWatch(), []);
 
-  /** 排序在截断**之前**（点列头要排整张表，不是只排前 150 行），所以行序在这儿统一算一次：
+  /** 排序在截断**之前**（点列头要排整张表，不是只排前 40 行），所以行序在这儿统一算一次：
    *  表格渲染与「哪一行为选中行」必须读同一份，否则高亮的行与说明文字不是同一只票。 */
   const sortedRows = stocks.kind === "ok" ? rowSort.apply(stocks.data.rows ?? []) : [];
-  const shownRows = sortedRows.slice(0, 150);
+  const shownRows = sortedRows.slice(0, 40);
   // 换排序就取消选中：选中的是**行号**，行序一变那个号指向另一只票，高亮与说明就不是同一只了。
   const pickSort = (key: string) => { cell.clearAll(); rowSort.toggle(key); };
 
@@ -229,6 +231,27 @@ export function Grouped() {
     return { missing: local.filter(c => !inDb.has(c)), total: local.length };
   }, [stocks, local]);
 
+  /** 10-31（全站第 1、2 条）：「分组」这一块走 `Panel note=`，那颗「这块的说明」已经在标题行最右
+   *  （`DataPanel` 一处实现）。原来正文里还有一只 `CaliberFold`（覆盖区间 · 出处）＝同一张卡片第二颗
+   *  同名按钮 ⇒ 撤掉，那两件由后端交出的事实并进 `note` 这一句里（数字与出处仍是后端的，页面不编）。 */
+  const gd = groups.kind === "ok" ? groups.data : null;
+  const coverageBits = Object.entries(gd?.coverage ?? {}).filter(([, v]) =>
+    v && typeof v === "object" && !Array.isArray(v) && ("from" in (v as object) || "to" in (v as object)))
+    .map(([k, raw]) => {
+      const v = raw as { from?: string | null; to?: string | null; sessions?: number | null };
+      return `${k} ${dash(v.from)}~${dash(v.to)}（${dash(v.sessions)} 场）`;
+    });
+  const groupNote = "点组名把下面的明细筛到这一组；回到全部要么再点一次那个组名，要么点下面的「全部组」。"
+    + (coverageBits.length ? ` 覆盖：${coverageBits.join(" · ")}。` : "")
+    + (gd?.source ? ` 出处：${plain(String(gd.source))}。` : "");
+
+  /** 「自选明细」这一块同样收成一模块一颗：标题行（这一块自己写的 h2）最右那颗按钮的抽屉里
+   *  装着 ①两把尺与操作分怎么读（原 `Panel note` 那句）、②字段义 · 操作分与象限怎么来的 · 单位
+   *  （原正文第一只 ExplainBox）、③这一张表怎么点 · 双击去哪里（原第二只，含选中行提示那格）、
+   *  ④出处（原 `CaliberFold`）。Panel 不再挂 `note`，卡片里就不会长出第二颗同名按钮。
+   *  ⚠️ 截断声明（先排序再截 40 行）与弹窗被拦的告警**没跟进抽屉**，仍摊在表下（红线）。 */
+  const sd = stocks.kind === "ok" ? stocks.data : null;
+
   return (
     <div className="mx-auto max-w-[1400px]">
       <PageHeader title="分组自选" level={1}
@@ -244,7 +267,7 @@ export function Grouped() {
             表/图/口径那一份实现住在 `components/quant/GroupAnalyticsBoard.tsx`（只有一份，见 `sortKeys.test.ts`）。 */}
         <GroupAnalyticsBoard got={trend} />
 
-        <Panel title="分组" state={groups} note="点组名把下面的明细筛到这一组；回到全部要么再点一次那个组名，要么点下面的「全部组」。">
+        <Panel title="分组" state={groups} note={groupNote}>
           {d => <>
             <Row label="行情日" value={dash(d.date)} />
             <Row label="组数 / 明细条数" value={`${(d.groups ?? []).length} 组 / ${dash(d.total_stocks)} 条`} />
@@ -254,9 +277,9 @@ export function Grouped() {
               value={d.focus_groups === 0 ? "0 个 —— 全库没有一组勾过重点。这是没勾过，不是同步坏了，所以这里不凭空造一个默认组。" : dash(d.focus_groups)}
               tone={d.focus_groups === 0 ? "warn" : undefined} />
             <CaveatText text={d.caveat} />
-            {/* 覆盖区间与出处是"这一屏从哪来"的描述，收进一处折叠（用户 2026-10-21）；
-                上面那句 caveat（库里这份分组可能落后于客户端）是缺数类，留在屏上没有折 */}
-            <CaliberFold coverage={d.coverage} provenance={[d.source]} />
+            {/* 上面那句 caveat（库里这份分组可能落后于客户端）是缺数类，留在屏上没有折；
+                覆盖区间与出处这两件后端交出的事实已并进标题行那颗按钮的 `note`（一模块一颗），
+                正文不再自己长第二颗「这块的说明」。 */}
             <Measured>
               库里这份分组<b className="text-foreground">可能落后于同花顺客户端的当前状态</b>：
               分组的真源是同花顺本地文件 <code>stockblock.ini</code>，同步作业要靠调度触发，而本项目目前无调度。
@@ -371,52 +394,81 @@ export function Grouped() {
           </>}
         </Panel>
 
-        <Panel title={open == null ? "自选明细（全部组）" : "自选明细（所选组）"} state={stocks}
-          note={'「日均」与「区间」是两把尺子，现在各占一列并排放着：000636.SZ 这一行 10日日均 -2.81 '
-            + '读作「这 10 个交易日平均每天跌 2.81 个点」，旁边那一列 10日区间 -25.46 才是这 10 天合起来的涨跌。'
-            + '日均小得多是正负天相互抵消的结果，不是算错。'
-            + '操作分是另一回事：0.40×个股质量 + 0.60×环境共振 的合成分，带符号、值域 -100~100，'
-            + '只在同一场里比强弱，既不是百分位也不是涨幅。'}>
+        {/* 用户 2026-10-31 第 1、2 条（全站一起改，个股组）：这一块原先一张卡里有四颗同名按钮
+            （`Panel note` 一颗 + 正文两只 ExplainBox + `CaliberFold` 一颗），说明散在正文里
+            看起来像"数下面的一段话"。现在这一块的标题行自己写：h2 在最左、唯一一颗「这块的说明」
+            在这一行最右；`Panel` 不再挂 `note`（它那一行只剩副题）。抽屉里只有本来就在屏上/悬停里
+            说过的句子与后端原样给出的字段义、出处，页面不新写一句。
+            ⚠️ 截断上限（先排序再截 40 行）与弹窗被拦的告警**留在屏上、没跟进抽屉**（全站红线）。 */}
+        <div className="mb-1 flex flex-wrap items-center gap-1.5">
+          <h2 className="text-base font-bold">{open == null ? "自选明细（全部组）" : "自选明细（所选组）"}</h2>
+          <span className="ml-auto">
+            <DocDrawer title={open == null ? "自选明细（全部组）" : "自选明细（所选组）"}>
+              <DrawerSection heading="日均与区间 · 操作分怎么读">
+                <p>
+                  {'「日均」与「区间」是两把尺子，现在各占一列并排放着：000636.SZ 这一行 10日日均 -2.81 '
+                    + '读作「这 10 个交易日平均每天跌 2.81 个点」，旁边那一列 10日区间 -25.46 才是这 10 天合起来的涨跌。'
+                    + '日均小得多是正负天相互抵消的结果，不是算错。'
+                    + '操作分是另一回事：0.40×个股质量 + 0.60×环境共振 的合成分，带符号、值域 -100~100，'
+                    + '只在同一场里比强弱，既不是百分位也不是涨幅。'}
+                </p>
+              </DrawerSection>
+              {sd && (
+                <DrawerSection heading="字段义 · 操作分与象限怎么来的 · 单位">
+                  <p>条数大于只数是因为同一只票可以属多个组（选了某一组时两者会接近）。</p>
+                  {sd.indicator_meaning && Object.keys(sd.indicator_meaning).length > 0 && (
+                    <div className="space-y-0.5">
+                      <p>字段义（后端原样给出，本页不重算也不改写）：</p>
+                      {Object.entries(sd.indicator_meaning).map(([k, v]) => (
+                        <p key={k} className="pl-2">· <b className="font-mono text-foreground/80">{k}</b> ＝ {plain(v)}</p>
+                      ))}
+                    </div>
+                  )}
+                  {/* 操作分的构成只住在后端那一份 `score_meaning` 里（权重出处是 config.binding）。
+                      原来这一列的表头提示把这一格说成"百分位量"—— 那是错的：这一格交的是
+                      `analytics.score.value`，带符号的合成分原值（当日实测 -77.8~+16.2），
+                      同表的 `percent_rank` 才是百分位、这一屏没取。 */}
+                  {sd.score_meaning && Object.keys(sd.score_meaning).length > 0 && (
+                    <div className="space-y-0.5">
+                      <p>操作分与象限怎么来的（权重改在 `config.binding`，这几行跟着那份数说话）：</p>
+                      {Object.entries(sd.score_meaning).map(([k, v]) => (
+                        <p key={k} className="pl-2">· <b className="text-foreground/80">{k}</b> ＝ {plain(v)}</p>
+                      ))}
+                      <p className="pl-2">· <b className="text-foreground/80">负分</b> ＝ 正常的日常读数：环境(Y)占 0.60 且经常整片为负，
+                        所以「分是负的」不等于「这只票要跌」，它是<strong>同一场里比强弱</strong>的尺子，不是涨幅。</p>
+                    </div>
+                  )}
+                  {sd.unit && Object.keys(sd.unit).length > 0 && (
+                    <p>单位（后端原样给出）：{Object.entries(sd.unit).map(([k, v]) => `${k}:${v}`).join(" · ")}</p>
+                  )}
+                </DrawerSection>
+              )}
+              <DrawerSection heading="这一张表怎么点 · 双击去哪里">
+                <p>
+                  <SelectedHint store={cell.store} rowAt={(row) => shownRows[row] ?? null} />
+                </p>
+                <p className="mt-1">
+                  <b className="text-foreground">双击任意一行</b> = 另开一个浏览器窗口打开「个股深度复盘」，
+                  地址里带着这一只的代码。那一屏住着量化档案、趋势量化与窗口趋势、个股研究（公开资料）与多空辩论
+                  （用户 2026-10-15：这几叠个股功能点原来散在本页与两个独立屏，现在合成一屏；
+                  本页只留明细这一张表，好把两边并排放着对照）。
+                  增删本机名单与持仓仍在 <Link className="text-primary underline" to="/my-stocks">重点关注（持仓）</Link>。
+                </p>
+              </DrawerSection>
+              {!!sd?.source && (
+                <DrawerSection heading="出处"><p>{plain(String(sd.source))}</p></DrawerSection>
+              )}
+            </DocDrawer>
+          </span>
+        </div>
+        <Panel title="每行一只票：收盘 · 成本 · 当日涨跌 · 10/20 日的日均与区间 · 振幅 · 换手 · 操作分 · 象限 · 备注" state={stocks}>
           {d => <>
             <Row label="行情日" value={dash(d.date)} />
             <Row label="明细条数 / 去重只数" value={`${dash(d.count)} 条 / ${new Set((d.rows ?? []).map(r => r.security_code)).size} 只`} />
             <Row label="排序" value={dash(d.sort)} />
             <CaveatText text={d.caveat} />
-            <CaliberFold provenance={[d.source]} />
-            {/* 说明与定义折进通用说明框（用户 10-14：这一屏原来把字段义、操作分构成、单位
-                整摊摊开在表上方，读数被挤到第二屏）。**caveat 与来源没跟着折** —— 那两句是
-                "这一屏哪里不全"，藏在折叠框里等于没写。 */}
-            <ExplainBox title="字段义 · 操作分与象限怎么来的 · 单位"
-              count={Object.keys(d.indicator_meaning ?? {}).length
-                + Object.keys(d.score_meaning ?? {}).length
-                + Object.keys(d.unit ?? {}).length}>
-              <p>条数大于只数是因为同一只票可以属多个组（选了某一组时两者会接近）。</p>
-              {d.indicator_meaning && Object.keys(d.indicator_meaning).length > 0 && (
-                <div className="space-y-0.5">
-                  <p>字段义（后端原样给出，本页不重算也不改写）：</p>
-                  {Object.entries(d.indicator_meaning).map(([k, v]) => (
-                    <p key={k} className="pl-2">· <b className="font-mono text-foreground/80">{k}</b> ＝ {plain(v)}</p>
-                  ))}
-                </div>
-              )}
-              {/* 操作分的构成只住在后端那一份 `score_meaning` 里（权重出处是 config.binding）。
-                  原来这一列的表头提示把这一格说成"百分位量"—— 那是错的：这一格交的是
-                  `analytics.score.value`，带符号的合成分原值（当日实测 -77.8~+16.2），
-                  同表的 `percent_rank` 才是百分位、这一屏没取。 */}
-              {d.score_meaning && Object.keys(d.score_meaning).length > 0 && (
-                <div className="space-y-0.5">
-                  <p>操作分与象限怎么来的（权重改在 `config.binding`，这几行跟着那份数说话）：</p>
-                  {Object.entries(d.score_meaning).map(([k, v]) => (
-                    <p key={k} className="pl-2">· <b className="text-foreground/80">{k}</b> ＝ {plain(v)}</p>
-                  ))}
-                  <p className="pl-2">· <b className="text-foreground/80">负分</b> ＝ 正常的日常读数：环境(Y)占 0.60 且经常整片为负，
-                    所以"分是负的"不等于"这只票要跌"，它是<strong>同一场里比强弱</strong>的尺子，不是涨幅。</p>
-                </div>
-              )}
-              {d.unit && Object.keys(d.unit).length > 0 && (
-                <p>单位（后端原样给出）：{Object.entries(d.unit).map(([k, v]) => `${k}:${v}`).join(" · ")}</p>
-              )}
-            </ExplainBox>
+            {/* 字段义 / 怎么点 / 出处都在标题行那颗按钮的抽屉里（同一句不在屏上出现第二遍）；
+                这一行以下只剩读数与本块的红线声明 —— caveat 仍然摊在屏上，没跟着折。 */}
             <div className="mt-2 overflow-x-auto">
               <table className="w-full text-[11px]">
                 <thead><tr className="text-left text-muted-foreground">
@@ -466,23 +518,15 @@ export function Grouped() {
                   ))}
                 </tbody>
               </table>
-              {sortedRows.length > 150 && (
-                <p className="mt-1 text-[10px] text-muted-foreground">先按所选列排序（未选列时用后端榜序）、再截前 150 行；交出 {sortedRows.length} 行。</p>
+              {sortedRows.length > 40 && (
+                <NoticeBar kind="truncated">
+                  先按所选列排序（未选列时用后端榜序）、再截前 40 行；交出 {sortedRows.length} 行。
+                </NoticeBar>
               )}
-              <ExplainBox title="这一张表怎么点 · 双击去哪里">
-                <p>
-                  <SelectedHint store={cell.store} rowAt={(row) => shownRows[row] ?? null} />
-                </p>
-                <p>
-                  <b className="text-foreground">双击任意一行</b> = 另开一个浏览器窗口打开「个股深度复盘」，
-                  地址里带着这一只的代码。那一屏住着量化档案、趋势量化与窗口趋势、个股研究（公开资料）与多空辩论
-                  （用户 2026-10-15：这几叠个股功能点原来散在本页与两个独立屏，现在合成一屏；
-                  本页只留明细这一张表，好把两边并排放着对照）。
-                  增删本机名单与持仓仍在 <Link className="text-primary underline" to="/my-stocks">重点关注（持仓）</Link>。
-                </p>
-              </ExplainBox>
-              {/* 弹窗被拦这件事是**告警**，不折进上面那个默认收起的说明框（收着就等于没说）。 */}
-              {popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{popHint}</p>}
+              {/* 「这一张表怎么点 · 双击去哪里」已搬进标题行那颗按钮的抽屉（一模块一颗，
+                  截断声明必须排在它外面 —— 现在整块说明都在标题行，表下不会再有折叠框）。 */}
+              {/* 弹窗被拦这件事是**告警**，不折进说明抽屉（收着就等于没说）。 */}
+              {popHint && <NoticeBar kind="warning">{popHint}</NoticeBar>}
             </div>
           </>}
         </Panel>
@@ -512,12 +556,11 @@ export function Grouped() {
         <GlassCard>
           {/* 标题由嵌入组件自己出（`Watchlist` 在 embedded 下渲染 level=2「自选股」，与
               「我的股票」页那一块一致）—— 这里不再叠一个 h2，同一件事两个标题会被读成两叠数据。
-              09-28 用户裁定：这叠原本独占一页 `/watchlist`，并进本页，页面与导航条目一并删除。 */}
-          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-            <code>lib/watchlist.ts</code> 存在键 <code>vr-watchlist</code> 的是一份扁平代码数组（上限 100 只、无分组、无成本），
-            与上面库里那 45 组是两套数据，只存在这台浏览器里、不上传。
-            当前有 <b className="text-foreground">{local.length}</b> 只；列在一起是为了看得清"哪只只在本地、库里没有"。
-          </p>
+              09-28 用户裁定：这叠原本独占一页 `/watchlist`，并进本页，页面与导航条目一并删除。
+              10-31 第 1 条：这一叠的说明（`vr-watchlist` 与库里分组是两套数据那句）原来摊在卡片正文，
+              现在经 `Watchlist` 的 `doc` 口挂在这一叠标题行（「自选股」）的最右 —— 一叠一颗按钮。
+              本机孤票检查、空名单那句、以及末尾「目前接口只读、不做假导入」的告警是缺数与告警类，
+              **留在屏上**，没跟进抽屉。 */}
           {localCodes && localCodes.total > 0 && (
             <p className={cn("mt-1 text-[11px] leading-relaxed", localCodes.missing.length ? "text-warning" : "text-muted-foreground")}>
               {localCodes.missing.length === 0
@@ -529,7 +572,13 @@ export function Grouped() {
             <p className="mt-1 text-[11px] text-muted-foreground">这台浏览器里还没有本机名单（<code>vr-watchlist</code> 为空）—— 下面这叠是空的，不是同步坏了。</p>
           )}
           {/* 名单本体走嵌入组件：批量添加、刷新价格、逐只移除都在它里面，不在这里重写一份。 */}
-          <div className="mt-3 border-t border-border/50 pt-3"><Watchlist embedded /></div>
+          <Watchlist embedded doc={<DocDrawer title="自选股">
+            <p>
+              <code>lib/watchlist.ts</code> 存在键 <code>vr-watchlist</code> 的是一份扁平代码数组（上限 100 只、无分组、无成本），
+              与上面库里那 45 组是两套数据，只存在这台浏览器里、不上传。
+              当前有 <b className="text-foreground">{local.length}</b> 只；列在一起是为了看得清「哪只只在本地、库里没有」。
+            </p>
+          </DocDrawer>} />
           <p className="mt-2 text-[11px] leading-relaxed text-warning">
             真正的"一次性迁移导入"需要一个写入口（把这批代码落进某个组，并定清楚：导进哪个组、重复代码怎么去重、原来的 localStorage 留不留、
             全量覆盖前先给现有分组留整份副本 —— 那是用户手改的唯一副本）。目前 <code>/api/watchlist/groups</code> 只读，

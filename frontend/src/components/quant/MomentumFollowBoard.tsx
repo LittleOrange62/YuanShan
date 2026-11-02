@@ -15,6 +15,7 @@ import {
   type FollowData, type FollowMetric,
 } from "@/lib/momentumFollow";
 import { cn } from "@/lib/utils";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 上一场名次稳步前进榜 · 后续表现（`GET /api/quant/momentum-follow`，用户 2026-10-20 凌晨点名：
@@ -127,22 +128,20 @@ export function MomentumFollowBoard({ state, metric, onMetricChange, limit, onLi
           <>
             <Row label="看的是哪几天" value={windowSentence(d)} />
             {/* 截断声明、— 与 0 的分工、空栏计数：三条都不许折进说明框（藏起来等于让屏幕说假话） */}
-            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-              {parentTruncationSentence(d)}
-            </p>
-            <p className="mt-0.5 text-[11px] leading-relaxed text-warning">
+            <NoticeBar kind="truncated">{parentTruncationSentence(d)}</NoticeBar>
+            <NoticeBar kind="missing">
               — 与 0 是两种读数：缺任何一边（母体后第一场停牌、那天没行、没有基期、那一族那天没跑）
-              都是 —，<b className="text-foreground">不是 0%、不是 0 分、不是「没进过榜」</b>。
+              都是 —，不是 0%、不是 0 分、不是「没进过榜」。
               已交出的这 {rows.length} 行里：今日读不到 {missNext} 只、近 5 日读不到 {miss5} 只、
               倍量名次没数 {missDbl} 只（每格悬停有那句原因原文；两栏各读各的，一栏有数另一栏是 — 是常态）。
-            </p>
+            </NoticeBar>
             <ExplainBox title="这块怎么读（母体判据原句 + 复权尺子原文 + 三把名次尺的分母）">
               <p>{d.rule ? plain(d.rule) : "（母体判据原句后端没交，页面不自己编）"}</p>
               <p className="mt-2">{plain(d.pct_rule ?? "接口没交 pct_rule —— 这两栏的复权口径就没有出处，页面不自己解释什么叫后复权。")}</p>
               <p className="mt-2">{uni?.note ?? "各路名次分母是哪一批：接口没交，页面不猜。"}</p>
               <p className="mt-2">{STOCK_ROW_HINT}</p>
             </ExplainBox>
-            {x.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{x.popHint}</p>}
+            {x.popHint && <NoticeBar kind="warning">{x.popHint}</NoticeBar>}
             {/* 声明 / 覆盖 / 字段含义 / 出处收成一处默认收起的折叠块（用户 2026-10-21：
                 「把页面上的描述性内容全部收缩起来，避免过多占屏」）。
                 **留在屏上没跟着折的**：上面那句母体榜被上限截断（`parentTruncationSentence`）、

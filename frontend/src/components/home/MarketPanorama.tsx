@@ -1,34 +1,29 @@
 import { UnlockCalendarPanel } from "@/components/UnlockCalendarPanel";
 import { SectorRotationBoard } from "@/components/home/SectorRotationBoard";
 import { AbnormalMoveBoard } from "@/components/home/AbnormalMoveBoard";
-import { FirstBoardDailyPanel } from "@/components/home/FirstBoardDailyPanel";
 import { RiskSignalPanel } from "@/components/home/RiskSignalPanel";
 import type { RotationBasis } from "@/lib/rotation";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { LazySection } from "@/components/ui/LazySection";
 import { useTableSort } from "@/lib/useSort";
-import { PAGE_SIZES, canStep, clampPage, pageCount, pageSentence, slicePage } from "@/lib/paging";
 import { pageMaterials } from "@/lib/page-materials";
-import { useState, useEffect, useRef, Fragment } from "react";
+import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { pctColor } from "@/lib/colors";
-import { Sparkles, Loader2, RefreshCw, Gauge, ArrowDownUp, TrendingUp, TrendingDown, X, Flame, BarChart3, Globe, ChevronDown, ChevronUp, Copy, Check } from "lucide-react";
+import { RefreshCw, Gauge, ArrowDownUp, TrendingUp, TrendingDown, BarChart3, Globe, ChevronDown, ChevronUp, Layers } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { SentimentTrend, type TrendPoint } from "@/components/SentimentTrend";
-import { CALIBER_COLUMNS, buildCompareRows, cellText, columnStamps, diffText } from "@/lib/sentimentCompare";
+import { CALIBER_COLUMNS, buildCompareRows, cellText, columnStamps, diffText, type CaliberKey } from "@/lib/sentimentCompare";
 import { Caliber } from "@/components/ui/Caliber";
-import { NodeCell, NodeWarn } from "@/components/ui/NodeCell";
 import { usePageAskAi } from "@/lib/workspace/pageAskAi";
-import { Disclaimer } from "@/components/ui/Disclaimer";
-import { finite, plain } from "@/lib/agent";
 import { StockLink } from "@/components/ui/StockLink";
-import { TemplatePicker } from "@/components/ui/TemplatePicker";
-import { emUrl } from "@/lib/quoteLink";
-import { useLinkTemplates } from "@/lib/quoteLinkTemplates";
-import { api, type IndexQuote, type Quote, type MarketOverview, type ShortTermEmotion, type LianbanStock, type TurnoverTop, type SectorRotation, type GlobalIndex, type MarketSession, type OverseasSnapshot, type OverseasRow, type LiveEmotion } from "@/lib/api";
-import { useDeepDive, DeepDivePanel, RunAllButton, type DiveItem } from "@/components/ui/DeepDive";
-import { renderPrompt, useTemplatePicker, type PromptValues } from "@/lib/prompts";
+import { Disclaimer } from "@/components/ui/Disclaimer";
+import { plain } from "@/lib/agent";
+import { api, type IndexQuote, type MarketOverview, type ShortTermEmotion, type TurnoverTop, type SectorRotation, type GlobalIndex, type MarketSession, type OverseasSnapshot, type OverseasRow, type LiveEmotion } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { NoticeBar } from "@/components/ui/NoticeBar";
+import { DocDrawer, docLabel } from "@/components/ui/DocDrawer";
 
 // A股红涨绿跌。全球市场（美股/港股指数）**也沿用红涨**——与整个看板及东财等中国平台一致，
 // A 股惯例：红涨绿跌。与国际绿涨惯例相反，是有意选择，全站必须一致，勿改。
@@ -45,11 +40,26 @@ const FLOW_TABLE_LABEL = "覆盖以来累计净流入";
 const fmt = (v: number) => v.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
 const yi = (v: number | null) => (v == null ? "—" : `${fmt(v / 1e8)} 亿`); // 元 → 亿
 
-// 大盘宽度档的分值 → 语义色（编码：冰点 −2 / 偏弱 −1 / 中性 0 / 偏强 +1 / 普涨 +2）。
-// 这里只按分值上色，**不自己判档**：档位文字永远是后端交的那一个词，前端不重算分档。
-const breadthTone = (v: number | null | undefined) =>
-  v == null ? "text-muted-foreground/50"
-    : v >= 1 ? "text-danger" : v <= -1 ? "text-info" : "text-foreground";
+/**
+ * 这一块自己的「这块的说明」那颗按钮（用户 2026-10-31：它要摆在**标题这一行的最右边**、
+ * 时间戳/as-of 之前）。原先每一块用的是 `<Caliber>` 那颗悬停芯片 —— 口径写得再全，
+ * 鼠标不去扫就永远看不见，等于没有；抽屉是点开才占地方，默认收起。
+ *
+ * 三条边界：① 抽屉里的文字**只搬屏上原有的那些**，不在这里新写一套口径（两处各写一遍迟早分叉）；
+ * ② 一模块一颗，同名按钮不许在同一张卡里长出第二颗；
+ * ③ 缺数声明／截断上限／告警那三类**不走这里**，它们必须摊在屏上（见 `NoticeBar`）。
+ */
+function BlockDoc({ title, text, label, className = "ml-auto" }: {
+  title: string; text: string; label?: string; className?: string;
+}) {
+  return (
+    <span className={cn("flex shrink-0 items-center gap-1.5", className)}>
+      <DocDrawer title={title} label={label}>
+        <p className="whitespace-pre-line leading-relaxed">{plain(text)}</p>
+      </DocDrawer>
+    </span>
+  );
+}
 
 /**
  * 首页里的「盘面数据」那一屏（2026-09-27 用户裁定：原 `/daily-review` 独立页并入首页，
@@ -65,10 +75,6 @@ export function MarketPanorama() {
   const [overview, setOverview] = useState<MarketOverview | null>(null);
   const secSort = useTableSort();
   const [emotion, setEmotion] = useState<ShortTermEmotion | null>(null);
-  const lbSort = useTableSort({ key: "boards", dir: "desc" });
-  /** 连板股那一榜原来是**整表铺开**的（2 板以上有多少列多少，热市能到几十行 × 13 列）。
-   *  首页的密度规矩：一屏最多 25 行，其余分页 —— 翻得完，且不是一屏数不到底。 */
-  const [lbPage, setLbPage] = useState(1);
   const [turnover, setTurnover] = useState<TurnoverTop | null>(null);
   const tvSort = useTableSort();
   // 份额轮动榜（本地按场存的统计量）：口径与上面那张"盘中即时净流入"不是一回事，
@@ -89,10 +95,12 @@ export function MarketPanorama() {
   const [overseaOpen, setOverseaOpen] = useState(false);
   // 东财实时池 · 盘中读数。与下面那块「昨日短线情绪」是两回事：
   // 这块随盘变，那块是已收盘那一场的东财池快照。
+  // ⚠️ 它**不再是默认就取**的：2026-10-28 用户点名「就按照本地的显示，其他源不要显示了……
+  // 切换后再加载，页面加载的时候不加载」⇒ 只有下拉切到它那一档才发请求（见 `cmpRef` 与 `pickCmp`）。
   const [liveEmo, setLiveEmo] = useState<LiveEmotion | null>(null);
-  // 昨日连板股的**今日**实时行情。昨日那份的「涨停%」全是 +10%（都涨停了，
-  // 没信息量），换成今天的实时涨跌才回答「昨天的高标今天怎么样」。
-  const [lianbanQuotes, setLianbanQuotes] = useState<Record<string, Quote>>({});
+  /** 三口径对照表显示哪几列：none=只摆本地（默认）、legu/live=本地 + 那一把尺 + 它的差值列。
+   *  列名与"缺数怎么读"仍只住 `lib/sentimentCompare.ts` 那份，这里只决定显示不显示。 */
+  const [cmp, setCmp] = useState<"none" | "legu" | "live">("none");
   // 自动刷新开关：**默认关**（别替用户决定要不要一直打请求），选择记在本地
   const [autoRefresh, setAutoRefresh] = useState<boolean>(
     () => { try { return localStorage.getItem(AUTO_KEY) === "1"; } catch { return false; } });
@@ -102,25 +110,27 @@ export function MarketPanorama() {
 
   // 各数据块请求是否已结束：区分「加载中」与「数据源暂不可用」（非交易时段/被限流时后端返回空）
   const [ovDone, setOvDone] = useState(false);
-  const [emoDone, setEmoDone] = useState(false);
   const [toDone, setToDone] = useState(false);
 
-  /** 拉这批代码的实时行情（昨日连板股用）。空名单直接返回，别打空请求。
-   *  ⚠️ 必须定义在 `loadLive` **之前**：`const` 箭头函数没有提升，
-   *  写在后面 `loadLive()` 首次调用就会 ReferenceError（TDZ）。 */
-  const refreshLianban = (codes: string[]) => {
-    if (!codes.length) return;
-    api.quote(codes.join(",")).then(setLianbanQuotes).catch(() => {});
-  };
-
   // 轻量实时组：全是腾讯批量行情，一次一个请求，5 秒一刷不吃力
+  /** 5 秒定时器复用的 `loadLive` 会带着旧闭包 ⇒ 开关放 ref 上读，别读 state。 */
+  const cmpRef = useRef(cmp);
+  useEffect(() => { cmpRef.current = cmp; }, [cmp]);
   const loadLive = () => {
     api.indices().then(setIndices).catch(() => setIdxErr(true));
     api.overseas().then(setOversea).catch(() => {});
     api.marketSession().then(setSession).catch(() => {});
-    api.liveEmotion().then(setLiveEmo).catch(() => {});
-    // 连板股名单来自「昨日」那份，这里只刷它们的实时价
-    refreshLianban((emotion?.lianban_stocks ?? []).map((s) => s.code));
+    // 盘中那一把尺默认不取：不切过去就不进这发请求（它本来是 5 秒组里的成员，
+    // 一天开着页面就是上万发），切过去才取、并由定时器刷新。
+    if (cmpRef.current === "live") api.liveEmotion().then(setLiveEmo).catch(() => {});
+    // 连板股那张表 10-29 搬到「短线复盘」页（涨停分析）⇒ 这里不再为它刷实时价。
+  };
+
+  /** 切对照口径：切到「东财实时池」且手上还没有那份数才发第一发；已经取到过就不重打
+   *  （要新数用页头「重新取数」—— 定时器在切过去之后每 5 秒也会自己刷）。 */
+  const pickCmp = (k: "none" | "legu" | "live") => {
+    setCmp(k);
+    if (k === "live" && !liveEmo) api.liveEmotion().then(setLiveEmo).catch(() => {});
   };
 
   // 重量组：板块资金走 akshare + JS 引擎（90 个行业）、成交额榜走东财 clist。
@@ -145,7 +155,7 @@ export function MarketPanorama() {
 
   // 短线情绪锚在已收盘那一场，只在进页面时取一次，不参与任何轮询
   const loadSettled = () => {
-    api.emotion().then(setEmotion).catch(() => {}).finally(() => setEmoDone(true));
+    api.emotion().then(setEmotion).catch(() => {});
     loadRotation();
   };
 
@@ -180,11 +190,6 @@ export function MarketPanorama() {
     loadHeavy();
   }, [autoRefresh, session?.label, session?.phase_key]);
 
-  // 连板股名单是异步来的，首次 loadLive 时它还没回来 —— 名单一到补拉一次
-  useEffect(() => {
-    refreshLianban((emotion?.lianban_stocks ?? []).map((s) => s.code));
-  }, [emotion?.date, emotion?.lianban_stocks?.length]);
-
   // ⭐ 自动刷新。三条不能写错的地方：
   //  ① **交易时段用后端给的 `session.phase` 判断**，不要用 `new Date().getHours()`
   //     —— 那是本机时区，人在海外会盘中不刷、半夜狂刷。后端算的是北京时间。
@@ -215,7 +220,6 @@ export function MarketPanorama() {
     "当前场次": session, "指数": indices, "市场概览": overview,
     "盘中情绪": liveEmo, "已收盘情绪及梯队": emotion,
     "换手率榜": turnover, "隔夜外围": oversea, "份额轮动榜（本地逐日）": rotation,
-    "昨日连板股当前行情": lianbanQuotes,
   });
   // 登记给右侧「AI分析」栏：这一屏每次都交**当下这份**材料，不缓存旧盘面
   usePageAskAi({
@@ -224,44 +228,6 @@ export function MarketPanorama() {
     suggestions: ["根据已有材料解释这场盘面", "哪些指数领涨领跌", "哪些判断还缺少证据"],
   });
 
-  // 连板股「AI 深入分析」（与首板分析页共用 DeepDive 单元；结果本地存档，跨加载复用）
-  const dd = useDeepDive("lianban", emotion?.date || "");
-  // 话术不在这里写死：模板从库里读（内置槽位 + 用户在系统配置页自建的模板），这一行只带数据。
-  // 选哪一份记在浏览器本地（按类型一个键）；取不到模板时 `render()` 交回 null → prompt 是空串
-  // → DeepDive 会拦住并说明原因，绝不退回"代码里再抄一份话术"（那就是第二个真相源）。
-  const dive = useTemplatePicker("lianban");
-  const divePrompt = (s: LianbanStock) =>
-    (dive.current ? renderPrompt(dive.current.template, lianbanValues(s)) : null);
-  const copyPrompt = async (s: LianbanStock) => {
-    const text = divePrompt(s);
-    if (!text) return;
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(s.code);
-      setTimeout(() => setCopied(""), 1600);
-    } catch { setCopied(`fail:${s.code}`); setTimeout(() => setCopied(""), 2400); }
-  };
-  const [copied, setCopied] = useState("");
-  // 按市场的行情外链模板（系统配置那张表）；没拿到之前按出厂口径拼。
-  const linkTpl = useLinkTemplates();
-  const lianbanValues = (s: LianbanStock): PromptValues => {
-    const q = lianbanQuotes[s.code];
-    return {
-      date: emotion?.date || "",
-      name: s.name, code: s.code,
-      em_line: emUrl(s.code, linkTpl) ? `东财行情页（公开榜单，可核对分笔与封单）：${emUrl(s.code, linkTpl)}\n` : "",
-      close: s.price, pct: s.pct, boards: s.boards,
-      quote_line: finite(q?.change_pct) !== null
-        ? `另附行情：${q.price} 元（${q.change_pct > 0 ? "+" : ""}${q.change_pct}%），报价时点 ${q.quote_time || "未提供"}；按报价自身日期解释，不冒充研究日收盘或今日盘中值。`
-        : "",
-      amount: yi(s.amount), float_cap: yi(s.float_cap),
-      industry: s.industry || "未知", reason: s.reason || "尚未核实",
-    };
-  };
-  const lianbanCtx = (s: LianbanStock) => `连板股 ${s.name}(${s.code}) ${s.boards}连板 深入分析`;
-  const lianbanItem = (s: LianbanStock): DiveItem => ({
-    key: s.code, prompt: divePrompt(s) ?? "", context: lianbanCtx(s),
-  });
 
   const sentiment = overview?.sentiment;
   const sectors = overview?.sectors || [];
@@ -288,13 +254,6 @@ export function MarketPanorama() {
   const flowMerged = (flow?.available ? flow.rows : []).map((r) => ({
     ...r, live_net: liveByName.get(r.sector_name) ?? null,
   }));
-  /** 连板榜：排序在分页之前，页码夹回有效范围（热市 2 板以上能到几十行，首页不许一屏数不到底）。 */
-  const lbSorted = lbSort.apply(emotion?.lianban_stocks ?? []);
-  const lbSize = PAGE_SIZES[0];
-  const lbPages = pageCount(lbSorted.length, lbSize);
-  const lbCur = clampPage(lbPage, lbPages);
-  const lbPaged = slicePage(lbSorted, lbCur, lbSize);
-  const sortByLb = (key: string) => { setLbPage(1); lbSort.toggle(key); };
 
   return (
     <div id="market-panorama">
@@ -302,7 +261,7 @@ export function MarketPanorama() {
       <PageHeader
         level={2}
         title="盘面数据"
-        subtitle={`${session?.label ?? `场次未探测到（这里不拿本机时钟冒充行情场次）`} · 指数 / 外围 / 板块资金一屏看全（复盘统计在「复盘报告」，首板样本在「首板分析」，自选行情在「分组自选」）`}
+        subtitle={`${session?.label ?? `场次未探测到（这里不拿本机时钟冒充行情场次）`} · 指数 / 外围 / 板块资金一屏看全（复盘统计在「复盘报告」，涨停分析与跌停分析、首板分析在「短线复盘」，自选行情在「分组自选」）`}
         actions={
           <div className="flex items-center gap-2">
             {/* 开着但不在交易时段时要说清「为什么不动」——否则会被当成坏了 */}
@@ -330,10 +289,6 @@ export function MarketPanorama() {
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-baseline gap-2">
           <h3 className="text-sm font-semibold text-muted-foreground">大盘指数</h3>
-          <Caliber text={
-            "涨跌幅对比前一交易日收盘。\n" +
-        "「实时」是延时行情，页面上没标截至几点。"
-          } />
           {session && (
             <span className={cn("text-[11px]", session.is_today ? "text-muted-foreground/50" : "text-warning")}>
               {session.label}
@@ -344,7 +299,14 @@ export function MarketPanorama() {
             <span className="text-[11px] text-muted-foreground/50">还没成交，涨跌幅为 0 是正常的</span>
           )}
         </div>
-        <button onClick={loadIndices} className="text-muted-foreground hover:text-primary" title="刷新"><RefreshCw className="h-3.5 w-3.5" /></button>
+        {/* 说明在刷新按钮左边、这一行最右侧（10-31 全站同一条位置规矩） */}
+        <span className="flex shrink-0 items-center gap-2">
+          <BlockDoc className="" title="大盘指数" text={
+            "涨跌幅对比前一交易日收盘。\n" +
+            "「实时」是延时行情，页面上没标截至几点。"
+          } />
+          <button onClick={loadIndices} className="text-muted-foreground hover:text-primary" title="刷新"><RefreshCw className="h-3.5 w-3.5" /></button>
+        </span>
       </div>
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {indices.length === 0
@@ -390,16 +352,16 @@ export function MarketPanorama() {
           <>
             <div className="mb-3 flex flex-wrap items-baseline gap-2">
               <h3 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground"><Globe className="h-4 w-4" /> 隔夜外围</h3>
+              <span className="text-[11px] text-muted-foreground/50">A 股常看美股 / 港股脸色</span>
+              <BlockDoc title="隔夜外围" text={
+                "美股港股的涨跌幅都是对比它们各自的前一交易日收盘。\n" +
+                "港股在北京时间白天可能正在交易，所以会标「盘中」——那是抓取那一刻的延时行情，没标具体几点。"
+              } />
               <button type="button" onClick={() => setOverseaOpen(v => !v)} aria-expanded={overseaOpen}
-                className="ml-auto flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] text-primary transition-colors hover:bg-muted/50">
+                className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] text-primary transition-colors hover:bg-muted/50">
                 {overseaOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                 {overseaOpen ? "收起" : "展开"}
               </button>
-              <Caliber text={
-                "美股港股的涨跌幅都是对比它们各自的前一交易日收盘。\n" +
-            "港股在北京时间白天可能正在交易，所以会标「盘中」——那是抓取那一刻的延时行情，没标具体几点。"
-              } />
-              <span className="text-[11px] text-muted-foreground/50">A 股常看美股 / 港股脸色</span>
               {/* 标签由后端给（含盘前/盘中/收盘）—— 前端别自己拼"收盘"，
                   港股在北京白天可能正在交易，那时候标"收盘"就是错的 */}
               {oversea?.us_label && <span className="text-[11px] text-warning">{oversea.us_label}</span>}
@@ -439,21 +401,42 @@ export function MarketPanorama() {
       {/* 4. 市场情绪 · 三口径对照（10-27 用户点名：东财实时池那一块与短线情绪头部那两组格子并到这里，
           省空间的前提是三把尺各留各的时间戳，数字不等照摆） */}
       <div className="mb-3 flex items-center gap-2">
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground"><Gauge className="h-4 w-4" /> 市场情绪 · 三口径对照</h3>
-        <Caliber text={
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground"><Gauge className="h-4 w-4" /> 市场情绪 · 口径对照（默认只摆本地库）</h3>
+        <BlockDoc title="市场情绪 · 口径对照（默认只摆本地库）" text={
           "同一件事这里有三把尺：乐咕乐股（源站口径）、东财涨停池（盘中即时截面）、本地库（已收盘按本地日线判据自算）。\n" +
           "三列各数各的，谁也不顶替谁：数字不等是口径不同，不是谁算错（同一场 10-23 实测：封住 84 对 82、炸板 19 对 12、跌停 9 对 6）。\n" +
           "每一列的表头带着它自己的时间与分母；哪一列没读到就写 —，不拿别列的数顶上，也不填 0。\n" +
           "大盘宽度按涨跌家数机械分档：上涨不足 600 家为冰点，其余看 上涨÷下跌 的比值\n" +
           "（<0.7 偏弱 / 0.7-1.2 中性 / 1.2-2.5 偏强 / ≥2.5 普涨）。\n" +
           "题材投机只按真实涨停家数分档：<30 冰点 / 30-59 普通 / 60-99 活跃 / ≥100 亢奋。\n" +
-          "下面那两条折线画的是**近 20 场的同一档读数**，0 轴分别是「中性」与「普通/活跃的中间」；" +
-          "每日读数已入库（analytics.market_sentiment_daily），图读库、不是拿此刻现算。"
+          "下面那两条折线画的是近 20 场的同一档读数，0 轴分别是「中性」与「普通/活跃的中间」；" +
+          "每日读数已入库（analytics.market_sentiment_daily），图读库、不是拿此刻现算。\n" +
+          "每天收盘后由加工链的 `sentiment` 步续一格；库里那几格是 market_breadth 回算的，" +
+          "涨停用的是单边判据（这一条会写得屏上，因为它改的是读数怎么信，不是口径注释）。"
         } />
         {sentiment?.date && <span className="text-[11px] text-muted-foreground/50">{sentiment.date}</span>}
       </div>
       <GlassCard className="mb-6">
-        <p className="mb-3 text-xs text-muted-foreground">三把尺分别统计，计数不一致时保留来源差异并排摆着；「本地 −」那两列是展示层算术，不是判据。</p>
+        {/* 用户 2026-10-28：「就按照本地的显示，其他源不要显示了，做一个下拉菜单，有需要的时候自行切换，
+            切换后再加载，页面加载的时候不加载」⇒ 默认只摆本地那一列，另一把尺切出来才显示、才去取。 */}
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            对照口径
+            <select value={cmp} onChange={e => pickCmp(e.target.value as typeof cmp)}
+              title="默认只摆「本地库 · 已收盘自算」这一列。切到另一把尺才去取那份数：东财实时池是盘中截面（切过去后每 5 秒随盘刷，且它才会进右侧 AI 分析的材料）；乐咕那一列不额外花请求——同一份 marketOverview 也喂上面那两格卡片与下面「资金轮动·今日即时」，所以它随页面本来就在取，下拉只决定显示不显示。"
+              className="rounded border border-border bg-background px-1.5 py-1 text-[11px] text-foreground">
+              <option value="none">不对照（只看本地库）</option>
+              {/* 选项文字读 sentimentCompare 那一份列名，页面不另抄一套中文（两处各写一遍迟早走偏） */}
+              {CALIBER_COLUMNS.filter((c) => c.key !== "local").map((c) => (
+                <option key={c.key} value={c.key}>加一列：{c.label}</option>
+              ))}
+            </select>
+          </label>
+          <span className="text-xs text-muted-foreground">
+            两把尺分别统计，计数不一致时保留来源差异并排摆着；「本地 −」那一列是展示层算术，不是判据。
+            {cmp === "none" ? " 现在只摆本地一列，所以没有差值可算。" : ""}
+          </span>
+        </div>
         {!sentiment?.breadth ? (
           pending(ovDone)
         ) : (
@@ -494,14 +477,16 @@ export function MarketPanorama() {
                 </div>
               ))}
             </div>
-            {/* 折线读库、不读现抓接口 —— 这一行要说出来，否则用户会以为图上的点是实时算的 */}
+            {/* 折线读库、不读现抓接口 —— 屏上只留这一行读数（几个字），
+                148 字那段"取自哪张表／谁续的一格／判据差在哪"里：出处与算理进左边那颗抽屉，
+                只把**会影响读数怎么信**那半句留在屏上（11-01「屏上只留读数」裁定 ＋ 三型声明不许进抽屉）。 */}
             {series?.available && (
-              <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground/60">
-                这两条线取自 `analytics.market_sentiment_daily`（近 {series.points?.length ?? 0} 场：
-                乐咕现抓 {series.sources?.legu ?? 0} 场、由 market_breadth 回算 {series.sources?.local ?? 0} 场），
-                每天收盘后由加工链的 `sentiment` 步续一格；回算那几格的涨停数是单边判据，
-                题材那一档可能比乐咕口径乐观半档。
+              <p className="mt-2 text-[10px] text-muted-foreground/60">
+                两条线读库：近 {series.points?.length ?? 0} 场（乐咕现抓 {series.sources?.legu ?? 0}／market_breadth 回算 {series.sources?.local ?? 0}）
               </p>
+            )}
+            {series?.available && (
+              <NoticeBar kind="warning">回算那几格的涨停数是单边判据，题材那一档可能比乐咕口径乐观半档。</NoticeBar>
             )}
           </>
         )}
@@ -511,6 +496,12 @@ export function MarketPanorama() {
         {(() => {
           const rows = buildCompareRows(sentiment, liveEmo, emotion);
           const stamps = columnStamps(sentiment, liveEmo, emotion);
+          // 显示哪几列由上面那个下拉决定；**列名与 sub 仍只住 sentimentCompare 那一份**。
+          // 本地永远在第一列（它就是主数），另一把尺切出来才跟在后面。
+          const wanted: CaliberKey[] = cmp === "none" ? ["local"] : ["local", cmp];
+          const cols = wanted.map(k => CALIBER_COLUMNS.find(c => c.key === k)).filter(Boolean) as
+            typeof CALIBER_COLUMNS;
+          const diffKey = cmp === "legu" ? "vsLegu" as const : cmp === "live" ? "vsLive" as const : null;
           const colCaliber: Record<string, string> = {
             legu: "涨停 / 真实涨停 / 跌停 / 真实跌停 / 活跃度取自乐咕乐股，不是我们算的。\n" +
                   "「真实」与普通涨跌停的差额由它自己的口径决定，具体算法未公开。\n" +
@@ -522,23 +513,70 @@ export function MarketPanorama() {
                    "\n母体在本地库里（analytics.limit_up_pool_daily，加工段每日落库），这一块不再每次开页现抓东财池。\n" +
                    (emotion?.seal_rule || ""),
           };
+          // 只摆一列数时**不摊成两列的表**（10-31 用户点名：「内容只有一点点，没点占一行，太占用空间了」）：
+          // 14 行 × 实测 37px ≈ 518px 高，纵向空间全花在表格骨架上，而每行其实只有一个数字。
+          // 对照开启（两列以上或要算差值）时才回到那张表 —— 那时并排比的是列与列的关系。
+          const compact = cols.length === 1 && !diffKey;
+          const compactView = (() => {
+            const c = cols[0];
+            const stamp = stamps[c.key];
+            return (
+              <>
+                <p className="mb-1 text-[11px] text-muted-foreground">
+                  {c.label} · {stamp.stamp || "日期未确认"}
+                  <span className="text-muted-foreground/60"> · {c.sub}</span>
+                </p>
+                {/* 列级的那句"为什么没读到"属缺数声明：留在屏上，不进抽屉 */}
+                {stamp.warn && <p className="mb-1 text-[11px] leading-relaxed text-warning">{plain(stamp.warn!)}</p>}
+                <div className="grid gap-x-6 sm:grid-cols-2">
+                  {rows.map((r) => (
+                    <div key={r.key} className="border-b border-border/20 py-[3px]">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="flex min-w-0 items-baseline gap-1 text-[11px] text-muted-foreground">
+                          <span className="truncate">{r.label}</span>
+                          {r.hint && <Caliber text={r.hint} />}
+                        </span>
+                        <span className="shrink-0 font-mono text-[13px]">{cellText(r, c.key)}</span>
+                      </div>
+                      {/* 分子分母是哪一批（例：晋级率的分母）不许因为改紧凑就丢 */}
+                      {r.values[c.key].note && (
+                        <p className="text-[10px] leading-tight text-muted-foreground/45">{r.values[c.key].note}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            );
+          })();
           return (
-            <div className="mt-3 overflow-x-auto">
+            <div className="mt-3">
+              {compact ? compactView : (
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border/50 text-xs text-muted-foreground">
                     <th className="px-2 py-2 text-left font-medium">指标</th>
-                    {CALIBER_COLUMNS.map((c) => (
+                    {cols.map((c) => (
                       <th key={c.key} className="px-2 py-2 text-right font-medium whitespace-nowrap align-bottom">
                         <span className="flex items-center justify-end gap-1">
                           {c.label}<Caliber text={colCaliber[c.key] || c.sub} />
                         </span>
                         {stamps[c.key].stamp && <span className="mt-0.5 block text-[10px] font-normal text-muted-foreground/50">{stamps[c.key].stamp}</span>}
+                        {/* 刚切过去、第一发还没回来：说清楚是"正在取"，不是"没有" */}
+                        {c.key === "live" && !liveEmo && !stamps[c.key].stamp && (
+                          <span className="mt-0.5 block text-[10px] font-normal text-muted-foreground/60">盘中截面取数中…</span>
+                        )}
                         {stamps[c.key].warn && <span className="mt-0.5 block text-[10px] font-normal leading-tight text-warning/80">{plain(stamps[c.key].warn!)}</span>}
                       </th>
                     ))}
-                    <th className="px-2 py-2 text-right font-medium whitespace-nowrap" title="本地库那一列减乐咕那一列：算不出来的格子写着为什么算不出来">本地 − 乐咕</th>
-                    <th className="px-2 py-2 text-right font-medium whitespace-nowrap" title="本地库那一列减东财实时池那一列（同一场时才是同时刻之比）">本地 − 实时</th>
+                    {diffKey && (
+                      <th className="px-2 py-2 text-right font-medium whitespace-nowrap"
+                        title={cmp === "legu"
+                          ? "本地库那一列减乐咕那一列：算不出来的格子写着为什么算不出来"
+                          : "本地库那一列减东财实时池那一列（同一场时才是同时刻之比）"}>
+                        {cmp === "legu" ? "本地 − 乐咕" : "本地 − 实时"}
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -549,13 +587,13 @@ export function MarketPanorama() {
                           <span className="text-muted-foreground">{r.label}</span>
                           {r.hint && <Caliber text={r.hint} />}
                         </span>
-                        {CALIBER_COLUMNS.map((c) => r.values[c.key].note && (
+                        {cols.map((c) => r.values[c.key].note && (
                           <span key={c.key} className="ml-1 block text-[10px] text-muted-foreground/45">
                             {c.label.split(" ")[0]}：{r.values[c.key].note}
                           </span>
                         ))}
                       </td>
-                      {CALIBER_COLUMNS.map((c) => (
+                      {cols.map((c) => (
                         <td key={c.key} className={cn("px-2 py-1.5 text-right font-mono",
                               r.values[c.key].v == null ? "text-muted-foreground/40"
                                                        : r.kind === "count" && c.key !== "legu" ? "text-foreground"
@@ -563,270 +601,47 @@ export function MarketPanorama() {
                           {cellText(r, c.key)}
                         </td>
                       ))}
-                      <td className="px-2 py-1.5 text-right font-mono text-[11px] text-muted-foreground">{diffText(r, "vsLegu")}</td>
-                      <td className="px-2 py-1.5 text-right font-mono text-[11px] text-muted-foreground">{diffText(r, "vsLive")}</td>
+                      {diffKey && (
+                        <td className="px-2 py-1.5 text-right font-mono text-[11px] text-muted-foreground">
+                          {diffText(r, diffKey)}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {/* 涨跌家数这一族只有乐咕一条来源，宽度那一档就是按它分的 —— 表里那三行会带两列 —，
-                  这一句要说出来，否则看着像"另外两列漏了数" */}
-              <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground/60">
+              </div>
+              )}
+              {/* 缺数读法声明：属「有才显示、永不进抽屉」那一型，走共用 NoticeBar（kind=missing）。
+                  两种形状都要有，所以它留在外层、不进那张表也不进紧凑那一栏。 */}
+              <NoticeBar kind="missing">
                 行上的 — 有两种：那一把尺本来没有这个指标（乐咕不收炸板、也不数连板），或这一列这一刻没读到数 ——
-                后者一定在表头写了为什么。晋级率那一行不算差：两列的「上一场」不是同一天，分母不同一批票。
-              </p>
+                后者一定在列名那一行写了为什么（对照开着时写在表头）。晋级率那一行不算差：两列的「上一场」不是同一天，分母不同一批票。
+              </NoticeBar>
             </div>
           );
         })()}
       </GlassCard>
 
-      {/* 4b. 短线情绪（连板梯队 / 打板情绪 + 2 板以上清单）
-          头部那两组格子（涨停/跌停/最高连板/连板 + 封板率/炸板率/晋级率）10-27 已经并进上面那张
-          三口径对照表，这里只留清单本身 —— 同一批数在屏上出现两遍，用户会先怀疑哪一遍是真的。 */}
-      <div className="mb-3 flex items-center gap-2">
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground"><Flame className="h-4 w-4" /> 短线情绪 · {emotion?.date || "资料日待确认"}</h3>
-        <Caliber text={
-          "母体自 2026-10-26 起在本地库里（analytics.limit_up_pool_daily，加工段每日落库），这一块不再每次开页现抓东财池。\n" +
-          (emotion?.caliber || "") + "\n" +
-          "封板率 / 炸板率：分母是本场摸过涨停的家数（收盘封住 + 收盘没封住），按家数不按开板次数。\n" +
-          (emotion?.seal_rule || "")
-        } />
-        <span className="text-[11px] text-muted-foreground/50">已收盘那一场 · 本地库判据（含北交所与 ST）· 客观公开榜单</span>
-        {/* 话术模板选择：两处（这里与首板分析）共用 TemplatePicker，不各写一份。 */}
-        <TemplatePicker templates={dive.templates} currentId={dive.currentId} onPick={dive.choose} scopeLabel="连板股" />
-        {dive.error && <span className="text-[11px] text-danger">话术模板没取到：{dive.error}（去系统配置 → AI 提示词看这一档的生效来源）</span>}
-        {/* 后端算出的日期口径（库里最近一场 ≠ 日历最近交易日时才有话），非空必须上屏 */}
-        {emotion?.caliber_note && (
-          <p className="mt-1 w-full rounded-lg bg-warning/10 px-2 py-1 text-[11px] leading-relaxed text-warning">
-            {emotion.caliber_note}
-          </p>
-        )}
-        {/* 这块锚在**已收盘那一场**（复盘口径），不跟上面的实时行情一起刷 ——
-            不标出来会和上面的实时块混在一起，让人以为它也在跳 */}
-        {emotion?.date && (
-          <span className="ml-auto text-[11px] text-muted-foreground/50">
-            {emotion.date} 收盘快照 · 只有表格里标（实时）的两列随盘刷新
-          </span>
-        )}
-      </div>
-      <GlassCard className="mb-6">
-        {!emotion || emotion.zt_count === undefined ? (
-          pending(emoDone)
-        ) : emotion.available === false ? (
-          /* 库里没有这一场的行 ≠ 今天没有涨停。这句"该跑哪一步"必须念出来，
-             否则读者会以为今天盘面上风平浪静 */
-          <p className="rounded-lg bg-warning/10 px-3 py-2 text-xs leading-relaxed text-warning">
-            {emotion.reason || "这一块读不到数"}
-          </p>
-        ) : (
-          <>
-            {/* 连板股清单（2 板以上，客观公开榜单） */}
-            <div className="mt-3">
-              <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                <p className="text-[11px] text-muted-foreground">连板股（2 板以上连续封住）· 客观公开榜单，非推荐 / 非预测 · 默认序：连板由高到低，同连板按首封先后（首封是本地分钟线自算、存到秒，显示只到分钟；同一秒的看强度）</p>
-                <span className="ml-auto">
-                  <RunAllButton
-                    dd={dd}
-                    items={emotion.lianban_stocks.map(lianbanItem)}
-                    nameOf={(k) => emotion.lianban_stocks.find((s) => s.code === k)?.name || k}
-                  />
-                </span>
-              </div>
-              {/* 「节点」这一列的 — 要怎么读：后端那句声明非空就摆出来，不折进任何默认收起的框 */}
-              <NodeWarn text={emotion.node_warn} />
-              {emotion.lianban_stocks.length === 0 ? (
-                <p className="text-xs text-muted-foreground/50">今日无 2 板以上个股</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border/50 text-left text-xs text-muted-foreground">
-                        <SortHeader label="名称" sortKey="name" dir={lbSort.dirOf("name")} onSort={sortByLb} className="whitespace-nowrap px-2 py-2 text-left text-xs font-medium" />
-                        <SortHeader label="连板" sortKey="boards" dir={lbSort.dirOf("boards")} onSort={sortByLb} className="whitespace-nowrap px-2 py-2 text-left text-xs font-medium" />
-                        {/* 「几天几板」的口径文字由后端交（判据只住 duanxian/board_span.py），
-                            页面不自己复述"几天算断"的规则；这里只补一句它与「连板」的区别。 */}
-                        <SortHeader label="几天几板" sortKey="board_ct" dir={lbSort.dirOf("board_ct")} onSort={sortByLb}
-                          title={`${emotion.days_boards_rule || "这一列的口径文字由后端交：回溯若干个交易日、从今天往前数这一轮、连续几天没封住才算断。"}\n与「连板」的区别：那一列是东财池里的当前连板数，断板一天再封就回到 1；这一列仍算在同一轮里，所以会出现「5天4板」而连板只有 1。缺数显示 —（数不出来，不是 0 板）。${emotion.days_boards_warn ? `\n注意：${emotion.days_boards_warn}` : ""}`}
-                          className="whitespace-nowrap px-2 py-2 text-left text-xs font-medium" />
-                        {/* 「首板日大盘情绪」：口径与缺档说明由后端交（判据只住 duanxian/pg_sources.py），
-                            页面不重算分档、只按分值上色。排序键用的是格子里那个分值本身，不是档位文字。 */}
-                        <SortHeader label="首板日大盘情绪" sortKey="first_board_breadth_score"
-                          dir={lbSort.dirOf("first_board_breadth_score")} onSort={sortByLb}
-                          title={`${emotion.first_board_rule || "这一列的口径文字由后端交：首板日取这一轮最早的封板日，档位取 analytics.market_sentiment_daily。"}${emotion.first_board_warn ? `\n注意：${emotion.first_board_warn}` : ""}`}
-                          className="whitespace-nowrap px-2 py-2 text-left text-xs font-medium" />
-                        {/* 「节点」：判据只住 app/compute/board_node.py，读法与措辞只住
-                            duanxian/node_view.py + lib/nodeCell.ts —— 与首板分析页同一份实现。 */}
-                        <SortHeader label="节点" sortKey="node_hits"
-                          dir={lbSort.dirOf("node_hits")} onSort={sortByLb}
-                          title={`${emotion.node_rule || "这一列的判据原文后端没交（node_rule 为空），页面不自己复述规则。"}${emotion.node_warn ? `\n注意：${emotion.node_warn}` : ""}`}
-                          className="whitespace-nowrap px-2 py-2 text-left text-xs font-medium" />
-                        <SortHeader label="首封" sortKey="seal_time" dir={lbSort.dirOf("seal_time")} onSort={sortByLb}
-                          title={`${emotion.seal_rule || "这一列的算法文字后端没交（seal_rule 为空），页面不自己复述口径。"}\n标了〈源〉的那一行：这一场本地分钟线没读到，取的是同花顺池的秒级首封时刻。`}
-                          className="whitespace-nowrap px-2 py-2 text-left text-xs font-medium" />
-                        {/* 「封板强度」的算法说明**由后端交过来**（判据只住 duanxian/seal_strength.py，
-                            页面这里显示的就是那一份，不另写一套分档）。后端没给（旧进程）时老实说没有。 */}
-                        <SortHeader label="封板强度" sortKey="seal_score"
-                          dir={lbSort.dirOf("seal_score")} onSort={sortByLb}
-                          title={emotion.seal_spec || "后端没交算法说明（这一列按强度排还是能点的；口径要看说明请刷新）"}
-                          className="whitespace-nowrap px-2 py-2 text-left text-xs font-medium" />
-                        <th className="whitespace-nowrap px-2 py-2 font-medium" title="这两列的值来自另一路实时行情（不在榜行里），给排序就会拿样本日收盘价冒充实时值，所以不给点">现价（实时）</th>
-                        <th className="whitespace-nowrap px-2 py-2 font-medium">今日涨跌（实时）</th>
-                        <SortHeader label="样本日成交额" sortKey="amount" dir={lbSort.dirOf("amount")} onSort={sortByLb} title="样本日（不是今天）的成交额，来自本地日线 market_data.stock_daily" className="whitespace-nowrap px-2 py-2 text-left text-xs font-medium" />
-                        <SortHeader label="流通市值" sortKey="float_cap" dir={lbSort.dirOf("float_cap")} onSort={sortByLb} title="优先取同花顺池原值；池里没有的票（北交所、ST 居多）用当日日线反推（100 × 成交额 ÷ 换手率）。两把尺都在这张库里，行上标了用的是哪一种（悬停可看）" className="whitespace-nowrap px-2 py-2 text-left text-xs font-medium" />
-                        <SortHeader label="涨停原因" sortKey="reason" dir={lbSort.dirOf("reason")} onSort={sortByLb} title="同花顺涨停揭秘池的编辑归因（非公司确认）。池只含沪深主板/创业板/科创板、基本不含 ST ⇒ 空着多半是「源站不收这只票」，不是「本机没采到」。源站保留窗约一年，过期就补不回来" className="whitespace-nowrap px-2 py-2 text-left text-xs font-medium" />
-                        <SortHeader label="概念" sortKey="industry" dir={lbSort.dirOf("industry")} onSort={sortByLb} title="本地 reference_data.sector_member（板块类型=概念，按名字去重，成员数少的在前＝窄题材优先），列前 3 个并给总数；显示 — 是库里没有这一档，不等于它不属于任何题材（北交所基本无概念行）" className="whitespace-nowrap px-2 py-2 text-left text-xs font-medium" />
-                        <th className="whitespace-nowrap px-2 py-2 font-medium"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {lbPaged.map((s) => (
-                        <Fragment key={s.code}>
-                          <tr className="border-b border-border/30">
-                            <td className="px-2 py-2"><StockLink code={s.code} name={s.name} className="font-medium hover:text-primary" /> <StockLink code={s.code} className="text-xs text-muted-foreground/50 underline decoration-dotted underline-offset-2 hover:text-primary">{s.code}</StockLink></td>
-                            <td className="whitespace-nowrap px-2 py-2 font-mono font-bold text-primary">{s.boards} 板</td>
-                            {/* 悬停给出这一轮真正的封板日，读者可以自己数一遍"几天几板"；
-                                数不出来时显示 —，并在悬停里说是哪一天缺行，不写成 0 板。 */}
-                            <td className="whitespace-nowrap px-2 py-2 font-mono text-muted-foreground"
-                              title={s.days_boards
-                                ? `这一轮的封板日：${(s.board_dates ?? []).map(x => String(x).slice(5)).join("、") || "—"}`
-                                  + `${s.src_high_days ? `　｜　源站那份写的是「${s.src_high_days}」（两把尺都留着，本地这份不改它）` : ""}`
-                                : "本地日线没数出这一轮（多半是 stock_daily 缺当天那行）—— 数不出 ≠ 没有板"}>
-                              {s.days_boards || <span className="text-muted-foreground/50">—</span>}
-                            </td>
-                            {/* 首板日 = 这一轮最早的那个封板日（不是今天）。格子里显示的是宽度档，
-                                档位由后端判、前端只按分值上色；悬停给完整输入（宽度/题材/涨停家数/涨跌家数/大盘情绪分注记）。
-                                空着有两种原因，悬停要分开说 —— 都不是「那天没情绪」。 */}
-                            <td className="whitespace-nowrap px-2 py-2 text-xs" title={s.first_board_note || ""}>
-                              {s.first_board_breadth ? (
-                                <span className="inline-flex items-baseline gap-1">
-                                  <span className="font-mono text-[10px] text-muted-foreground/50">{String(s.first_board_day ?? "").slice(5)}</span>
-                                  <span className={cn("font-medium", breadthTone(s.first_board_breadth_score))}>{s.first_board_breadth}</span>
-                                  {typeof s.first_board_breadth_score === "number" && (
-                                    <span className="font-mono text-[10px] text-muted-foreground/60">
-                                      {s.first_board_breadth_score > 0 ? "+" : ""}{s.first_board_breadth_score.toFixed(1)}
-                                    </span>
-                                  )}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground/50"
-                                  title={s.first_board_day
-                                    ? `首板日 ${s.first_board_day} 在 analytics.market_sentiment_daily 里没有行 —— 不是「那天没情绪」，是这条记录缺`
-                                    : "这一轮的封板日本地没数出来（原因看「几天几板」那一列），所以首板日无从定位"}>—</span>
-                              )}
-                            </td>
-                            {/* 「节点」那一格与首板分析页调的是同一份组件（`components/ui/NodeCell.tsx`）。
-                                「—」的三种来历（没这一行 / 这一场判不了 / 真没命中）由悬停与那句 node_warn 分开说。 */}
-                            <td className="whitespace-nowrap px-2 py-2 text-center">
-                              <NodeCell row={s} rule={emotion.node_rule} />
-                            </td>
-                            {/* 首封：本地分钟线自算。退回源站/两边都没有都要在格子里说出来 ——
-                                同一个列名底下混两把尺而不标注，是这一屏最容易糊过去的一件事。 */}
-                            <td className="whitespace-nowrap px-2 py-2 font-mono text-muted-foreground"
-                              title={s.seal_basis === "source"
-                                ? `这一场本地分钟线没读到，这一格取的是同花顺池的秒级首封 ${s.src_seal_time ?? "—"}（列头悬停有两条尺的差别）`
-                                : s.seal_basis === "none"
-                                  ? "分钟线里没有任何一根收盘封在档位上，源站那一份也没有 ⇒ 判不了，不是 00:00、也不是没封住"
-                                  : `本地 1 分钟线自算${s.src_seal_time ? `（源站写的是 ${s.src_seal_time}，差一分钟以内属分钟收盘与秒级撮合的固有差）` : ""}${typeof s.at_limit_minutes === "number" ? `｜封在档位上 ${s.at_limit_minutes} 分钟／共 ${s.minute_bars ?? 0} 根` : ""}`}
-                              >{s.seal_time || "—"}{s.seal_basis === "source" && <span className="ml-0.5 text-[10px] text-warning/80">源</span>}</td>
-                            {/* 分数只说"这一场封得硬不硬"（口径与权重看列头悬停）；
-                                这一格自己的悬停给出**这一行为是这个分**的三个输入。缺数显示 —，不当 0 分。 */}
-                            <td className="whitespace-nowrap px-2 py-2 font-mono" title={s.seal_note || ""}>
-                              {typeof s.seal_score === "number" ? (
-                                <span className={cn("font-bold",
-                                  s.seal_score >= 70 ? "text-danger" : s.seal_score >= 40 ? "text-foreground" : "text-muted-foreground/60")}>
-                                  {s.seal_score}
-                                </span>
-                              ) : <span className="text-muted-foreground/50" title="封单、开板次数、首封时间三项都没给：算不出强度，不当成 0 分">—</span>}
-                            </td>
-                            <td className="px-2 py-2 font-mono">
-                              {lianbanQuotes[s.code]?.price ?? (
-                                <span className="text-muted-foreground/50" title="实时行情未取到，显示昨收">
-                                  {s.price}
-                                </span>
-                              )}
-                            </td>
-                            <td className={cn("px-2 py-2 font-mono",
-                                              pctColor(finite(lianbanQuotes[s.code]?.change_pct)))}>
-                              {finite(lianbanQuotes[s.code]?.change_pct) !== null
-                                ? `${lianbanQuotes[s.code].change_pct > 0 ? "+" : ""}${lianbanQuotes[s.code].change_pct}%`
-                                : <span className="text-muted-foreground/50" title="实时行情未取到">—</span>}
-                            </td>
-                            <td className="whitespace-nowrap px-2 py-2 font-mono text-muted-foreground">{yi(s.amount)}</td>
-                            <td className="whitespace-nowrap px-2 py-2 font-mono text-muted-foreground"
-                              title={s.float_cap_basis === "daily_replay"
-                                ? "这只票不在同花顺涨停池里（北交所、ST 居多），流通市值是当日日线反推的（100 × 成交额 ÷ 换手率）"
-                                : "同花顺涨停池原值 currency_value"}>{yi(s.float_cap)}</td>
-                            <td className="max-w-56 px-2 py-2 text-xs">
-                              {s.reason ? <span className="text-foreground">{s.reason}</span> : <span className="text-muted-foreground/50">—</span>}
-                            </td>
-                            <td className="whitespace-nowrap px-2 py-2 text-xs text-muted-foreground">{s.industry || <span className="text-muted-foreground/50">—</span>}</td>
-                            <td className="whitespace-nowrap px-2 py-2 text-right">
-                              <div className="inline-flex items-center gap-1">
-                                {/* 复制这一行按当前模板渲染好的提示词（用户 09-28 要的就是这两步：
-                                    复制内容 + 选模板 → 一键 AI 分析）。复制不需要 AI 接入，随时可拿。 */}
-                                <button
-                                  onClick={() => void copyPrompt(s)}
-                                  disabled={!dive.current}
-                                  title={copied === s.code ? "已复制到剪贴板"
-                                    : copied === `fail:${s.code}` ? "浏览器拒绝了剪贴板访问，请在页面里手动复制"
-                                    : "按当前模板把这一行的提示词复制到剪贴板"}
-                                  className="inline-flex items-center gap-1 rounded-lg border border-border/60 px-1.5 py-1 text-[11px] text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-40">
-                                  {copied === s.code ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                                  {copied === s.code ? "已复制" : copied === `fail:${s.code}` ? "复制失败" : "复制提示词"}
-                                </button>
-                                <button
-                                  onClick={() => dd.toggle(lianbanItem(s))}
-                                  className="inline-flex items-center gap-1 rounded-lg border border-primary/50 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
-                                >
-                                  {dd.running === s.code ? <Loader2 className="h-3 w-3 animate-spin" /> : dd.open === s.code ? <X className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
-                                  {dd.open === s.code ? "收起" : dd.analysis[s.code] ? "展开" : "深入分析"}
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                          {dd.open === s.code && (
-                            <DeepDivePanel
-                              dd={dd}
-                              stockKey={s.code}
-                              colSpan={13}
-                              noteTitle={`连板深析 · ${s.name} ${s.boards}板`}
-                              onRerun={() => dd.rerun(lianbanItem(s))}
-                            />
-                          )}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                  {/* 分页那句与按钮全站一份算法；按钮只在真能翻的时候出现（点了没反应等于摆假控件） */}
-                  <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px]">
-                    <span className="text-muted-foreground">{pageSentence(lbSorted.length, lbSize, lbCur)}</span>
-                    {canStep(lbCur, lbSize, lbSorted.length, -1) && (
-                      <button type="button" onClick={() => setLbPage(lbCur - 1)}
-                        className="rounded-lg bg-muted/40 px-2 py-0.5 hover:bg-muted/70">上一页</button>)}
-                    {canStep(lbCur, lbSize, lbSorted.length, 1) && (
-                      <button type="button" onClick={() => setLbPage(lbCur + 1)}
-                        className="rounded-lg bg-primary/15 px-2 py-0.5 font-medium text-primary hover:bg-primary/25">下一页</button>)}
-                  </div>
-                </div>
-              )}
-            </div>
-          </>
-        )}
+      {/* 10-29 用户裁定 ③：「首板分析」那一整块搬进「短线复盘」页（挂在短线情绪两张表之后）。
+          这里不是一块空卡，也不是一句"已删除"——它是一个**能点到目的地的入口**（用户交付口径：
+          功能搬走之后，最终用户不问人也要能找到它）。跳的是带锚点的那个地址，落地页会自己滚过去。 */}
+      <GlassCard className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1.5 py-3">
+        <Layers className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+          首板分析<b className="text-foreground">已并入「短线复盘」页</b>，在短线情绪那两张表之后。
+        </p>
+        <Link to="/first-board?to=first-board-daily"
+          className="shrink-0 rounded-lg border border-primary/50 bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/20">
+          去短线复盘 · 首板分析
+        </Link>
       </GlassCard>
 
-      {/* 4d. 首板分析（用户 2026-10-21 点名：就摆在「全市场换手率 TOP20」上面）。
-          原话：「全市场换手率 TOP20 上面加一个首板分析，分析首板个股的情况，已经近期的走势，
-          分析涨停原因，特别是前一天的走势」—— 所以"前一天的走势"是这一块的主体（表里单独成组）。
-          判据在加工段 `fbdaily` 步落 `analytics.first_board_daily`，这块只读 /api/quant/first-board-daily。
-          2026-10-26 起包在 `LazySection` 里：这一块实测 2,645px／1,014 个节点，自己取数自己带控件。 */}
-      <LazySection label="首板分析">
-        <FirstBoardDailyPanel />
-      </LazySection>
       <div className="mb-3 flex items-center gap-2">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground"><BarChart3 className="h-4 w-4" /> 全市场换手率 TOP20</h3>
-        <Caliber text={
+        <BlockDoc title="全市场换手率 TOP20" text={
           "沪深京 A 股按当日累计换手率从大到小排（换手率 = 成交量 ÷ 流通股本）。\n" +
-          "排序在**取数那一侧**就定了（东财 clist 按 f8 取前 20 名）。先取成交额榜、再在前端按换手率重排，\n" +
+          "排序在取数那一侧就定了（东财 clist 按 f8 取前 20 名）。先取成交额榜、再在前端按换手率重排，\n" +
           "得到的是「成交额前 20 里的换手率榜」，那不是我给你看的这张榜。\n" +
           "盘中看到的是「到刷新那一刻为止」的累计值，不是收盘值；成交额与总市值同样按当前价、累计额算。\n" +
           "名字前面带 C 的是上市不满一年的次新股标记，不是名字的一部分。\n" +
@@ -837,7 +652,7 @@ export function MarketPanorama() {
         {/* 没数的时候整块默认收起（用户 2026-10-27 点名）：空表会被读成「今天没人换手」，
             而真实原因（限流／榜单口径变了／还在取数）收在标题右边那个折叠里，点开才占地方。 */}
         {!turnover || turnover.stocks.length === 0 ? (
-          <details className="ml-auto text-[11px] text-muted-foreground/60">
+          <details className="text-[11px] text-muted-foreground/60">
             <summary className="cursor-pointer">这一场没拿到榜单（点开看为什么）</summary>
             <p className="mt-1 max-w-[46rem] leading-relaxed">
               {plain(turnover?.reason
@@ -846,7 +661,7 @@ export function MarketPanorama() {
             </p>
           </details>
         ) : (
-          turnover?.updated && <span className="ml-auto text-[11px] text-muted-foreground/50">参考行情日 {turnover.quote_date || "未确认"} · 抓取于 {turnover.updated}</span>
+          turnover?.updated && <span className="text-[11px] text-muted-foreground/50">参考行情日 {turnover.quote_date || "未确认"} · 抓取于 {turnover.updated}</span>
         )}
       </div>
       <GlassCard className="mb-6">
@@ -931,9 +746,9 @@ export function MarketPanorama() {
       {/* 6. 板块资金趋势榜（行业）：累计两列**读库**，今日即时那一列是现抓截面 */}
       <div className="mb-3 flex items-center gap-2">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground"><TrendingUp className="h-4 w-4" /> 板块资金趋势榜</h3>
-        <Caliber text={[
-          "「今日即时」取自同花顺行业资金流的**盘中即时值**，单位亿元，净流入 = 流入 − 流出。\n" +
-          "⚠️ 那边没说明这是主力资金还是全部成交资金，所以**不能当作主力净流入**来读。",
+        <BlockDoc title="板块资金趋势榜" text={[
+          "「今日即时」取自同花顺行业资金流的盘中即时值，单位亿元，净流入 = 流入 − 流出。\n" +
+          "⚠️ 那边没说明这是主力资金还是全部成交资金，所以不能当作主力净流入来读。",
           ...(flow?.calibers ? Object.values(flow.calibers) : [
             "累计两列读 `market_data.sector_fund_flow_daily`（这张表 2026-10-06 才建，逐日一场、由加工链的 `sectorflow` 步采一次）。",
           ])].join("\n")} />
@@ -1028,11 +843,11 @@ export function MarketPanorama() {
       {/* 7. 今日即时净流入（同花顺盘中值）—— 与上面那张"份额轮动（本地逐日）"是两个口径 */}
       <div className="mb-3 flex items-center gap-2">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground"><ArrowDownUp className="h-4 w-4" /> 资金轮动 · 今日即时</h3>
-        <Caliber text={
+        <BlockDoc title="资金轮动 · 今日即时" label={docLabel('今日即时')} text={
           "就是上面那张榜的两头：流入榜只放净流入为正的、流出榜只放为负的，各取前六。\n" +
           "某一边不足六个就只列够格的那几个 —— 普跌日往往只有两三个行业真净流入。\n" +
           "口径同上：同花顺行业资金流盘中即时值，那边没说明是主力还是全部成交资金，不能当主力净流入读。\n" +
-          "这一档本地不留历史（每天覆盖），所以**它自己**拼不出连续几天；跨场的连续与累计在上面那张" +
+          "这一档本地不留历史（每天覆盖），所以它自己拼不出连续几天；跨场的连续与累计在上面那张" +
           "「份额轮动 · 本地逐日」里，那张读的是按场落库的份额统计，口径不同、不能对照着加减。"
         } />
         <span className="text-[11px] text-muted-foreground/50">板块级净流入 / 流出</span>

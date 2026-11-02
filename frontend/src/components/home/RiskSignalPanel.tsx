@@ -1,17 +1,19 @@
 import { RefreshCw, ShieldAlert } from "lucide-react";
 import { useState } from "react";
-import { Caliber } from "@/components/ui/Caliber";
-import { CaliberFold, QuietFold } from "@/components/ui/DataPanel";
+import { Caveats, Definitions, QuietFold } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
+import { splitCaveats } from "@/lib/caveatKind";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { useNonce, useProbe } from "@/lib/probe";
 import { describeState } from "@/lib/datastate";
 import { plain } from "@/lib/agent";
 import { cn } from "@/lib/utils";
 import {
-  GROUP_LABELS, NULL_TEXT, caveatText, densityScale, divergenceScale, extremeLine, extremeMarks,
+  GROUP_LABELS, NULL_TEXT, caveatText, densityScale, divergenceScale, extremeCellRows, extremeLine,
+  extremeMarks,
   fin, hoverLine, latestDivergence, levelTextTone, levelTone, numText, optionSources, periodTooltip,
   thresholdsText, trendLine, trendText, turnLine, turnMarks, xTicks,
-  type RiskExtremeRow, type RiskPanel, type RiskPeriod, type RiskTurn,
+  type RiskPanel, type RiskPeriod, type RiskTurn,
 } from "@/lib/riskSignal";
 
 /**
@@ -31,7 +33,8 @@ import {
  *  · **横轴必须有日期刻度，且悬停那两行的完整读数要停在屏上**（用户 2026-10-21：
  *    "图表中要能看得到具体的日期啊"）—— 原生 `<title>` 只算补充，不算交付；
  *  · **极端点位是后端判据交出来的**（`extremes`：量价背离 / 宽度崩塌两类），
- *    页面只按 `period` 找位置画标记、只拼句子，不自己筛、不自己算阈值，
+ *    页面只按 `period` 找位置画标记，清单那一排摆成用户 2026-11-01 点名的**五格**
+ *    （时间／指标名／数值／与阈值的比较／结果含义，四格文字全读后端、页面不自己拼判据句），
  *    命中多少 / 被上限挤掉多少 / 判不了的期数，三样都摆在折叠外面；
  *  · **趋势与转折点同样只认后端交的**（用户 2026-10-26：「这个图看不出趋势和转折点」）：
  *    上半加一条 `up_ratio_ma` 平滑线并在它上面标 `trend.rows` 的 zigzag 拐点，
@@ -63,22 +66,6 @@ function segPoints(rows: RiskPeriod[], get: (p: RiskPeriod) => number | null,
   });
   if (cur.length > 1) segs.push(cur.join(" "));
   return segs;
-}
-
-/** 清单里的一行：标记 + 后端交的那句话 + 悬停全文（原始数永远点得到） */
-function ExtremeRow({ row, onJump }: { row: RiskExtremeRow; onJump: (p: string) => void }) {
-  return (
-    <li className="flex items-start gap-1.5">
-      <span aria-hidden
-        className={cn("mt-1 inline-block h-2 w-2 shrink-0 rotate-45",
-          row.kind === "collapse" ? "bg-danger" : "bg-warning")} />
-      <button type="button" onClick={() => onJump(row.period)}
-        title={`跳到图上这一期：${extremeLine(row)}`}
-        className="text-left text-[11px] leading-relaxed text-muted-foreground hover:text-foreground">
-        {extremeLine(row)}
-      </button>
-    </li>
-  );
 }
 
 /** 转折点清单里的一行：小三角 + 后端交的那句话（点一下把悬停钉到那一期） */
@@ -144,21 +131,116 @@ export function RiskSignalPanel() {
 
   const divRows = d?.extremes?.divergence?.rows ?? [];
   const colRows = d?.extremes?.collapse?.rows ?? [];
+  const cellRows = extremeCellRows(d);
   const eTh = d?.extremes?.thresholds;
   const trendRows = d?.trend?.rows ?? [];
   const smooth = fin(d?.trend?.smooth);
   const zig = fin(d?.trend?.zigzag_pp);
 
+  /**
+   * 10-31 用户点名「都放到这块的说明里面去」：这一块唯一的说明出口是标题行最右边那颗 ——
+   * rule 那句、母体与读法、口径声明（含 pct_warmup／not_signal 那两条缺数类，本仓红线
+   * 「缺数不进抽屉」在这一块由用户当日点名覆盖，条数仍写在按钮后面、「有东西没读到」看得见）、
+   * 字段字典与图例，全部进同一口抽屉；原先长在正文里的 `CaliberFold` 那颗同名按钮与
+   * 标题旁的「口径」芯片一起撤掉。内容来源一个字没换：全是后端原句与 lib 拼好的那几句。
+   */
+  const foldNotes: (string | null)[] = d && n > 0 ? [
+    d.window ? `窗口 ${d.window.from} ~ ${d.window.to}（${d.months} 个月 · ${GROUP_LABELS[d.group ?? "day"] ?? d.group}聚合），本屏生成于 ${d.generated_at ?? "—"}。` : null,
+    `看法：家数在走强（宽度分位高）而涨额没跟上（阿姆斯分位低）⇒ 背离条发红、越红越危险；反过来钱在进、家数没跟上 ⇒ 蓝条。图上黄菱形是「家数比钱多」的极端日、红菱形是「上一期还很宽、这一期直接掉下去」的崩塌日 —— 两件事各有一条判据，和上面那条分位差是三把不同的尺（同一天的家数 vs 钱、各自的历史分位、期与期之间的落差），谁也不顶替谁。`,
+    `趋势怎么读：日频那条淡线毛刺很密，看不出方向，所以另画一条均线（粗线）；红▼／绿▲ 是均线上已被反向走够门槛的顶与底（末端还没确认的拐点一律不画，画上去就是事后诸葛）。背离条本身逐期独立、没有趋势可言，所以它下面另给一条密度线：近 N 期里有几期达到中度及以上 —— 读法是「这一段密不密集」，不是「明天会不会跌」。`,
+    d.window ? `图上这 ${n} 期的实际起止：${d.window.from_actual ?? d.window.from ?? ""} ~ ${d.window.to_actual ?? d.window.to ?? ""}。` : null,
+    d.coverage ? `库里共 ${numText(d.coverage.sessions, 0)} 场（${d.coverage.from} ~ ${d.coverage.to}）。` : null,
+    d.arms?.available && d.arms.coverage
+      ? `阿姆斯本窗口 ${numText(d.arms.coverage.rows_in_window, 0)} 行有数，全库回填到 ${d.arms.coverage.last_backfilled ?? NULL_TEXT}（本窗口有几行阿姆斯、全库到哪天）。`
+      : null,
+    legend || null,
+    trendLegend || null,
+    th ? `分位取近 ${th.window} 期滚动样本；样本不足 ⇒ —（分位是相对量不是概率：只说当期在近 ${th.window} 期样本里的位置）。` : null,
+    `转折点只打在平滑后的水位线上：背离那一族是逐期独立的（后端按全史量过 ${numText(d.coverage?.sessions ?? null, 0)} 场，相邻两期的相关只有 0.01~0.03，把分位窗口放大到 250 期也只到 0.09），对它做均线得到的拐点是噪声的平均，所以那一族只交密度线、不交拐点。`,
+    // 「这两个点之后怎么发展」＝后端现算的那一句（含样本场数与起止）。读不到就明说读不到，
+    // 不许把上一轮的中位数留在屏上当成今天的结论。
+    d.follow?.available ? d.follow.text ?? null
+      : `这两类点之后怎么发展：现在算不出 —— ${d.follow?.reason ?? "后端这次没交 follow 这一档（旧缓存或旧版本），这里不拿记忆里的中位数顶上"}`,
+    turns.unmatched > 0 ? `另有 ${turns.unmatched} 个转折点位在现序列里找不到对应期（窗口边界，图上没画）。` : null,
+    eTh ? `极端点位的阈值只住后端 \`EXTREME_THRESHOLDS\`：背离 ≥${eTh.share_gap_pp}pp 且宽度 ≥${eTh.width_min_pct}%、崩塌 ≥${eTh.collapse_drop_pp}pp 且上期宽度 ≥${eTh.prev_width_min_pct}%、每类至少标 ${eTh.max_marks} 个（最近 20 期内的命中一律保留）。` : null,
+  ] : [];
+  const noteBits = foldNotes.filter(Boolean);
+  // foldAll 那一族的分流原样搬过来：缺数／告警也进抽屉，但条数写在按钮后面（缺数这件事仍然看得见）
+  const { visible: unhealthyCav, foldable: foldableCav } = splitCaveats(d?.caveats);
+  const heldCav = [...foldableCav, ...unhealthyCav];
+  const defsCount = Object.entries(d?.definitions ?? {}).length;
+  const drawerTally = d && n > 0 ? [
+    heldCav.length - unhealthyCav.length ? `${heldCav.length - unhealthyCav.length} 条口径声明` : null,
+    unhealthyCav.length ? `${unhealthyCav.length} 条缺数与告警（本场有读不到／判不了的行）` : null,
+    noteBits.length ? `${noteBits.length} 句母体与读法` : null,
+    defsCount ? `${defsCount} 个字段解释` : null,
+  ].filter(Boolean).join(" · ") : "";
+
   return (
     <div id="risk-signal">
-    <GlassCard className="mt-4">
+    <GlassCard className="mt-4" docTitle={`风险提示 · 宽度 × 阿姆斯 · ${d?.date ?? NULL_TEXT}`}>
       <div className="mb-1.5 flex flex-wrap items-center gap-2">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
           <ShieldAlert className="h-4 w-4" /> 风险提示 · 宽度 × 阿姆斯 · {d?.date ?? NULL_TEXT}
         </h3>
-        <Caliber text={d?.rule
-          ? plain(d.rule)
-          : "档位规则由后端交（rule 字段）—— 后端没交时页面不自己复述阈值，免得出现第二份口径。"} />
+        {/* 「这块的说明」摆在标题这一行的最右边（用户 10-31）；窗口/聚合档与「重新取数」是控件，照旧排在后面。 */}
+        <span className="ml-auto flex flex-wrap items-center gap-1.5">
+          <DocDrawer title={`风险提示 · 宽度 × 阿姆斯 · ${d?.date ?? NULL_TEXT}`}>
+            <p className="whitespace-pre-line leading-relaxed">{plain(d?.rule
+              ? d.rule
+              : "档位规则由后端交（rule 字段）—— 后端没交时页面不自己复述阈值，免得出现第二份口径。")}</p>
+            {d && n > 0 && (
+              <>
+                {noteBits.length > 0 && (
+                  <DrawerSection heading="母体与读法（本屏那几句散句，后端原句）">
+                    {noteBits.map((t, i) => <p key={`n${i}`}>{plain(String(t))}</p>)}
+                  </DrawerSection>
+                )}
+                {heldCav.length > 0 && (
+                  <DrawerSection heading="口径声明（后端 caveats 原句，页面未改写）">
+                    <Caveats items={heldCav} />
+                  </DrawerSection>
+                )}
+                {defsCount > 0 && (
+                  <DrawerSection heading="这一列是什么（字段含义，后端 definitions）">
+                    <Definitions map={d.definitions} bare />
+                  </DrawerSection>
+                )}
+                {th && d.levels && (
+                  <DrawerSection heading="图例（色块与标记）">
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      {(["high", "moderate", "reverse", "none"] as const).map(k => (
+                        <span key={k} className="flex items-center gap-1">
+                          <span className={cn("inline-block h-2 w-2 rounded-sm", levelTone(k).replace("fill-", "bg-"))} />
+                          <span className={levelTextTone(k)}>{d.levels?.[k]}</span>
+                        </span>
+                      ))}
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block h-2 w-2 rotate-45 bg-warning" />极端点位·量价背离
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block h-2 w-2 rotate-45 bg-danger" />极端点位·宽度崩塌
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block h-0.5 w-4 bg-primary" />宽度均线（趋势看它）
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="text-[9px] leading-none text-danger">▼</span>均线顶
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="text-[9px] leading-none text-success">▲</span>均线底
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block h-0.5 w-4 bg-warning" />背离密度（近 N 期几期中度以上）
+                      </span>
+                    </span>
+                  </DrawerSection>
+                )}
+              </>
+            )}
+          </DocDrawer>
+          {drawerTally && <span className="text-[10px] text-muted-foreground">{drawerTally}</span>}
+        </span>
         <div className="flex items-center gap-1" role="group" aria-label="展示窗口">
           {opts.months.map(m => (
             <button key={m} type="button" aria-pressed={months === m} onClick={() => { setMonths(m); setHover(null); }}
@@ -440,10 +522,49 @@ export function RiskSignalPanel() {
                 这一窗口两类判据都没有命中（{eTh ? `背离：家数比钱多 ≥${eTh.share_gap_pp}pp 且宽度 ≥${eTh.width_min_pct}%；崩塌：上一期宽度 ≥${eTh.prev_width_min_pct}% 而一期之内掉 ≥${eTh.collapse_drop_pp}pp` : "阈值后端没交，页面不自己写"}）—— 没有命中不等于「没有风险」，窗口外的点换窗口或拉长时间档再看。
               </p>
             ) : (
-              <ul className="space-y-1">
-                {divRows.map(r => <ExtremeRow key={`d-${r.period}`} row={r} onJump={atPeriod} />)}
-                {colRows.map(r => <ExtremeRow key={`c-${r.period}`} row={r} onJump={atPeriod} />)}
-              </ul>
+              /* 五格一张表（用户 2026-11-01 点名：指标名／时间／数值／与阈值的比较结果／结果含义，
+                 并且「其他类似的提醒也要按照这个标准来写」）。四格文字全由后端 `find_extremes()` 交，
+                 页面只决定哪一格摆哪一列；日期那一格仍是图上跳转的入口，悬停读的是原始数。
+                 「结果含义」在同一类那几行里是同一句话 ⇒ 由 `extremeCellRows` 算出 `meaningSpan` 合并成一格
+                 （六行各复读一遍 70 字的段落＝把说明区搬进表格里）；不设内层滚动窗，
+                 因为整排最多 12 行（后端 `max_marks` 各类 6 个），页内再套一层滚动反而更难读。 */
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="text-left text-[10px] text-muted-foreground">
+                    <th className="py-0.5 pr-2 text-left font-normal">时间</th>
+                    <th className="py-0.5 pr-2 text-left font-normal">指标名</th>
+                    <th className="py-0.5 pr-2 text-left font-normal">数值</th>
+                    <th className="py-0.5 pr-2 text-left font-normal">与阈值的比较</th>
+                    <th className="py-0.5 text-left font-normal">结果含义</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cellRows.map(r => (
+                    <tr key={`${r.row.kind}-${r.row.period}`} className="border-t border-border/40 align-top">
+                      <td className="py-1 pr-2">
+                        <button type="button" onClick={() => atPeriod(r.row.period)}
+                          title={`跳到图上这一期：${extremeLine(r.row)}`}
+                          className="underline-offset-2 hover:underline">{r.date}</button>
+                        <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+                          {plain(r.family)}
+                        </p>
+                      </td>
+                      <td className="py-1 pr-2">{plain(r.metric) || NULL_TEXT}</td>
+                      <td className="py-1 pr-2 tabular-nums">{plain(r.valueText) || NULL_TEXT}</td>
+                      <td className="py-1 pr-2">{plain(r.compareText) || NULL_TEXT}</td>
+                      {r.meaningHead && (
+                        <td className="py-1" rowSpan={r.meaningSpan}>{plain(r.meaningText) || NULL_TEXT}</td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {cellRows.some(r => r.incomplete) && (
+              <p className="mt-1 text-[11px] leading-relaxed text-warning">
+                上面这一排里有格子缺了后端该交的那五样之一（指标名／数值／与阈值的比较／结果含义）——
+                那一格现在是 —，说的是这一格没送到，不是这一期没有读数；原始数仍可在图上悬停读到。
+              </p>
             )}
             <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground/70">
               量价背离命中 {numText(d.extremes?.divergence?.matched, 0)} 期（这里列 {divRows.length} 期
@@ -453,8 +574,6 @@ export function RiskSignalPanel() {
               {fin(d.extremes?.skipped_no_gap)
                 ? ` · ${numText(d.extremes?.skipped_no_gap, 0)} 期算不出成交额占比，背离那一类对它们没发言权（不是「没背离」）` : ""}
               {marks.unmatched > 0 ? ` · ${marks.unmatched} 个点位在现序列里找不到对应期（窗口边界，图上没画）` : ""}
-              。阈值只住后端 `EXTREME_THRESHOLDS`
-              {eTh ? `：背离 ≥${eTh.share_gap_pp}pp 且宽度 ≥${eTh.width_min_pct}%、崩塌 ≥${eTh.collapse_drop_pp}pp 且上期宽度 ≥${eTh.prev_width_min_pct}%、每类至少标 ${eTh.max_marks} 个（最近 20 期内的命中一律保留）` : ""}。
             </p>
           </div>
 
@@ -478,72 +597,10 @@ export function RiskSignalPanel() {
                 )}
               </ul>
             )}
-            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground/70">
-              转折点只打在平滑后的水位线上：背离那一族是逐期独立的（后端量过全史 1,193 期，相邻两期的相关只有
-              0.01~0.03，把分位窗口放大到 250 期也只到 0.09），对它做均线得到的拐点是噪声的平均，
-              所以那一族只交密度线、不交拐点。
-              {turns.unmatched > 0 ? ` · ${turns.unmatched} 个点位在现序列里找不到对应期（窗口边界，图上没画）` : ""}
-            </p>
+            {/* 10-31 用户点名：这一段「为什么转折点在均线上、不在背离条上」是读法，不是数 —— 搬进抽屉。 */}
           </div>
 
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
-            <span>{d.window?.from_actual ?? d.window?.from ?? ""} ~ {d.window?.to_actual ?? d.window?.to ?? ""} · {n} 期</span>
-            {d.coverage && <span>库里共 {numText(d.coverage.sessions, 0)} 场（{d.coverage.from} ~ {d.coverage.to}）</span>}
-            {d.arms?.available && d.arms.coverage && (
-              <span title="本窗口有几行阿姆斯、全库回填到哪天">
-                阿姆斯本窗口 {numText(d.arms.coverage.rows_in_window, 0)} 行有数（全库回填到 {d.arms.coverage.last_backfilled ?? NULL_TEXT}）
-              </span>
-            )}
-            {legend && <span className="w-full leading-relaxed">{legend}</span>}
-            {trendLegend && <span className="w-full leading-relaxed">{trendLegend}</span>}
-            {/* 档位图例的小色块与背离条同一份 level 键，不另起一套判据 */}
-            {th && d.levels && (
-              <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                {(["high", "moderate", "reverse", "none"] as const).map(k => (
-                  <span key={k} className="flex items-center gap-1">
-                    <span className={cn("inline-block h-2 w-2 rounded-sm", levelTone(k).replace("fill-", "bg-"))} />
-                    <span className={levelTextTone(k)}>{d.levels?.[k]}</span>
-                  </span>
-                ))}
-                <span className="flex items-center gap-1">
-                  <span className="inline-block h-2 w-2 rotate-45 bg-warning" />极端点位·量价背离
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="inline-block h-2 w-2 rotate-45 bg-danger" />极端点位·宽度崩塌
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="inline-block h-0.5 w-4 bg-primary" />宽度均线（趋势看它）
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="text-[9px] leading-none text-danger">▼</span>均线顶
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="text-[9px] leading-none text-success">▲</span>均线底
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="inline-block h-0.5 w-4 bg-warning" />背离密度（近 N 期几期中度以上）
-                </span>
-              </span>
-            )}
-            {th && (
-              <span title="分位是相对量不是概率：只说当期在近 20 期样本里的位置">
-                分位取近 {th.window} 期滚动样本；样本不足 ⇒ —
-              </span>
-            )}
-          </div>
-
-          <CaliberFold caveats={d.caveats} definitions={d.definitions}
-            notes={[d.window ? `窗口 ${d.window.from} ~ ${d.window.to}（${d.months} 个月 · ${GROUP_LABELS[d.group ?? "day"] ?? d.group}聚合），本屏生成于 ${d.generated_at ?? "—"}。` : null]} />
-
-          {/* 备注（用户原话）：这两条线回答的是"量能与家数是否合拍"，不给买卖动作 */}
           <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground/60">
-            看法：家数在走强（宽度分位高）而涨额没跟上（阿姆斯分位低）⇒ 背离条发红、越红越危险；
-            反过来钱在进、家数没跟上 ⇒ 蓝条。图上黄菱形是「家数比钱多」的极端日、红菱形是「上一期还很宽、这一期直接掉下去」的崩塌日 ——
-            两件事各有一条判据，和上面那条分位差是三把不同的尺（同一天的家数 vs 钱、各自的历史分位、期与期之间的落差），谁也不顶替谁。
-            趋势怎么读：日频那条淡线毛刺很密，看不出方向，所以另画一条均线（粗线）；
-            红▼／绿▲ 是均线上已被反向走够门槛的顶与底（末端还没确认的拐点一律不画，画上去就是事后诸葛）。
-            背离条本身逐期独立、没有趋势可言，所以它下面另给一条密度线：近 N 期里有几期达到中度及以上 ——
-            读法是「这一段密不密集」，不是「明天会不会跌」。
             这是量价配合的形状读数，不预测、不构成投资建议。
           </p>
         </>

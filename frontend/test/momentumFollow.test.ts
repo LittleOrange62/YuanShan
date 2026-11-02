@@ -144,7 +144,7 @@ test('截断声明、— 与 0 的分工、空栏计数在默认可见处；长�
   assert.doesNotMatch(box, /parentTruncationSentence|missNext|popHint|<Caveats/,
     '截断、计数、告警、caveat 都不许折进框');
   assert.match(box, /STOCK_ROW_HINT/, '「怎么点」折进框');
-  assert.match(board, /\{x\.popHint && <p role="status" className="[^"]*text-warning"/,
+  assert.match(board, /\{x\.popHint && <NoticeBar kind="warning"/,
     '弹窗被拦的告警渲染在框外');
 });
 

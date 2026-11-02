@@ -12,7 +12,8 @@ import { nodeText, nodeTone, reasonText, titleOf, warnText, REASON_TEXT } from '
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const firstBoard = fs.readFileSync(path.join(HERE, '../src/pages/FirstBoard.tsx'), 'utf8');
-const panorama = fs.readFileSync(path.join(HERE, '../src/components/home/MarketPanorama.tsx'), 'utf8');
+// 10-29 并表：连板股那张表从首页搬进短线复盘页，成了 `components/review/LimitUpBoard.tsx`
+const limitUp = fs.readFileSync(path.join(HERE, '../src/components/review/LimitUpBoard.tsx'), 'utf8');
 const comp = fs.readFileSync(path.join(HERE, '../src/components/ui/NodeCell.tsx'), 'utf8');
 const readSide = fs.readFileSync(path.join(HERE, '../../duanxian/node_view.py'), 'utf8');
 const judge = fs.readFileSync(path.join(HERE, '../../app/compute/board_node.py'), 'utf8');
@@ -75,24 +76,25 @@ test('整场那句声明：非空才画，页面不自己补一句"今天没命�
   assert.match(warnText('这一场上证没有当天的那根日线'), /上证/);
 });
 
-/* ── 接线：两个调用点真的用同一份 ── */
+/* ── 接线：调用点真的用的是共用那份 ── */
 
-test('首板页与首页连板榜调的是同一份组件，不各写一格', () => {
-  for (const [who, src] of [['首板页', firstBoard], ['首页连板榜', panorama]] as const) {
-    assert.match(src, /from "@\/components\/ui\/NodeCell"/, `${who} 没引共用块`);
-    assert.match(src, /<NodeCell row=\{/, `${who} 没画那一格`);
-    assert.doesNotMatch(src, /node_hits === |renderNode|NODE_LABEL/, `${who} 又自己写了一份翻译`);
-  }
-  // 整场声明两处都要摆，而且不能只在一处摆
-  assert.match(firstBoard, /<NodeWarn text=\{data\?\.node_warn\} \/>/);
-  assert.match(panorama, /<NodeWarn text=\{emotion\.node_warn\} \/>/);
+test('节点那一格只有一处调用点，而且用的是共用组件', () => {
+  // 10-29 并表之前这里是两个调用点（首板页那张池子表 + 首页连板榜）；现在那张名单只剩
+  // 「涨停分析」一处。**钉子跟着搬家，没有放宽**：共用块照样不许被抄第二份。
+  assert.match(limitUp, /from "@\/components\/ui\/NodeCell"/, '涨停分析没引共用块');
+  assert.match(limitUp, /<NodeCell row=\{/, '涨停分析没画那一格');
+  assert.doesNotMatch(limitUp, /node_hits === |renderNode|NODE_LABEL/, '涨停分析又自己写了一份翻译');
+  // 整场那句声明要摆，不能只摆一半
+  assert.match(limitUp, /<NodeWarn text=\{data\.node_warn\} \/>/);
+  // 页面本体不许再自己拼节点格（它现在只挂载那张表）
+  assert.doesNotMatch(firstBoard, /node_hits === |renderNode|NODE_LABEL|<NodeCell/,
+    'pages/FirstBoard.tsx 又长出一份节点格：名单只准住 LimitUpBoard 一处');
+  assert.match(firstBoard, /<LimitUpBoard day=\{day\} \/>/, '页面得真的把那张表挂上，否则共用块没人调');
 });
 
 test('列头的判据原文读后端 node_rule；后端没给就明说没有', () => {
-  assert.match(firstBoard, /data\?\.node_rule/);
-  assert.match(panorama, /emotion\.node_rule/);
-  assert.match(firstBoard, /后端没交 node_rule/);
-  assert.match(panorama, /node_rule 为空/);
+  assert.match(limitUp, /data\.node_rule/);
+  assert.match(limitUp, /node_rule 为空/);
 });
 
 test('读侧那一份才是口径出处：前端没有第二条判据文案', () => {

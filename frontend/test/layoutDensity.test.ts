@@ -54,3 +54,11 @@ test('右侧 AI 栏可收起：状态存本地、收起后留一条把手', () =
   // localStorage 可能禁用（隐私模式）：写失败要说出来，不能静默"以为记住了"
   assert.match(layout, /catch \{ setStorageError\('无法保存右侧栏选择。'\); \}/);
 });
+
+test('11-01 补：页头右上角那一坨不许把内容区顶出页面级横向滚动条', () => {
+  // `shrink-0` 钉住的是"内容一行排开的宽度"，所以页头 actions 一多（搜索框 + 两颗按钮 + 「这块的说明」）
+  // 整列就被顶宽 —— 实测 `/stock-review` 溢出 53px、`/volume-double` 925px（注入 max-width:100% 后归零）。
+  const header = readFileSync(new URL('../src/components/ui/PageHeader.tsx', import.meta.url), 'utf8');
+  assert.match(header, /actions && <div className="flex max-w-full shrink-0 flex-wrap/,
+    '页头 actions 要允许占满后折行：整页长出一条横向滚动条时，正文里钉住的列也会跟着平移');
+});

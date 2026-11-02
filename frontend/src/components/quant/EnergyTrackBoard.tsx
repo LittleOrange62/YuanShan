@@ -12,6 +12,7 @@ import { plain } from "@/lib/agent";
 import { pct } from "@/lib/qd";
 import { rankText, rankTitle, trimNum } from "@/lib/ranking";
 import { pctColor } from "@/lib/colors";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 倍量形态页 →「加权分进榜后的逐日涨跌幅」（`GET /api/quant/energy-track`）。
@@ -121,7 +122,6 @@ export function EnergyTrackBoard({ nonce, date, vd }: {
   return (
     <Panel title="加权分进榜后的逐日涨跌幅" state={track}
       slowHint="母体、每只票的全史首次进榜日、起算日到今天每一场的后复权涨跌幅都在库里现取：首取实测 3.1 秒（10-26，改前 12.5 秒），之后一小时内同一场同一批 0.69 秒 —— 那 0.69 秒是出体与压缩，库里一件没跑；按过上面「重取这一块」就连那层缓存一起绕过去。同一份返回未压缩 1.88 MB、压缩后 21.4 万字节（列一直铺到今天）"
-      note="母体＝基准日这一场加权分的前 N 名（N 是上限，边界同分并列一起进来，所以只数可以多于 N）；每行的起算日是它全史里第一次排进前 N 名那一场，格子里是起算日之后每一场的当日涨跌幅（后复权，与上面榜尾那两列同一把尺）。今天的第几名与最早哪天进榜是两个时点，分开读；名次规则读接口的 rank.rule，分页每页行数读 page_size。"
       controls={<div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1 text-[11px] text-muted-foreground"
           title="母体＝当日加权分前 N 名。N 是上限、不是恰好几只：名次线落在 N 以内时，边界那一批并列的票一起算进来，所以只数可以比 N 多几只（接口 rows_capped 为 true 就是这种时候）——这张表的行数不保证正好等于你填的 N。为什么不用分数门槛：分值一改，门槛对应的只数就跟着漂，而「前 N 名」与档表无关 —— 怎么改配置这张表都是同样的页数。留空或清空就吃接口回显的 top_n_default（出厂值只住后端一处）。改了立刻重新取数。">
@@ -197,6 +197,7 @@ export function EnergyTrackBoard({ nonce, date, vd }: {
                 以及 `vd.popHint`：缺数／截断／失败一族的 caveat 由 `CaliberFold` 自己留在屏上。 */}
             <CaliberFold caveats={d.caveats} definitions={d.definitions}
               coverage={{ volume_double: { from: d.coverage?.lo ?? null, to: d.coverage?.hi ?? null, sessions: d.coverage?.sessions ?? null } }}
+              notes={["母体＝基准日这一场加权分的前 N 名（N 是上限，边界同分并列一起进来，所以只数可以多于 N）；每行的起算日是它全史里第一次排进前 N 名那一场，格子里是起算日之后每一场的当日涨跌幅（后复权，与上面榜尾那两列同一把尺）。今天的第几名与最早哪天进榜是两个时点，分开读；名次规则读接口的 rank.rule，分页每页行数读 page_size。"]}
               provenance={[d.source]} />
 
             <div className="mt-2 overflow-x-auto">
@@ -305,7 +306,7 @@ export function EnergyTrackBoard({ nonce, date, vd }: {
                 </p>
               )}
               {/* 弹窗被拦的告警是**告警**，留在框外（下面那句"怎么点"收进说明框了） */}
-              {vd.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{vd.popHint}</p>}
+              {vd.popHint && <NoticeBar kind="warning">{vd.popHint}</NoticeBar>}
               {sorted.length > PAGE && (
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
                   <span>共 {sorted.length} 行 · 每页 {PAGE} 行，现在是第 {cur}/{pages} 页

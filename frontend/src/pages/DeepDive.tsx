@@ -10,6 +10,7 @@ import { agentFetch, safeArray, type DeepDiveData, type JobStatus } from "@/lib/
 import { emUrl } from "@/lib/quoteLink";
 import { useLinkTemplates } from "@/lib/quoteLinkTemplates";
 import { StockLink } from "@/components/ui/StockLink";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 
 const DISCLAIMER =
   "本页由多 agent AI 基于公开数据现场生成，结论为 AI 判断，仅供参考，不构成投资建议；市场有风险，决策与盈亏自负。";
@@ -173,10 +174,33 @@ export function DeepDive() {
             </p>}
           {metaLine}
         </div>
-        {startBtn}
+        {/* 用户 2026-10-29 第 4 条：每个展示模块都要有一颗「这块的说明」。这一块原来只有摊在按钮下面
+            那一句静态说明（谁去取数、会不会花 token、改不改首页 Agent 开关），现在收进抽屉；
+            **对象与"屏上这份是哪一只"那两句仍留在屏上**（后者不同一只时是告警色，按红线不进弹窗）。 */}
+        <div className="flex shrink-0 items-center gap-2">
+          <DocDrawer title="多空辩论">
+            <DrawerSection heading="这一块跑不跑、要多久、动用什么">
+              <p>
+                不自动跑：进页只读本机里<b className="text-foreground">最近一次已生成</b>的那份报告，
+                生成新的要点「开始多空辩论」（会用已接入的 AI 来源出网取数，一次约 2-3 分钟，且要花 token）。
+                本次任务使用已保存的 AI 来源获取公开资料并执行四维分析与辩论（4 位分析师 + 多空辩论），
+                <b className="text-foreground">不改变首页 Agent 开关</b>。
+                想中止就点「取消本次深挖」；中途关掉页面再回来，可以用「恢复本次请求 / 查询状态」。
+              </p>
+            </DrawerSection>
+            <DrawerSection heading="屏上这份报告是哪一只">
+              <p>
+                点是上方选中的那一只（地址里的 <code>symbol</code>），显示的是最近一次已生成的那份 ——
+                两者未必同一只。不同一只时屏上会用告警色点名并给出报告自己的名称与代码，
+                那句话按红线留在屏上、不收进这里。
+              </p>
+            </DrawerSection>
+          </DocDrawer>
+          {startBtn}
+        </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">本次任务使用已保存的 AI 来源获取公开资料并执行四维分析与辩论，不改变首页 Agent 开关。{stage && `当前阶段：${stage}`}</p>
+      {stage && <p className="text-xs text-muted-foreground">当前阶段：{stage}</p>}
       {!running && <button onClick={() => { target.current = ""; sessionStorage.removeItem(acceptedKey); void loadLatest(); void pollOnce(); }} className="rounded-lg border border-border px-3 py-2 text-sm">查看最近完成报告</button>}
       {running && <button onClick={cancel} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm"><Square size={14} />取消本次深挖</button>}
       {recovery && !running && <button onClick={() => deepdive(true)} className="rounded-lg border border-border px-3 py-2 text-sm">恢复本次请求 / 查询状态</button>}

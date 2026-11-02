@@ -97,6 +97,39 @@ def _tally(stocks: list[dict]) -> dict:
     return reason_tags.tally(stocks, scope='这一批票（首板口径，涨停原因来自源站编辑归因，不是公司确认事实）')
 
 
+#: 概念榜摆几条（用户 2026-10-29 点名「排列前 10 个」）。条数只在这一个常量里，
+#: 界面不许自己 slice —— 两边各截一次就会出现"屏上 10 条、接口 20 条"那种对不上。
+CONCEPT_TOP = 10
+
+
+def concept_board(codes: list[str]) -> dict:
+    """「首板 · 概念板块 重复出现的类别」：按挂上该概念的**只数**从高到低，取前 `CONCEPT_TOP`。
+
+    反向计数与"这个概念全市场有多少成员""这批票占它多少"三件事**只住
+    `duanxian/pg_sources.py::concept_rollup` 一份**（倍量榜与四维象限那两屏读的是同一份），
+    这里只挑前 N 并把分母与出处交出去。排序、按名字去重、`out_date` 未出这些口径都在那边。
+    """
+    from duanxian import pg_sources
+
+    roll = pg_sources.concept_rollup(codes)
+    rows = roll.get('rows') or []
+    return {
+        'rows': rows[:CONCEPT_TOP],
+        'rows_total': len(rows),
+        'top': CONCEPT_TOP,
+        'pool_size': roll.get('pool_size'),
+        'covered': roll.get('covered'),
+        # 查询坏了 ≠ 这批票没有题材：调用方必须能把这两种分开（那一族老毛病）
+        'failed': bool(roll.get('failed')),
+        'caliber': (
+            '概念归属读本地 reference_data.sector_member（板块类型=概念、成员未出、按概念名去重后数只数）：'
+            '一只票可以挂多个概念 ⇒ 各条只数加起来会大于分母（这批首板的只数），这一列不是百分比。'
+            '旁边那张「所属行业」榜用的是东财池的行业列，与这套概念是两套归属体系 —— '
+            '同一只票在两榜里落进不同的类，既不能相加也不能互证。'
+            '只数最高的未必是共性最强的：宽概念（全市场成员几千只）天然排前面，'
+            '所以每行同时给"全市场成员数"和"这批票占它的比例（集中度）"两列。')}
+
+
 def _hhmm(v) -> str:
     """池内时间字段（HHMMSS 整数）→ 'HH:MM'。"""
     s = str(_num(v)).zfill(6)
@@ -242,6 +275,7 @@ def _first_board(date: str | None = None) -> dict:
         "node_rule": node_view.RULE_NOTE,
         "node_warn": node_warn,
         **_tally(stocks),
+        "concept_board": concept_board([s["code"] for s in stocks]),
     }
 
 

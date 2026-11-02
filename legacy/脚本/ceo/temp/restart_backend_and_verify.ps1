@@ -54,8 +54,13 @@ if (-not $apiOk) { W 'WARN: backend API not ready in time' }
 # 6. 网络与飞书 API 自检
 W ('DNS open.feishu.cn -> ' + ((Resolve-DnsName 'open.feishu.cn' -ErrorAction SilentlyContinue | Where-Object { $_.Type -eq 'A' } | Select-Object -First 3 -ExpandProperty IPAddress) -join ', '))
 try {
-    $token = Invoke-RestMethod -Uri 'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal' -Method Post -ContentType 'application/json' -Body '{"app_id":"<REDACTED-LARK-APP-ID>","app_secret":"<REDACTED-LARK-APP-SECRET>"}' -TimeoutSec 10
+    $appSecret = $env:FEISHU_APP_SECRET
+    if (-not $appSecret) {
+        W 'WARN: FEISHU_APP_SECRET not set, skipping feishu token check'
+    } else {
+    $token = Invoke-RestMethod -Uri 'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal' -Method Post -ContentType 'application/json' -Body ('{"app_id":"cli_a93ff9b931b89bdb","app_secret":"' + $appSecret + '"}') -TimeoutSec 10
     W ("feishu token API -> code=" + $token.code + " msg=" + $token.msg)
+    }
 } catch { W ('feishu token API FAILED: ' + $_.Exception.Message) }
 
 W '=== backend restart done ==='

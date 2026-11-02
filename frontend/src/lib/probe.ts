@@ -94,27 +94,33 @@ async function interpret<T>(resp: Response, full: string): Promise<DataState<T>>
 /** `nonce` 递增即重取；`path` 变化（如换了股票代码）也重取。
  *  `skip` 为真时**这一轮根本不发请求**（如页面还没选中标的）：交回 `idle`，
  *  而不是发一次注定 422 的空参数请求 —— 后端会拒，控制台一片红，而那些请求
- *  本来就不该存在。 */
+ *  本来就不该存在。
+ *  `idleNote` 给的是"为什么没发"那句话：一屏多块排队时，那一块要说的是"排在前面那块之后"，
+ *  不是"没有可查的对象"—— 两者是不同的事，混说一句就成了谎话。 */
 export function useProbe<T>(path: string, nonce: number,
-  query?: Record<string, string | number | undefined>, skip = false): DataState<T> {
+  query?: Record<string, string | number | undefined>, skip = false,
+  idleNote?: string): DataState<T> {
   const key = JSON.stringify(query ?? {});
-  const [state, setState] = useState<DataState<T>>(skip ? IDLE : { kind: "loading" });
+  const idleReason = idleNote ?? IDLE_REASON;
+  const [state, setState] = useState<DataState<T>>(skip ? { kind: "idle", reason: idleReason }
+                                                        : { kind: "loading" });
   useEffect(() => {
-    if (skip) { setState(IDLE); return; }
+    if (skip) { setState({ kind: "idle", reason: idleReason }); return; }
     let live = true;
     setState({ kind: "loading" });
     probe<T>(path, key === "{}" ? undefined : (JSON.parse(key) as Record<string, string | number>))
       .then(next => { if (live) setState(next); });
     return () => { live = false; };
+    // idleReason 故意不进依赖：它是句子不是条件，句子变了不该把已经回来的数重取一遍
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, key, nonce, skip]);
   return state;
 }
 
-const IDLE: DataState<never> = {
-  kind: "idle",
-  reason: "这一屏还没有可查的对象（比如没选中标的），所以没有发请求 —— "
-    + "这不是接口坏了，也不是没有数据。选好对象后点「重新取数」。",
-};
+/** 默认那句「为什么没发」：一屏还没选出对象时的说法（分批取数里排队那一句由调用方交，见 `lib/stageLadder.ts`）。
+ *  这里只留句子，不留对象 —— `DataState<never>` 取不到 `.reason`，写成对象再点属性是绕远路。 */
+const IDLE_REASON = "这一屏还没有可查的对象（比如没选中标的），所以没有发请求 —— "
+  + "这不是接口坏了，也不是没有数据。选好对象后点「重新取数」。";
 
 /** 带参数的重取（个股类页面：代码 + 日期都要能换） */
 export function useProbeParams<T>(path: string, nonce: number, query: Record<string, string | number | undefined>): DataState<T> {
@@ -125,3 +131,6 @@ export function useNonce(): [number, () => void] {
   const [nonce, setNonce] = useState(0);
   return [nonce, () => setNonce(n => n + 1)];
 }
+
+/** `idleNote` 那一条见 `lib/stageLadder.ts`：一屏多块分批取数时，排队中那一块要念的是
+ *  「排在上面那块之后自动取数（还没发这一条请求）」，不是默认的「还没有可查的对象」。 */

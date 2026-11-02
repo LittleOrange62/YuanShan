@@ -44,8 +44,11 @@ def test_没有definitions的块只登记出处并说明为什么没有():
 
 
 def test_块序与页面挂载顺序一致():
+    # 2026-10-28 用户点名「量价走势移动到这只票的量化档案的前面」⇒ pv 提到第 2 位。
+    # 另一份真源是前端 JSX（`StockReview.tsx`），由 `frontend/test/stockReviewReads.test.ts` 钉住：
+    # 只改这里＝屏幕上没换，总账这一屏先变了 —— 两边必须一起改。
     assert [b['key'] for b in L.BLOCKS] == \
-        ['facts', 'dossier', 'trend', 'financials', 'pv', 'similarity', 'research', 'debate']
+        ['facts', 'pv', 'dossier', 'trend', 'financials', 'similarity', 'research', 'debate']
 
 
 def test_总账里没有的那个块不许冒充有指标():

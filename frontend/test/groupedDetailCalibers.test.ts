@@ -62,8 +62,11 @@ test('日均与区间的换算、以及除权那只假暴跌，都要在屏上�
 });
 
 test('后端原样给出的散文字段过 plain()，星号不许漏进渲染文本', () => {
-  // 这两块是"后端散文"，与 CaveatText 同一个出口待遇；数据值（代码、数值）一律不包 plain()
-  assert.match(PAGE, /\{Object\.entries\(d\.indicator_meaning\)\.map\(\(\[k, v\]\) => \(\s*<p key=\{k\}[^\n]*\{plain\(v\)\}/);
-  assert.match(PAGE, /\{Object\.entries\(d\.score_meaning\)\.map\(\(\[k, v\]\) => \(\s*<p key=\{k\}[^\n]*\{plain\(v\)\}/);
+  // 这两块是"后端散文"，与 CaveatText 同一个出口待遇；数据值（代码、数值）一律不包 plain()。
+  // 10-31：字段义/操作分那两份从表上方的 ExplainBox 折框搬进了标题行那颗按钮的抽屉，
+  // 数据变量跟着从渲染态的 `d` 换成组件顶层的 `sd`（render-prop 只在有数时画，抽屉在标题行，
+  // hook 与读数都得在顶层拿 —— 同「个股信息」那一块的形状）。出口与过闸的规矩没变。
+  assert.match(PAGE, /\{Object\.entries\(sd\.indicator_meaning\)\.map\(\(\[k, v\]\) => \(\s*<p key=\{k\}[^\n]*\{plain\(v\)\}/);
+  assert.match(PAGE, /\{Object\.entries\(sd\.score_meaning\)\.map\(\(\[k, v\]\) => \(\s*<p key=\{k\}[^\n]*\{plain\(v\)\}/);
   assert.match(PAGE, /import \{ plain \} from "@\/lib\/agent"/);
 });

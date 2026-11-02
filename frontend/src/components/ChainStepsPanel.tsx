@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { ExplainBox } from "@/components/ui/DataPanel";
 import { jobCardClass, jobLabelClass } from "@/lib/colors";
 import { snapshotAgeText } from "@/lib/jobs";
 import { loadChainSteps, rerunChainStep, type ChainStepRow, type ChainStepsState } from "@/lib/chainSteps";
@@ -54,7 +55,7 @@ export function ChainStepsPanel() {
   const rt = s?.retry;
 
   return (
-    <GlassCard>
+    <GlassCard docTitle="加工段逐步结果与单步补跑">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-semibold">加工段逐步结果与单步补跑</h2>
         <span className={cn("rounded-md px-1.5 py-0.5 text-[11px]", jobLabelClass(tone))}>
@@ -71,7 +72,7 @@ export function ChainStepsPanel() {
       {notice && <p className="mt-2 text-[11px] text-warning">{notice}</p>}
 
       {s && !s.available && (
-        <p className="mt-2 text-[11px] text-muted-foreground">{s.reason ?? "后端没有给出原因"}</p>
+        <p className="mt-2 text-[11px] text-muted-foreground">{plain(s.reason ?? "后端没有给出原因")}</p>
       )}
 
       {s?.available && (
@@ -81,7 +82,7 @@ export function ChainStepsPanel() {
             （{snapshotAgeText(s.written_at, Date.now())}）
             {s.ran_only?.length ? `　这次只用 --only 跑了：${s.ran_only.join("、")}` : ""}
           </p>
-          {s.line && <p className="mt-1 text-[11px]">{s.line}</p>}
+          {s.line && <p className="mt-1 text-[11px]">{plain(s.line)}</p>}
           {!!s.lagging_tables?.length && (
             <p className="mt-1 text-[11px] text-warning">
               ⚠ 跑完仍没追上目标日的表：{s.lagging_tables.join("、")}
@@ -92,13 +93,13 @@ export function ChainStepsPanel() {
           )}
           <p className="mt-1.5 text-[11px] text-muted-foreground">
             共 {steps.length} 步进过账：成功 {good.length}、没成 {bad.length}、按口径拒写 {refused.length}。
-            跳过没跑的步骤不进账（它们本来就没执行）。「补跑这一步」走的是加工段的同一把锁
-            —— 15:59 那条链正在跑时会直接回"本次未触发"，不会起第二个采集进程。
           </p>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            按口径拒写不是故障：那是"归属日证明不了就不写"（例如今天不是交易日）。
-            它不会被夜间阶梯重试，也不该被读成坏了 —— 要看原因请展开那一行。
-          </p>
+          <ExplainBox title="这几行要怎么读（补跑走哪把锁 · 按口径拒写不是故障 · 跳过为什么不进账）">
+            <p>跳过没跑的步骤不进账（它们本来就没执行）。「补跑这一步」走的是加工段的同一把锁
+              —— 15:59 那条链正在跑时会直接回「本次未触发」，不会起第二个采集进程。</p>
+            <p className="mt-1.5">按口径拒写不是故障：那是「归属日证明不了就不写」（例如今天不是交易日）。
+              它不会被夜间阶梯重试，也不该被读成坏了 —— 要看原因请展开那一行。</p>
+          </ExplainBox>
 
           {rt && (
             <p className="mt-1.5 rounded-lg border border-border/60 px-2 py-1.5 text-[11px] leading-relaxed">
@@ -166,11 +167,11 @@ function StepRow({ st, busy, onRerun }: {
       <div className="mt-1 grid gap-0.5 text-[11px] text-muted-foreground">
         <div>用时 {st.seconds ?? DASH} 秒{typeof st.rounds === "number" && st.rounds > 1 ? `　第 ${st.rounds} 轮（前面重试过）` : ""}
           　{st.module ? `模块 ${st.module}` : ""}</div>
-        {st.reason && <div className={ok ? "" : refused ? "" : "text-warning"}>原因：{st.reason}</div>}
+        {st.reason && <div className={ok ? "" : refused ? "" : "text-warning"}>原因：{plain(st.reason)}</div>}
         {!ok && st.tail && (
           <details className="text-[11px]">
             <summary className="cursor-pointer">看输出末尾</summary>
-            <pre className="mt-1 whitespace-pre-wrap break-all rounded bg-muted/40 p-1.5">{st.tail}</pre>
+            <pre className="mt-1 whitespace-pre-wrap break-all rounded bg-muted/40 p-1.5">{plain(st.tail)}</pre>
           </details>
         )}
       </div>

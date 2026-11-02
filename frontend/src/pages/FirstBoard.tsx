@@ -1,368 +1,255 @@
 /**
- * 「日间复盘及首板」（原名「首板分析」，用户 2026-10-26 裁定改名；路由 `/first-board` 不变）。
+ * 「短线复盘」（原名「首板分析」→ 10-26「日间复盘及首板」→ 10-28 用户裁定改成本名；路由 `/first-board` 不变）。
  *
- * 上半部分＝盘中涨跌停事件流（`components/intraday/EventStreamPanel.tsx`，只读
- * `GET /api/intraday/timeline`）；下半部分＝按连板档位分的首板样本。
+ * 本屏从上到下五段（10-28 四点裁定的自洽读法，用户原话「整体上移」）：
+ *   ① 盘中涨跌停事件流（`components/intraday/EventStreamPanel.tsx`，只读 `GET /api/intraday/timeline`）
+ *   ② 本页交易日选择器（候选项只来自接口给的 `available_dates`）
+ *   ③ 涨停原因／所属行业 · 重复出现的类别 两张榜（用户 09-28 点名要，10-28 点名上移到这里）
+ *   ④ 短线情绪（大块）＝ 涨停分析 ＋ 跌停分析（`components/review/LimitUpBoard.tsx`／`LimitDownBoard.tsx`）
+ *   ⑤ 首板分析（从首页搬过来，挂在短线情绪之后）
  *
  * ⚠️ 同一天的另一条裁定，写给下一个会话看：**这一屏允许在界面上逐只列出个股代码与名称。**
  *   `vr/astock.py:511` 那条「原始池含 code/name，切勿直接接成 API/UI（零标的红线）」在本屏让一步 ——
  *   事件流的母体是库里那批事件行（`analytics.intraday_pool_event`），经读侧出口
  *   `duanxian/intraday_view.py` 出来，页面不直接调 `vr/astock.py` 的原始池。
  *   这不是漏改的缺陷，别把它改回去。（2026-10-26 用户原话背景：盘中数据与事件流要展示在这一屏上半部分。）
+ *
+ * ⚠️ 10-29 并表那一步留下的一条线：③ 两张榜的母体仍来自**东财实时池**（`/api/market/first-board`），
+ *   因为「所属行业」这一列本机只有池子给得出（`reference_data.security` 没有行业列）。
+ *   ④ 那两张表读的却是**本地库**（lup-1 / stock_daily）—— 同一个屏幕上并排放着两把尺的数，
+ *   所以两张榜的分母那句（「这一批 N 只首板」）与表头那句「本场封住 M 家」不许合并成一句话。
  */
-import { Fragment, useEffect, useState } from "react";
-import { SortHeader } from "@/components/ui/SortHeader";
-import { useTableSort } from "@/lib/useSort";
-import { STOCK_ROW_HINT, useStockRowInteraction } from "@/lib/useStockRowInteraction";
-import { Flame, Loader2, Sparkles, AlertCircle, X, Copy, Check } from "lucide-react";
+import { Flame, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { FirstBoardDailyPanel } from "@/components/home/FirstBoardDailyPanel";
+import { FirstBoardDeep } from "@/components/review/FirstBoardDeep";
+import { LazySection } from "@/components/ui/LazySection";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { ExplainBox } from "@/components/ui/DataPanel";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { Caliber } from "@/components/ui/Caliber";
+import { DocDrawer } from "@/components/ui/DocDrawer";
 import { Disclaimer } from "@/components/ui/Disclaimer";
-import { useDeepDive, DeepDivePanel, RunAllButton, type DiveItem } from "@/components/ui/DeepDive";
-import { renderPrompt, useTemplatePicker, type PromptValues } from "@/lib/prompts";
-import { api, type FirstBoardData, type FirstBoardStock } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { StockLink } from "@/components/ui/StockLink";
-import { TemplatePicker } from "@/components/ui/TemplatePicker";
-import { NodeCell, NodeWarn } from "@/components/ui/NodeCell";
 import { EventStreamPanel } from "@/components/intraday/EventStreamPanel";
-
-const fmt = (v: number) => v.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
-const yi = (v: number | null) => (v == null ? "—" : `${fmt(v / 1e8)} 亿`); // 元 → 亿
+import { LimitDownBoard } from "@/components/review/LimitDownBoard";
+import { LimitUpBoard } from "@/components/review/LimitUpBoard";
+import { NoticeBar } from "@/components/ui/NoticeBar";
+import { api, type FirstBoardData } from "@/lib/api";
+import { plain } from "@/lib/agent";
+import { cn } from "@/lib/utils";
 
 const dateLabel = (d: string) =>
   d.length === 8 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}` : d;
-
-/** 四档（连板数 = 1 / 2 / 3 / ≥4）。行序由后端按各档规则排好，页面不再排第二次。 */
-const TIER_KEY = "first-board-tier";
-const TIER_FALLBACK = "1";
-function initialTier(): string {
-  try { return sessionStorage.getItem(TIER_KEY) || TIER_FALLBACK; } catch { return TIER_FALLBACK; }
-}
 
 export function FirstBoard() {
   const [data, setData] = useState<FirstBoardData | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   // 选择的交易日：初值为空 = 由后端定"库里最近的一场"。候选项只能来自 available_dates，
-  // 页面不按 new Date()/「今天」造任何日期（判定只在 vr/firstboard.py:data_session() 一处）
+  // 页面不按 new Date()/「今天」造任何日期（判定只在 vr/firstboard.py:data_session() 一处）。
+  // 这一个 day 同时喂给下面四块（两张榜、涨停分析、跌停分析），换场就一起换。
   const [day, setDay] = useState<string | null>(null);
-  // 上次选的档记在本次页面会话里（用户那份说明的行为）；库里这一场没有这一档时自动回落首板。
-  const [tier, setTier] = useState<string>(initialTier);
-  const pickTier = (k: string) => {
-    setTier(k);
-    try { sessionStorage.setItem(TIER_KEY, k); } catch { /* 隐私模式下存不住，不影响这一屏 */ }
-    fb.clearAll();
-  };
-  const fbSort = useTableSort();
-  // 单击交叉高亮 / 双击开深度复盘：全站一份实现（`lib/useStockRowInteraction.ts`）。
-  const fb = useStockRowInteraction("首板分析");
-  // 换排序／换交易日都会改行序（高亮按行号记），必须连着告警一起清，不然漂到别的票身上。
-  const fbSortBy = (k: string) => { fb.clearAll(); fbSort.toggle(k); };
-  const dd = useDeepDive("firstboard", data?.date || "");
+
+  // 带 `?to=` 进来就滚到那一块（首页的跳转入口用的就是这条）。只滚一次，之后用户自己说了算；
+  // 目标块是懒挂载的，所以滚两下：第一下让它进视口触发挂载，第二下在它长高之后对齐。
+  const loc = useLocation();
+  const scrolled = useRef("");
+  useEffect(() => {
+    const to = new URLSearchParams(loc.search).get("to") || "";
+    if (!to || scrolled.current === to) return;
+    scrolled.current = to;
+    const go = () => document.getElementById(to)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    go();
+    const t = window.setTimeout(go, 700);
+    return () => window.clearTimeout(t);
+  }, [loc.search]);
 
   useEffect(() => {
     api.firstBoard(day ?? undefined).then(setData).catch((error: unknown) => {
-      setLoadError(error instanceof Error ? error.message : "首板名单读取失败，请刷新重试");
+      setLoadError(error instanceof Error ? error.message : "首板样本读取失败，请刷新重试");
     }).finally(() => setLoaded(true));
   }, [day]);
 
-  // 话术从 `config.setting` 读（系统配置页可改），这里只带数据。取不到模板 → 空 prompt →
-  // DeepDive 会拦住并说明原因，不在代码里另存一份话术当兜底。
-  const dive = useTemplatePicker("firstboard");
-  const [copied, setCopied] = useState("");
-  const divePrompt = (s: FirstBoardStock) =>
-    (dive.current ? renderPrompt(dive.current.template, diveValues(s)) : null);
-  const copyPrompt = async (s: FirstBoardStock) => {
-    const text = divePrompt(s);
-    if (!text) return;
-    try { await navigator.clipboard.writeText(text); setCopied(s.code); setTimeout(() => setCopied(""), 1600); }
-    catch { setCopied(`fail:${s.code}`); setTimeout(() => setCopied(""), 2400); }
-  };
-  const diveValues = (s: FirstBoardStock): PromptValues => ({
-    date: dateLabel(data?.date || ""),
-    name: s.name, code: s.code, price: s.price, pct: s.pct,
-    seal_time: s.seal_time || "未知", break_count: s.break_count,
-    amount: yi(s.amount), float_cap: yi(s.float_cap),
-    industry: s.industry || "未知", reason: s.reason || "（暂缺，需要自查）",
-  });
-  const ctx = (s: FirstBoardStock) => `首板股 ${s.name}(${s.code}) 涨停原因深入分析`;
-  const diveItem = (s: FirstBoardStock): DiveItem => ({
-    key: s.code, prompt: divePrompt(s) ?? "", context: ctx(s),
-  });
-
-  const stocks = data?.stocks ?? [];
-  // 四档名单。档位与行序都由后端定（`vr/firstboard.py`）：1~3 档按首次封板时间从早到晚，
-  // 四板及以上先按连板高度从高到低、同一高度再按首封。页面不再排第二次。
-  const tiers = data?.tiers ?? [];
-  const current = tiers.find(t => t.key === tier)
-    ?? tiers.find(t => t.key === "1")
-    ?? { key: "1", label: "首板", count: 0, stocks: [] as FirstBoardStock[] };
-  const shown = current.stocks;
-  const tierLabel = current.label;
-  const nameByCode = Object.fromEntries(stocks.map((s) => [s.code, s.name]));
+  const dates = data?.available_dates ?? [];
 
   return (
     <div>
       <PageHeader
-        title="日间复盘及首板"
-        subtitle={`上半：盘中涨跌停事件流（每 5 分钟一针的逐条事件差，读 /intraday/timeline）· 下半：${tierLabel}样本（连板数${current.key === "4p" ? "≥4" : `=${current.key}`}）· 涨停原因题材 · 节点分析 · 每只可让 AI 深入分析`}
+        title="短线复盘"
+        subtitle="盘中事件流 → 重复出现的类别榜 → 短线情绪（涨停分析＋跌停分析）→ 首板分析；交易日一处选、四段一起换"
       />
 
-      {/* 上半：盘中事件流（用户 2026-10-26 点名挂在这屏上半部分；
+      {/* ① 上半：盘中事件流（用户 2026-10-26 点名挂在这屏上半部分；
           逐只列代码与名称是同一天的裁定，见本文件顶部注释） */}
       <EventStreamPanel />
 
-      <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
-        <Flame className="h-4 w-4 text-primary" /> 下半 · {tierLabel}样本（按所选交易日）
-      </h2>
-
-      {(() => {
-        // 交易日选择器：候选项就是库里真有的那些日子。subtitle 以前写"按下方交易日展示"
-        // 却没有选择器 —— 那是页面上的一条空头承诺，现在补齐。
-        const dates = data?.available_dates ?? [];
-        if (dates.length === 0) return null;
-        return (
-          <div className="mb-3 flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">交易日（只列库里真有的日子）：</span>
-            {dates.map((d) => {
-              const on = (data?.date ?? "") === d;
-              return (
-                <button key={d} type="button" aria-pressed={on} disabled={on}
-                  onClick={() => { fb.clearAll(); setLoaded(false); setDay(d); }}
-                  className={cn("rounded px-1.5 py-0.5 font-mono text-[11px]",
-                    on ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground hover:text-foreground")}>
-                  {d}
-                </button>
-              );
-            })}
-          </div>
-        );
-      })()}
-
-      {data && (
-        <>
-          <div className="mb-3 flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">连板档位：</span>
-            {tiers.map(t => (
-              <button key={t.key} type="button" aria-pressed={current.key === t.key}
-                onClick={() => pickTier(t.key)}
-                className={cn("rounded px-2 py-0.5 text-[11px]",
-                  current.key === t.key ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground hover:text-foreground")}>
-                {t.label}
-                {/* 每一档后面那个数是**全场这一档**的家数（后端算的），不是这一屏截断后的行数 */}
-                　{t.count}
+      {/* ② 交易日选择器：候选项就是库里真有的那些日子。选了没数的日子会由那两块自己说"该跑哪一步"，
+          页面不猜、也不把它回落成最近的一天。 */}
+      {dates.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground">本页交易日（只列库里真有的日子，下面四段共用）：</span>
+          {dates.map((d) => {
+            const on = (data?.date ?? "") === d;
+            return (
+              <button key={d} type="button" aria-pressed={on} disabled={on}
+                onClick={() => { setLoaded(false); setDay(d); }}
+                className={cn("rounded px-1.5 py-0.5 font-mono text-[11px]",
+                  on ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground hover:text-foreground")}>
+                {d}
               </button>
-            ))}
-          </div>
-          <div className="mb-4 grid grid-cols-3 gap-3">
-            {[
-              { label: "交易日", value: dateLabel(data.date) },
-              { label: "该交易日涨停",
-                // 池子数与库里家数不一致时两个都摆出来：判定只在后端一处，页面只陈列不解释
-                value: typeof data.db_zt === "number" && data.db_zt !== data.total_zt
-                  ? `${data.total_zt} 家（库里 ${data.db_zt}）`
-                  : `${data.total_zt} 家` },
-              { label: `其中${tierLabel}`, value: `${current.count} 家` },
-            ].map((c) => (
-              <GlassCard key={c.label} className="py-3 text-center">
-                <div className="text-xs text-muted-foreground">{c.label}</div>
-                <div className="mt-1 font-mono text-lg font-bold text-primary">{c.value}</div>
-              </GlassCard>
-            ))}
-          </div>
-        </>
-      )}
-
-      {data?.reason_note && (
-        <p className="mb-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <AlertCircle className="h-3.5 w-3.5" /> 涨停原因：{data.reason_note}
-        </p>
-      )}
-
-      {typeof data?.db_zt === "number" && data.db_zt !== data.total_zt && !data.caliber_note && (
-        <p className="mb-1.5 text-[11px] leading-relaxed text-muted-foreground">
-          池子 {data.total_zt} 家与库里 {data.db_zt} 家不一致，而这一场接口<b className="text-foreground">没有给差异说明</b>
-          （<code>caliber_note</code> 为空）—— 这里只把两个数都摆出来，不替它编原因。
-        </p>
-      )}
-
-      {/* 日期口径必须与 reason_note 同级显示：用户点名要这句，吞掉就等于把"库里缺哪一天"藏起来 */}
-      {data?.caliber_note && (
-        <p className="mb-3 flex items-start gap-1.5 rounded-lg bg-warning/10 p-2 text-xs leading-relaxed text-warning">
-          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {data.caliber_note}
-          {typeof data.db_zt === "number" && (
-            <span className="ml-1 font-mono">（库里 {data.db_zt} 家）</span>
-          )}
-        </p>
-      )}
-
-      <GlassCard>
-        <div className="mb-2 flex flex-wrap items-center gap-2 text-sm font-semibold">
-          <Flame className="h-4 w-4 text-primary" /> {tierLabel}名单
-          <Caliber text={
-            "「炸板」为数据源记录的当日开板次数；0 表示未记录开板，不证明买盘强弱或持续性。\n" +
-            "榜单是取数时点仍涨停的股票，盘中还可能变化；收盘后才可作为最终涨停名单。\n" +
-            "首板 / 二板 / 三板按首次封板时间从早到晚排；四板及以上先按连板高度从高到低，\n" +
-            "同一高度再按首封从早到晚（顺序由后端定，页面不重排）。\n" +
-            "「节点」那一格的判据、以及这一格为什么是「—」，都写在悬停与名单上方那句声明里。\n" +
-            "「行业」经常只有四个字（像「互联网电」「自动化设」）——是上游把名字截到四字，\n" +
-            "不是这里显示不全；怕猜错所以不替它补全称。"
-          } />
-          <span className="text-xs font-normal text-muted-foreground">
-            {current.key === "4p" ? "按连板高度从高到低（同高度按首封）" : "按首次封板时间排序（早封在前）"}
-            　·　客观公开榜单，非推荐 / 非预测
-          </span>
-          <span className="ml-auto font-normal">
-            <TemplatePicker templates={dive.templates} currentId={dive.currentId} onPick={dive.choose} scopeLabel="首板股" />
-            {dive.error && <span className="text-[11px] text-danger">话术模板没取到：{dive.error}（去系统配置 → AI 提示词看这一档的生效来源）</span>}
-            <RunAllButton dd={dd} items={shown.map(diveItem)} nameOf={(k) => nameByCode[k] || k} />
+            );
+          })}
+          <span className="text-[11px] text-muted-foreground/60">
+            当前这一场：{data ? dateLabel(data.date) : loaded ? "没读到" : "读取中…"}
           </span>
         </div>
-        {/* 整场那一句「这一列的 — 要怎么读」：非空就摆在名单上方，不折进上面的说明框 */}
-        <NodeWarn text={data?.node_warn} />
-        {!loaded ? (
-          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> 加载中…
-          </div>
-        ) : loadError ? (
-          <p role="alert" className="py-8 text-center text-sm text-danger">首板名单读取失败：{loadError}。请刷新页面重试。</p>
-        ) : shown.length === 0 ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">
-            {stocks.length ? `这一档今天没有票（${tierLabel}0 家）—— 不是名单读不到，换个档位看看。`
-              : "暂无数据（数据源异常或非交易日）"}
-          </div>
-        ) : (<>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border/50 text-left text-xs text-muted-foreground">
-                  <SortHeader label="名称" sortKey="name" dir={fbSort.dirOf("name")} onSort={fbSortBy} />
-                  {current.key === "4p" && (
-                    <SortHeader label="连板高度" sortKey="boards" dir={fbSort.dirOf("boards")} onSort={fbSortBy}
-                      title="池内连板数（东财涨停池 lbc，缺了按 1）。6 板及以上紫色、5 板红色、其余橙色 —— 只是把最高的那几只挑出来给眼睛，不给评分、不预测。" />
-                  )}
-                  <SortHeader label="首封" sortKey="seal_time" dir={fbSort.dirOf("seal_time")} onSort={fbSortBy}
-                        title="首次封板时刻；没有封板时刻记录的票恒排最后，不当成「没封板」" />
-                  <SortHeader label="炸板" sortKey="break_count" dir={fbSort.dirOf("break_count")} onSort={fbSortBy}
-                        title="数据源记录的当日开板次数；0 表示未记录开板，不证明买盘强弱" />
-                  <SortHeader label="现价" sortKey="price" dir={fbSort.dirOf("price")} onSort={fbSortBy} />
-                  <SortHeader label="当日涨幅" sortKey="pct" dir={fbSort.dirOf("pct")} onSort={fbSortBy} />
-                  <SortHeader label="成交额" sortKey="amount" dir={fbSort.dirOf("amount")} onSort={fbSortBy} />
-                  <SortHeader label="流通市值" sortKey="float_cap" dir={fbSort.dirOf("float_cap")} onSort={fbSortBy} />
-                  <SortHeader label="涨停原因" sortKey="reason" dir={fbSort.dirOf("reason")} onSort={fbSortBy}
-                        title="源站编辑归因，按中文串排" />
-                  <SortHeader label="节点" sortKey="node_hits" dir={fbSort.dirOf("node_hits")} onSort={fbSortBy}
-                        title={data?.node_rule
-                          ? `${data.node_rule}\n（判据与写入只住 app/compute/board_node.py；悬停在具体一格上能看到那一格的依据）`
-                          : "后端没交 node_rule —— 这一列的判据原文这一屏说不出，页面不自己复述规则"} />
-                  <SortHeader label="行业" sortKey="industry" dir={fbSort.dirOf("industry")} onSort={fbSortBy} />
-                  <th className="whitespace-nowrap px-2 py-2 font-medium"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {fbSort.apply(shown).map((s, i) => (
-                  <Fragment key={s.code}>
-                    <tr {...fb.rowProps(i, s.code, "border-b border-border/30")}>
-                      <td {...fb.cellProps(i, "name", "whitespace-nowrap px-2 py-2")}>
-                        <StockLink code={s.code} name={s.name} className="font-medium hover:text-primary" />{" "}
-                        <StockLink code={s.code} className="text-xs text-muted-foreground/50 underline decoration-dotted underline-offset-2 hover:text-primary">{s.code}</StockLink>
-                      </td>
-                      {current.key === "4p" && (
-                        <td {...fb.cellProps(i, "boards", "whitespace-nowrap px-2 py-2 font-mono font-semibold")}>
-                          <span className={cn("rounded px-1.5 py-0.5 text-[11px]",
-                            (s.boards ?? 0) >= 6 ? "bg-purple-500/15 text-purple-400"
-                              : (s.boards ?? 0) >= 5 ? "bg-destructive/15 text-destructive"
-                                : "bg-warning/15 text-warning")}>
-                            {s.boards ?? "—"} 板
-                          </span>
-                        </td>
-                      )}
-                      <td {...fb.cellProps(i, "seal_time", "whitespace-nowrap px-2 py-2 font-mono text-muted-foreground")}>{s.seal_time || "—"}</td>
-                      <td {...fb.cellProps(i, "break_count", "whitespace-nowrap px-2 py-2 font-mono")}>
-                        {s.break_count > 0 ? <span className="text-primary">{s.break_count} 次</span> : <span className="text-muted-foreground/50">0</span>}
-                      </td>
-                      <td {...fb.cellProps(i, "price", "px-2 py-2 font-mono")}>{s.price}</td>
-                      <td {...fb.cellProps(i, "pct", "px-2 py-2 font-mono text-danger")}>+{s.pct}%</td>
-                      <td {...fb.cellProps(i, "amount", "whitespace-nowrap px-2 py-2 font-mono text-muted-foreground")}>{yi(s.amount)}</td>
-                      <td {...fb.cellProps(i, "float_cap", "whitespace-nowrap px-2 py-2 font-mono text-muted-foreground")}>{yi(s.float_cap)}</td>
-                      <td {...fb.cellProps(i, "reason", "max-w-56 px-2 py-2 text-xs")}>
-                        {s.reason ? <span className="text-foreground">{s.reason}</span> : <span className="text-muted-foreground/50">—</span>}
-                      </td>
-                      <td {...fb.cellProps(i, "node_hits", "whitespace-nowrap px-2 py-2 text-center")}>
-                        <NodeCell row={s} rule={data?.node_rule} />
-                      </td>
-                      <td {...fb.cellProps(i, "industry", "whitespace-nowrap px-2 py-2 text-xs text-muted-foreground")}>{s.industry}</td>
-                      <td {...fb.cellProps(i, "actions", "whitespace-nowrap px-2 py-2 text-right")}>
-                        <div className="inline-flex items-center gap-1">
-                        <button
-                          onClick={() => void copyPrompt(s)} disabled={!dive.current}
-                          title={copied === s.code ? "已复制到剪贴板"
-                            : copied === `fail:${s.code}` ? "浏览器拒绝了剪贴板访问，请在页面里手动复制"
-                            : "按当前模板把这一行的提示词复制到剪贴板"}
-                          className="inline-flex items-center gap-1 rounded-lg border border-border/60 px-1.5 py-1 text-[11px] text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-40">
-                          {copied === s.code ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                          {copied === s.code ? "已复制" : copied === `fail:${s.code}` ? "复制失败" : "复制提示词"}
-                        </button>
-                        <button
-                          onClick={() => dd.toggle(diveItem(s))}
-                          className="inline-flex items-center gap-1 rounded-lg border border-primary/50 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
-                        >
-                          {dd.running === s.code ? <Loader2 className="h-3 w-3 animate-spin" /> : dd.open === s.code ? <X className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
-                          {dd.open === s.code ? "收起" : dd.analysis[s.code] ? "展开" : "深入分析"}
-                        </button>
-                        </div>
-                      </td>
-                    </tr>
-                    {dd.open === s.code && (
-                      <DeepDivePanel
-                        dd={dd}
-                        stockKey={s.code}
-                        colSpan={10}
-                        noteTitle={`首板深析 · ${s.name}`}
-                        onRerun={() => dd.rerun(diveItem(s))}
-                      />
-                    )}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {/* 用户 2026-10-21：逐屏那两句"怎么点"的描述统一默认收起（同 /grouped 的写法），
-              告警（弹窗被拦）仍然摊在下面 */}
-          <ExplainBox title="这一张表怎么点 · 双击去哪里">{STOCK_ROW_HINT}</ExplainBox>
-          {/* 弹窗被拦是**告警**，摊在表下面，不折进任何默认收起的说明框 */}
-          {fb.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{fb.popHint}</p>}
-        </>
-        )}
-      </GlassCard>
+      )}
 
-      {/* 原因/行业类别汇总（用户 09-28 点名）：计数在后端 `vr/firstboard.py:_tally()`，
-          页面只排展示 —— 两边各拆一次串，早晚给出两个榜。 */}
-      {!!data && (!!data.reason_summary?.length || !!data.industry_summary?.length) && (
-        <div className="grid gap-4 md:grid-cols-2">
+      {/* ③ 原因/行业类别汇总：用户 09-28 点名要这两块，10-28 裁定**整体上移**到
+          盘中事件流与短线情绪之间（原来在名单之后，要滚到底才看到）。
+          计数在后端 `vr/firstboard.py:_tally()`，页面只排展示 —— 两边各拆一次串，早晚给出两个榜。 */}
+      {!!data && (!!data.reason_summary?.length || !!data.industry_summary?.length
+        || !!data.concept_board?.rows?.length) && (
+        <div className="mb-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <TallyCard title="涨停原因 · 重复出现的类别" rows={data.reason_summary ?? []}
             stockCount={data.summary_meta?.stock_count ?? data.stocks.length}
             dropped={data.summary_meta?.dropped_single_reason ?? 0}
-            caliber={"把每一只首板的涨停原因串按 +/、// 拆成单个原因，数**出现过的只数**"
+            caliber={"把每一只首板的涨停原因串按 +/、// 拆成单个原因，数出现过的只数"
               + "（同一只票里重复的词只算一次）。只列次数≥2 的（你 09-28 点名的口径），"
               + "被滤掉的单例条数写在下面，免得看着像今天只有这几类题材。\n"
-              + "题材串是来源站的编辑归因，不是公司确认事实；这里也不判好坏、不给方向。"} />
+              + "题材串是来源站的编辑归因，不是公司确认事实；这里也不判好坏、不给方向。\n"
+              + "这一张榜的母体仍是东财实时池的首板档整场（行业列只有池子给得出），"
+              + "与下面涨停分析那张库表不是同一批票。"} />
           <TallyCard title="所属行业 · 重复出现的类别" rows={data.industry_summary ?? []}
             stockCount={data.summary_meta?.stock_count ?? data.stocks.length}
             dropped={data.summary_meta?.dropped_single_industry ?? 0}
             caliber={"同一批首板，按涨停池给的所属行业数只数（同样只列≥2 的）。"
               + "行业是东财那一列的原样值，与概念/题材不同一套，不能拿来解释「为什么涨」。"} />
+          {/* 10-29 用户点名加的那张榜：概念板块按重复只数从高到低、只列前 10。
+              数只数与"这个概念全市场多大""这批票占它多少"都来自 `concept_rollup` 一份实现。 */}
+          <ConceptCard cb={data.concept_board} />
         </div>
       )}
+      {loadError && <p role="alert" className="mb-3 text-sm text-danger">这两张榜读取失败：{loadError}。请刷新页面重试（下面两块各自取数，不受它影响）。</p>}
+      {data?.caliber_note && <NoticeBar kind="warning">{data.caliber_note}</NoticeBar>}
+      {!loaded && !loadError && (
+        <p className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> 两张榜读取中…（涨停分析、跌停分析与首板分析各自取数，不互相等）
+        </p>
+      )}
+
+      {/* ④ 短线情绪（大块）：涨停分析与跌停分析同属这一大块（用户 10-28 裁定 ② 那句）。
+          两块共用同一份档位控件 `components/ui/TierPicker.tsx`，但母体是两张底表：
+          涨停读 `analytics.limit_up_pool_daily`（lup-1），跌停读 `market_data.stock_daily`。 */}
+      {/* 说明按钮摆在标题这一行的最右边（用户 10-31）；那句「本场封住 M 家／张表 M 行」
+          的分开写法与下方 NoticeBar 的告警都留在屏上，不进抽屉。 */}
+      <h2 className="mb-2 mt-4 flex flex-wrap items-center gap-1.5 text-base font-semibold">
+        <Flame className="h-5 w-5 text-primary" /> 短线情绪
+        <span className="ml-auto"><DocDrawer title="短线情绪">
+          <p className="whitespace-pre-line leading-relaxed">{plain(
+            "这一块是两场对照：涨停那一侧的母体是本地库 lup-1 那批触板行（含北交所与 ST），\n"
+            + "跌停那一侧的母体是本地日线按当日跌停档位判出来的那批票 —— 两张底表，家数不可相加。\n"
+            + "「本场封住 N 家／张表 M 行」那两句话一个是全场、一个是筛后，界面上分开写。\n"
+            + "档位多选只筛这一张表的名单，不动上面那些比率的分母。")}</p>
+        </DocDrawer></span>
+      </h2>
+      <div className="space-y-4">
+        <LimitUpBoard day={day} />
+        <LimitDownBoard day={day} />
+      </div>
+
+      {/* ⑤ 首板分析（从首页 4d 搬过来，挂在短线情绪之后 —— 用户 10-28 裁定 ③）。
+          判据在加工段 `fbdaily` 步落 `analytics.first_board_daily`，这块只读 /api/quant/first-board-daily。
+          仍包在 LazySection 里：这一块实测 2,645px／1,014 个节点，自己取数自己带控件。 */}
+      {/* 首页那块入口跳的是这个锚点（`/first-board?to=first-board-daily`）。id 挂在 LazySection **外面**：
+          里面那一块要滚近才挂载，锚点若在里面，滚过去时它还不存在。 */}
+      <div id="first-board-daily" className="scroll-mt-4">
+        <LazySection label="首板分析">
+          <FirstBoardDailyPanel />
+        </LazySection>
+      </div>
+
+      {/* ⑥ 首板四层过滤深析（用户 10-29 点名的第 5 件：资料那套四层方法论落在本页最下方）。
+          母体与「涨停分析」同一把尺（lup-1），判据只住 `duanxian/first_board_deep.py` 一份；
+          自己也取数，所以同样包在 LazySection 里（它一打开要现算概念近 20 场常态，约 5 秒）。 */}
+      <div id="first-board-deep" className="scroll-mt-4">
+        <LazySection label="首板四层过滤">
+          <FirstBoardDeep day={day} />
+        </LazySection>
+      </div>
 
       <Disclaimer />
     </div>
   );
 }
 
+
+/** 概念板块榜（用户 10-29 点名：按重复出现的只数从高到低，列前 10）。
+ *  排序与去重都在后端那一份里，这里只画；三条不能糊过去的线：
+ *   · 一只票可挂多个概念 ⇒ 各条只数加起来会大于分母，「只数」不是百分比；「集中度」才是，且分母不同；
+ *   · 只列前 N 是**截断**，被截掉的条数要留在屏上（走 NoticeBar 的「上限」型，不进抽屉）；
+ *   · 查询坏了（`failed`）与"这批票没有概念归属"是两句话，后者还要分"几只压根没行"。 */
+function ConceptCard({ cb }: { cb?: FirstBoardData['concept_board'] }) {
+  const rows = cb?.rows ?? [];
+  const top = cb?.top ?? 10;
+  const total = cb?.rows_total ?? 0;
+  const pool = cb?.pool_size ?? 0;
+  const covered = cb?.covered;
+  const maxShare = Math.max(1, ...rows.map(r => r.lift_pctile ?? 0));
+  return (
+    <GlassCard docTitle="概念板块 · 重复出现的类别（前 10）">
+      {/* 说明按钮在这一行最右边（用户 10-31）；口径文字仍然只有后端 `concept_board.caliber` 这一份，
+          后端没交时念下面那句兜底原话，页面不复述规则。截断声明（NoticeBar）与榜尾的误读提醒留在屏上。 */}
+      <div className="mb-1 flex flex-wrap items-center gap-1.5">
+        <h3 className="text-sm font-semibold">概念板块 · 重复出现的类别（前 {top}）</h3>
+        <span className="ml-auto"><DocDrawer title="概念板块 · 重复出现的类别（前 10）">
+          <p className="whitespace-pre-line leading-relaxed">{plain(
+            cb?.caliber || "这一张榜的口径文字后端没交（concept_board.caliber 为空），页面不自己复述规则。")}</p>
+        </DocDrawer></span>
+      </div>
+      {cb?.failed && <NoticeBar kind="warning">概念归属那一张查询没读成功 ⇒ 这一张榜整张空着，
+        这**不是**「这批首板没有题材」。倍量榜与四维象限那两屏用的是同一份实现，它们此刻也会一起空。</NoticeBar>}
+      {!cb?.failed && !rows.length && (
+        <p className="py-3 text-[12px] text-muted-foreground">
+          这一批里没有一只票挂得上概念（本地 reference_data.sector_member 里查不到）。
+          北交所与部分 ST 基本没有概念行 —— 读作"库里没有这一档"，不读作"它没有题材"。
+        </p>
+      )}
+      {!!rows.length && (
+        <ul className="space-y-1">
+          {rows.map(r => (
+            <li key={`concept-${r.concept}`} className="flex items-baseline gap-2 text-[12px]">
+              <span className="w-28 shrink-0 truncate font-medium" title={r.concept}>{r.concept}</span>
+              <span className="w-12 shrink-0 font-mono tabular-nums"
+                title={`这一批 ${pool} 只首板里有 ${r.stocks ?? "—"} 只挂着它`}>{r.stocks ?? "—"} 只</span>
+              <span className="w-16 shrink-0 font-mono tabular-nums text-muted-foreground"
+                title={`这个概念在全市场有 ${r.members_total ?? "—"} 只成员：成员越多 ⇒ 排得越靠前未必是共性`}>
+                成员 {r.members_total ?? "—"}</span>
+              <span className="h-1.5 flex-1 overflow-hidden rounded bg-muted"
+                title={`集中度 ${r.lift_pctile ?? "—"}%：这批票占它全部成员的比例。同样 30 只，占 800 只成员与占 120 只成员不是一回事`}>
+                <span className="block h-full rounded bg-primary/60"
+                  style={{ width: `${Math.min(100, ((r.lift_pctile ?? 0) / maxShare) * 100)}%` }} />
+              </span>
+              <span className="w-12 shrink-0 text-right font-mono tabular-nums text-muted-foreground">
+                {r.lift_pctile == null ? "—" : `${r.lift_pctile}%`}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {/* 截断声明：属「有才显示、永不进抽屉」那一型 */}
+      {!!rows.length && total > rows.length && (
+        <NoticeBar kind="truncated">
+          这一批共 {total} 个概念有票挂着，只列前 {rows.length} 个（按只数从高到低，同只数按集中度高到低）。
+          没列出的那一截不是不存在，是排在这十名之后。
+        </NoticeBar>
+      )}
+      <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
+        分母是页面上这一批（{pool || "—"} 只首板），其中 {covered == null ? "归属未知" : `${covered} 只` }挂得上概念 ——
+        一只票可挂多个概念，所以「只数」这一列加起来会大于分母，它不是占这批票的百分比。
+        最右那列「集中度」是百分数，但分母换成了这个概念在全市场的成员数，两列不是一把尺。
+      </p>
+    </GlassCard>
+  );
+}
 
 /** 一张类别计数卡：后端给什么就排什么，页面不拆串、不补 0、不再排一次序。 */
 function TallyCard({ title, rows, stockCount, dropped, caliber }: {
@@ -371,10 +258,13 @@ function TallyCard({ title, rows, stockCount, dropped, caliber }: {
 }) {
   const top = rows[0]?.count ?? 1;
   return (
-    <GlassCard>
-      <div className="mb-1 flex items-center gap-1.5">
+    <GlassCard docTitle={title}>
+      {/* 说明按钮在标题这一行最右边（用户 10-31）；分母那句与单例类别计数仍然留在屏上，不进抽屉。 */}
+      <div className="mb-1 flex flex-wrap items-center gap-1.5">
         <h3 className="text-sm font-semibold">{title}</h3>
-        <Caliber text={caliber} />
+        <span className="ml-auto"><DocDrawer title={title}>
+          <p className="whitespace-pre-line leading-relaxed">{plain(caliber)}</p>
+        </DocDrawer></span>
       </div>
       {rows.length === 0
         ? <p className="py-3 text-[12px] text-muted-foreground">

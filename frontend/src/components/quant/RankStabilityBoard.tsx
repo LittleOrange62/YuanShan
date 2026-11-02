@@ -7,6 +7,7 @@ import { STOCK_ROW_HINT, useStockRowInteraction } from "@/lib/useStockRowInterac
 import { dash, type DataState } from "@/lib/datastate";
 import { num } from "@/lib/qd";
 import { cn } from "@/lib/utils";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 名次稳定榜（近 N 场**全市场名次之和**从低到高，前 50）。
@@ -126,7 +127,7 @@ export function RankStabilityBoard({ state, onDaysChange, days, onRefresh }: {
               <p className="mt-2">{STOCK_ROW_HINT}从「四维象限」双击过来时，来源会写在这张榜的名字里。</p>
             </ExplainBox>
             {/* 弹窗被拦是**告警**，不折进上面那个默认收起的说明框 */}
-            {x.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{x.popHint}</p>}
+            {x.popHint && <NoticeBar kind="warning">{x.popHint}</NoticeBar>}
             {/* 声明 / 字段含义 / 覆盖 / 出处收成一处默认收起的折叠块（用户 2026-10-19 夜：
                 「这些内容都默认收缩起来」）。summary 把每一类的条数摆在外面 ⇒ 收起不等于藏掉；
                 告警（`popHint`）与上面那三行读数不折 —— 那条规矩没变。 */}

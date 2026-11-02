@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 import { plain } from "@/lib/agent";
 import { cn } from "@/lib/utils";
 import {
@@ -288,9 +289,26 @@ export function WxPushPanel() {
   const tone: Tone = !s ? "warn" : pre?.ok ? "ok" : "bad";
 
   return (
-    <GlassCard>
+    <GlassCard docTitle="个人微信推送（在这台机器的桌面上按键盘）">
+      {/* 用户 10-31：「这块的说明」摆在标题这一行的最右边，排在总开关读数／预检／步数这些元信息前面；
+          原先这颗按钮长在卡底正文折框（ExplainBox）上，看起来像"数下面的一段话"。
+          说明全是接口交出的原句（note/explain/api 三段），没读数那一刻不长这颗按钮。 */}
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-base font-semibold">个人微信推送（在这台机器的桌面上按键盘）</h2>
+        {s && (
+          <span className="ml-auto"><DocDrawer title="个人微信推送（在这台机器的桌面上按键盘）">
+            <DrawerSection heading="这条通道是什么、为什么不敢做得更稳、给别的程序怎么调">
+              <div className="space-y-1">
+                <p>{plain(s.note || "")}</p>
+                <p>{plain(s.explain || "")}</p>
+                <p>{plain(s.api || "")}</p>
+                <p>配置：<code>{s.config_path}</code>｜留痕：<code>{s.history_path}</code>
+                  {s.changed_at ? `｜最后一次改动：${s.changed_at}（${s.changed_by || DASH}）` : ""}
+                  {s.generated_at ? `｜本次读数：${s.generated_at}` : ""}</p>
+              </div>
+            </DrawerSection>
+          </DocDrawer></span>
+        )}
         <Badge tone={s?.enabled ? "ok" : "warn"}>{s?.enabled ? "总开关开" : "总开关关"}</Badge>
         <Badge tone={tone}>{pre?.ok ? "发送前的检查全过" : preflightLine(pre)}</Badge>
         {s && (
@@ -307,7 +325,7 @@ export function WxPushPanel() {
           总开关
         </label>
         <button type="button" onClick={() => void reload()} disabled={busy !== ""}
-          className={cn(BTN, "ml-auto")}>重新读取</button>
+          className={BTN}>重新读取</button>
       </div>
 
       {err && <p className="mt-2 text-[11px] text-destructive">{err}</p>}
@@ -602,21 +620,8 @@ export function WxPushPanel() {
         {!s?.history?.length && (
           <li className="text-[11px] text-muted-foreground">还没有过一次发送</li>)}
       </ul>
-
-      {s && (
-        <details className="mt-2">
-          <summary className="cursor-pointer text-[11px] text-muted-foreground">
-            这条通道是什么、为什么不敢做得更稳、给别的程序怎么调</summary>
-          <div className="mt-1 space-y-1 text-[11px] text-muted-foreground">
-            <p>{plain(s.note || "")}</p>
-            <p>{plain(s.explain || "")}</p>
-            <p>{plain(s.api || "")}</p>
-            <p>配置：<code>{s.config_path}</code>｜留痕：<code>{s.history_path}</code>
-              {s.changed_at ? `｜最后一次改动：${s.changed_at}（${s.changed_by || DASH}）` : ""}
-              {s.generated_at ? `｜本次读数：${s.generated_at}` : ""}</p>
-          </div>
-        </details>
-      )}
+      {/* 这一段（后端原句 + 配置/留痕路径）搬进了标题行那颗「这块的说明」（用户 10-31），
+          卡底不再摊第二遍。 */}
     </GlassCard>
   );
 }

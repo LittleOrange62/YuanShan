@@ -109,6 +109,6 @@ test('10-19 夜「描述收缩」自查（埋伏榜）：怎么点那句折进�
   assert.match(board.slice(0, boxStart) + board.slice(boxEnd), /已达取数上限/, '截断告警不许折进框（它渲染在说明框之后、框外）');
   assert.match(before, /<CaliberFold caveats=\{d\.caveats\} definitions=\{d\.definitions\}/,
     'caveat/字段义交给共用折叠块（用户 10-21 要密度），缺数与截断那几族由它渲染在 `<details>` 之前＝仍在屏上');
-  assert.match(board.slice(boxEnd, boxEnd + 400), /am\.popHint && <p role="status"/,
+  assert.match(board.slice(boxEnd, boxEnd + 400), /am\.popHint && <NoticeBar kind="warning"/,
     '弹窗被拦的告警留在说明框外面');
 });

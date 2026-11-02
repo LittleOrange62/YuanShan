@@ -10,6 +10,7 @@ import { useState } from "react";
 import { StockLink } from "@/components/ui/StockLink";
 import { AmbushBoard } from "@/components/quant/AmbushBoard";
 import { STOCK_ROW_HINT, useStockRowInteraction } from "@/lib/useStockRowInteraction";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 突破信号 = 左右两栏（用户 2026-10-13 的原话：「页面改为左侧和右侧；右侧就是原来的
@@ -135,8 +136,7 @@ function BreakoutBoard() {
   );
 
   return (
-    <Panel title="突破信号（右侧已确认）" state={hits} controls={controls}
-      note="这一栏要的是已经走出来的那一天：放量波之后缩量收敛，第一次同时站上均线并放量。买在这里叫右侧，代价是成本已经抬高。">
+    <Panel title="突破信号（右侧已确认）" state={hits} controls={controls}>
       {d => {
         const all = d.rows ?? [];
         const opts = d.type_options ?? [];
@@ -158,6 +158,7 @@ function BreakoutBoard() {
             )}
             {/* 用户 2026-10-21：描述性内容收进一处折叠；缺数/截断类由 CaliberFold 分流留在屏上 */}
             <CaliberFold caveats={d.caveats} definitions={d.definitions}
+              notes={["这一栏要的是已经走出来的那一天：放量波之后缩量收敛，第一次同时站上均线并放量。买在这里叫右侧，代价是成本已经抬高。"]}
               coverage={d.coverage} provenance={[d.source]} />
             <div className="mt-2 overflow-x-auto">
               <table className="w-full text-[11px]">
@@ -202,7 +203,7 @@ function BreakoutBoard() {
               </table>
               {/* 怎么点这一张表：通用一句（实现全站一份）；弹窗被拦的告警单独念、不折进任何默认收起的说明框 */}
               <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
-              {bo.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{bo.popHint}</p>}
+              {bo.popHint && <NoticeBar kind="warning">{bo.popHint}</NoticeBar>}
               {all.length === 0 && (
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {signalType ? `选了「${labelOf(signalType) ?? signalType}」之后没有票：这一场母体内命中 ${dash(d.day_total)} 只，是这个筛条件把它们筛空了（不是库里没数）。` : "后端交出 0 行 —— 这一场没有满足三段式的票，还是加工链没跑到这一档？看上面的基准交易日。"}

@@ -119,12 +119,24 @@ export function metaSentence(row: FactsBrief, now: number = Date.now()): string 
   return bits.join(" · ");
 }
 
-/** 还没配 AI 来源 / 还没选到一只票时，拦下来要说清"还差哪几样"（按钮不静默 disabled）。 */
-export function missingPrerequisites(o: { hasLlm: boolean; available: boolean; numeric: string }): string[] {
+/** 还没配 AI 来源 / 还没选到一只票时，拦下来要说清"还差哪几样"（按钮不静默 disabled）。
+ *
+ * `blocked` 那一档是 10-31 抓出来的假话：来源**已经存着**，只是连着两次被判不通、
+ * 整轮停住（`currentSource()` 交 null），于是屏幕也说"还没接入 AI"，把人支去重新保存
+ * 一份本来就在的凭据 ⇒ 那一发永远打不出去。两种情况要给两句不同的话，
+ * 且解法不同：前者去保存，后者点「测试连接」或「清除测试标记」。
+ */
+export function missingPrerequisites(o: {
+  hasLlm: boolean; available: boolean; numeric: string; blocked?: string;
+}): string[] {
   const out: string[] = [];
   if (!o.numeric) out.push("这一屏还没选到一只票（地址里没有 symbol，或这个代码不是 6 位 A 股码）");
   if (!o.available) out.push("「个股信息」这一块没读出这一只（本机主档里没有它）");
-  if (!o.hasLlm) out.push("还没接入 AI：到「AI 探索 · 接入设置」保存并测通一个来源（这一趟走你自己配的模型）");
+  if (!o.hasLlm) {
+    out.push(o.blocked
+      ? `来源已经配过，但这一轮全被判过不通、暂时停住：${o.blocked} ⇒ 到「AI 探索 · 接入设置」点一次「测试连接」（通了就自己回到轮换），或「清除测试标记」把它放回来`
+      : "还没接入 AI：到「AI 探索 · 接入设置」保存并测通一个来源（这一趟走你自己配的模型）");
+  }
   return out;
 }
 
@@ -184,8 +196,11 @@ export function autoRunDecision(o: {
   }
   if (o.error && waited !== null && waited < AUTO_RETRY_COOLDOWN_MIN) {
     const left = Math.max(1, Math.ceil(AUTO_RETRY_COOLDOWN_MIN - waited));
-    return { fire: false, why: `最近一次自动重跑在 ${Math.floor(waited)} 分钟前失败（${o.error}）—— `
-      + `${left} 分钟内不再自动打；现在就想要一份的话点右上角那个按钮，那一发不受这个限制` };
+    // 这句不许写「最近一次自动重跑」：那一发失败可能是人手动点出来的（10-27 实测就是这样），
+    // 写成自动就是给屏幕上加了一条假的因果。冷却只管自动那一发，手动照旧打得动。
+    const when = waited < 1 ? "不到一分钟" : `${Math.floor(waited)} 分钟`;
+    return { fire: false, why: `最近一次这一趟在 ${when}前失败（${o.error}）—— `
+      + `${left} 分钟内进这一页不再自动打；现在就想要一份的话点右上角那个按钮，那一发不受这个限制` };
   }
   return { fire: true, why: `库里还没有这一份 —— 进这一页自动打这一趟（要出网、用你配的模型额度，一次几十秒到几分钟）` };
 }

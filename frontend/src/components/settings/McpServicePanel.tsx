@@ -92,7 +92,7 @@ export function McpServicePanel() {
         <Stat label="C 层 只进目录" value={registry} pick={d => d.counts?.C} state={status} />
         <Stat label="A/B 层专用工具（另有通用 3 条）" value={registry} pick={d => d.counts?.tools} state={status} />
       </div>
-      <ExplainBox title="权限边界（由服务侧代码写死，不是这里抄的一句话）">
+      <ExplainBox title="权限边界（由服务侧代码写死，不是这里抄的一句话）" block="MCP 服务">
         <ul className="list-disc space-y-1 pl-5 text-sm">
           {(hasData(status) ? status.data.redlines || [] : []).map(r => <li key={r}>{plain(r)}</li>)}
           {!hasData(status) && <li className="list-none text-muted-foreground">未取到：{describe(status)}</li>}

@@ -80,6 +80,13 @@ export interface RiskExtremeRow {
   prev_width_pct?: number | null;
   prev_share_gap?: number | null;
   drop_pp?: number | null;
+  // 用户 2026-11-01 点名的那五格（除时间外的四格）—— 全部由后端 `find_extremes()` 交，
+  // 页面只决定哪一格摆哪一列，不自己判"这算不算风险提示"、不自己拼与阈值比的那句话。
+  metric?: string | null;
+  alert_type?: string | null;
+  value_text?: string | null;
+  compare_text?: string | null;
+  meaning_text?: string | null;
 }
 
 export interface RiskExtremes {
@@ -110,6 +117,21 @@ export interface RiskPanel {
   thresholds?: RiskThresholds;
   levels?: Record<string, string>;
   rule?: string;
+  /** 「这两类点之后怎么发展」—— 后端每次现算自全史（`duanxian/risk_signal.py::follow_through()`），
+   *  界面只念 `text`，不许把中位数抄第二份（库里每天多一场，抄的那份就漂）。 */
+  follow?: {
+    available: boolean;
+    reason?: string;
+    cached?: boolean;
+    sessions?: number;
+    from?: string;
+    to?: string;
+    steps?: number[];
+    baseline?: { median_width?: number | null; below40_rate?: number | null; median_limit_up?: number | null };
+    collapse?: Record<string, unknown>;
+    divergence?: Record<string, unknown>;
+    text?: string;
+  };
   definitions?: Record<string, string>;
   arms?: {
     available: boolean;
@@ -295,7 +317,8 @@ export function extremeMarks(rows: RiskPeriod[], d: RiskPanel):
   return { marks: out, unmatched };
 }
 
-/** 极端点位清单里那一行的话（数值全读后端，页面只拼句子、不重算） */
+/** 图上悬停与清单日期那一格的原生 title：这一行的**原始数**（宽度／倍数／成交额占比／上一期家数−钱）。
+ *  五格清单不读这句（那句由后端拼），这里留着的理由是悬停要能给到五格之外的分量原值。 */
 export function extremeLine(row: RiskExtremeRow): string {
   if (row.kind === "collapse") {
     return `${row.prev_label ?? NULL_TEXT} 宽度 ${numText(row.prev_width_pct, 2)}% `
@@ -306,6 +329,49 @@ export function extremeLine(row: RiskExtremeRow): string {
     + `｜上涨票的家数比 ${row.count_ratio == null ? NULL_TEXT : row.count_ratio.toFixed(2)} 倍 `
     + `而成交额只 ${row.arms_ratio == null ? NULL_TEXT : row.arms_ratio.toFixed(2)} 倍`
     + `｜涨票吃掉 ${numText(row.amount_share_up, 2)}% 的成交 ⇒ 家数比钱多 ${signedText(row.share_gap, 2)}pp`;
+}
+
+/** 窗口内的极端点位行（背离在前、崩点在后，与图上的两类标记同一顺序）。 */
+export function extremeRows(d?: RiskPanel | null): RiskExtremeRow[] {
+  return [...(d?.extremes?.divergence?.rows ?? []), ...(d?.extremes?.collapse?.rows ?? [])];
+}
+
+/** 清单里的一行 → 用户 2026-11-01 点名的那五格（指标名／时间／数值／与阈值的比较／结果含义）。
+ *  四格文字全部来自后端 `find_extremes()`；这里只做两件事：把 `alert_type` 与 `meaning_text`
+ *  接成一句（「风险提示：…」），以及在某一格没送到时明说没送到 ——
+ *  宁可屏上出现「这一格没交」，也不许页面自己拼一个看起来像的读数（那是把缺数读成 0 的同一种错）。 */
+export function extremeCells(row: RiskExtremeRow, kindLabels?: Record<string, string>):
+  { date: string; family: string; metric: string; valueText: string;
+    compareText: string; meaningText: string; incomplete: boolean } {
+  const meaning = row.alert_type && row.meaning_text ? `${row.alert_type}：${row.meaning_text}` : "";
+  return {
+    date: row.label ?? NULL_TEXT,
+    family: kindLabels?.[row.kind] ?? NULL_TEXT,
+    metric: row.metric ?? "",
+    valueText: row.value_text ?? "",
+    compareText: row.compare_text ?? "",
+    meaningText: meaning,
+    incomplete: !row.metric || !row.value_text || !row.compare_text || !meaning,
+  };
+}
+
+/** 清单的整排：每一行带上它那五格，并把**连续同义**的「结果含义」收成一份（`meaningSpan`）。
+ *  同一类判据那一排的含义是同一句话（`EXTREME_ALERT` 里就一条），六行各复读一遍 70 字的段落
+ *  ＝把当年的说明黄字搬进表格里 —— 与 `nationalTeam.alertCells` 的 `sharedMeaning` 同一处理由。
+ *  某一格没交（`meaningText` 空串）时不合并：那种行各摆各的 `—`，缺没缺一眼分得清。 */
+export type RiskExtremeCellRow = ReturnType<typeof extremeCells> & {
+  row: RiskExtremeRow; meaningSpan: number; meaningHead: boolean;
+};
+
+export function extremeCellRows(d?: RiskPanel | null): RiskExtremeCellRow[] {
+  const cells = extremeRows(d).map(r => ({ ...extremeCells(r, d?.extremes?.kind_labels), row: r }));
+  const same = (i: number, j: number) =>
+    cells[i].meaningText !== "" && cells[j].meaningText === cells[i].meaningText;
+  return cells.map((c, i) => {
+    let span = 1;
+    while (i + span < cells.length && same(i, i + span)) span += 1;
+    return { ...c, meaningSpan: span, meaningHead: !(i > 0 && same(i - 1, i)) };
+  });
 }
 
 /**

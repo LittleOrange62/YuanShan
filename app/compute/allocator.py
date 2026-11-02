@@ -463,6 +463,10 @@ def _score_all(recs: list[dict], target: dt.date) -> list[dict]:
     for r in recs:
         r['universe'] = len(recs)
         r['spec_version'] = SPEC_VERSION
+        # 分界线本身也要落库：从前 tm/im 只在内存里用一次就丢，界面拿不到那个数，
+        # 于是图上把线画在 50/50 还写着「当日中位」（#104）。
+        r['toll_median'] = tm
+        r['imagine_median'] = im
     return recs
 
 
@@ -472,8 +476,8 @@ insert into analytics.sector_allocator
   share, share_pctile, share_med250, amount_stability, div_yield_med, div_coverage,
   mv_share, mv_coverage, toll_score, toll_rank, share_slope20, member_count, member_delta,
   margin_crowd, crowding_temp, crowding_rank, mom60, breadth20, stage, stage_reason,
-  imagine_score, quadrant, missing, calculated_at)
-values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now())
+  imagine_score, quadrant, missing, toll_median, imagine_median, calculated_at)
+values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now())
 on conflict (sector_code, trade_date, spec_version) do update set
   sector_name = excluded.sector_name, sector_type = excluded.sector_type,
   universe = excluded.universe, share = excluded.share, share_pctile = excluded.share_pctile,
@@ -487,7 +491,8 @@ on conflict (sector_code, trade_date, spec_version) do update set
   mom60 = excluded.mom60, breadth20 = excluded.breadth20,
   stage = excluded.stage, stage_reason = excluded.stage_reason,
   imagine_score = excluded.imagine_score, quadrant = excluded.quadrant,
-  missing = excluded.missing, calculated_at = now()
+  missing = excluded.missing, toll_median = excluded.toll_median,
+  imagine_median = excluded.imagine_median, calculated_at = now()
 """
 
 
@@ -500,7 +505,8 @@ def write(rows: list[dict]) -> int:
               r.get('member_count'), r.get('member_delta'), r.get('margin_crowd'),
               r.get('crowding_temp'), r.get('crowding_rank'), r.get('mom60'),
               r.get('breadth20'), r.get('stage'), r.get('stage_reason'),
-              r.get('imagine_score'), r.get('quadrant'), r.get('missing')) for r in rows]
+              r.get('imagine_score'), r.get('quadrant'), r.get('missing'),
+              r.get('toll_median'), r.get('imagine_median')) for r in rows]
     if batch:
         engine.executemany(_UPSERT, batch, role='etl')
     return len(batch)

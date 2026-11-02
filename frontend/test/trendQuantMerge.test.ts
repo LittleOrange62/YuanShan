@@ -99,22 +99,33 @@ test('窗口趋势那一块：描述收进框，截断与缺数摊在外面', as
   const { FOLDABLE_CAVEAT_CODES } = await import('../src/lib/caveatKind.ts');
   const card = rd('components/quant/TrendQuant.tsx').slice(
     rd('components/quant/TrendQuant.tsx').indexOf('function Windows'));
-  const boxStart = card.indexOf('<ExplainBox title="这一屏看的是谁的窗口');
-  const boxEnd = card.indexOf('</ExplainBox>', boxStart);
-  assert.ok(boxStart > 0 && boxEnd > boxStart, '那两句描述要有一处默认收起的框（不带 open 属性就是收起）');
+  // 11-01（用户「做」）：这一块原来三处出口（Panel note 一颗 + 两个 ExplainBox + 一枚 Caliber 芯片），
+  // 点三处才看全 ⇒ 合并成一颗：全部并进 `CaliberFold` 的那一只抽屉（notes + extra 三节）。
+  // 下面这几条**判的还是同一件事**：描述收起来、截断与缺数摊在屏上、告警不许被折进抽屉。
+  const boxStart = card.indexOf('<DrawerSection heading="这一屏看的是谁的窗口');
+  // `CaliberFold` 是自闭合元素（以 `/>` 结束），所以"那一坨"的尾巴取到表格那一段之前
+  const boxEnd = card.indexOf('<div className="mt-2 overflow-x-auto">', boxStart);
+  assert.ok(boxStart > 0 && boxEnd > boxStart, '那两句描述要在收起的那一坨里（抽屉／折叠体，点开才看）');
   const box = card.slice(boxStart, boxEnd);
-  assert.match(box, /<Row label="这是谁的窗口"/, '「这是谁的窗口」折进框（点开可见）');
-  assert.match(box, /<Row label="窗口 \/ 门槛"/, '「窗口 / 门槛」折进框');
-  assert.doesNotMatch(box, /text-warning|role="status"|<Caveats /, '框里不许出现告警');
+  assert.match(box, /<Row label="这是谁的窗口"/, '「这是谁的窗口」收进抽屉（点开可见）');
+  assert.match(box, /<Row label="窗口 \/ 门槛"/, '「窗口 / 门槛」收进抽屉');
+  assert.match(card.slice(card.indexOf('<CaliberFold'), boxStart), /heading="母体与逐列读法/,
+    '原先那枚「口径」悬停芯片里几千字的母体读法，现在是抽屉第一节（鼠标不去扫就等于没有，10-31 同一条判据）');
+  assert.match(card, /heading="这一张表怎么读/, '「这张表怎么读」也在同一颗抽屉里（第三/四节）');
+  assert.doesNotMatch(box, /text-warning|role="status"|<Caveats /, '抽屉里不许出现告警');
 
-  const rows = card.slice(0, boxStart);
+  const rows = card.slice(0, card.indexOf('<CaliberFold'));
   assert.match(rows, /<Row label="交出" value=\{`\$\{dash\(d\.sessions_returned\)\} 场/,
     '「交出 59 场…；表里列前 40 行」是截断声明，必须排在任何折叠框之前');
   assert.ok(card.indexOf('<Row label="交出"') < card.indexOf('<CaliberFold'),
     '截断声明不许被 CaliberFold 收走');
-  assert.doesNotMatch(card.slice(0, card.indexOf('<Row label="交出"')), /<ExplainBox|<CaliberFold/,
+  assert.doesNotMatch(card.slice(0, card.indexOf('<Row label="交出"')), /<ExplainBox|<CaliberFold|<DrawerSection/,
     '交出那一行前面不能再有折叠框——排在框里就等于藏了');
-  assert.match(card, /<CaliberFold caveats=\{d\.caveats\} definitions=\{d\.definitions\} \/>/,
+  // 一模块一颗：这一节里除 `CaliberFold` 之外不许再有任何说明出口
+  assert.doesNotMatch(card, /<ExplainBox|<Caliber\b/, '窗口趋势这一节还留着第二颗说明出口（合并没做完）');
+  assert.doesNotMatch(card, /\bnote=\{/,
+    '`Panel note` 那颗标题行按钮要撤了——留着就是同一块两颗同名按钮（`notes=` 是抽屉里的读法段，不算出口）');
+  assert.match(card, /<CaliberFold caveats=\{d\.caveats\} definitions=\{d\.definitions\}/,
     '声明与字段义仍走共用折叠块（缺数那一族由它自己留在屏上）');
 
   for (const code of ['cached_aggregates', 'thin_window', 'window_entry_quadrant_null'])

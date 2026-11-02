@@ -41,10 +41,14 @@ test('primary order is pinned and the seven approved modules never disappear', (
   assert.equal(MODULES[0].title, '首页');
   assert.equal(MODULES[0].to, '/');
   // 2026-09-27 用户裁定取消「盯盘」一级模块（盘面数据并入首页，另外三页下线），
-  // 所以这里不再要求它存在；其余六个一级模块仍然一个都不许悄悄消失。
-  for (const t of ['首页', '复盘', '资讯雷达', '个股研究', '回测', '我的股票'])
-    assert.ok(MODULES.some(m => m.title === t), `一级模块「${t}」被删掉了 —— 这会让老用户找不到入口`);
+  // 所以这里不再要求它存在。
+  // 2026-10-27 用户点名新的一级顺序，并把「个股研究」与「回测」并成一个导航项（内部两页），
+  // 10-28 又把原「数据链路」的内容点并进「资讯雷达」—— 所以这里从"六个名字不许丢"
+  // 升级成**整列顺序逐条钉住**：改名/合并/搬家是有裁定的登记处，不是放宽判据。
+  assert.deepEqual(MODULES.map(m => m.title),
+    ['首页', '复盘', '量化选股', '资讯雷达', '我的股票', '个股研究与回测', '交易日志']);
   assert.ok(!MODULES.some(m => m.title === '盯盘'), '「盯盘」已按 09-27 裁定下线，不该又长回来');
+  assert.ok(!MODULES.some(m => m.title === '数据链路'), '「数据链路」10-28 裁定不再占一级模块 —— 六个内容点在「资讯雷达」组里');
   assert.ok(!MODULES.flatMap(m => m.pages).some(x => ['/watch', '/yesterday-ladder', '/agent/intraday'].includes(x.to)),
     '被取消的三页不该又以导航条目的形式回来');
   // 盘面数据 09-27 第二次裁定：**整屏并入首页，独立页与路由删除** —— 它既不占导航项，
@@ -89,12 +93,12 @@ test('old deep links resolve to their parent, rather than becoming extra primary
   // 10-15：「个股研究」与「多空辩论」两屏合进 `/stock-review`（用户点名）。老 pathname
   // `/stock-data`、`/agent/deepdive` 不再是页面，只做跳转 —— 它们「有跳转、无导航入口」
   // 由上面那条不变量管（既是跳转又有入口＝合并没做干净），这里查的是新页归在哪一个模块下。
-  assert.equal(moduleFor('/stock-review')?.title, '个股研究');
-  // 09-28 用户裁定：交易日志从「我的股票」里拿出来独立成一级模块，排在它后面；
-  // 复盘笔记与提醒挂在同一页的三个 tab 上（`?tab=`），所以导航里仍只有 `/journal` 这一条。
+  assert.equal(moduleFor('/stock-review')?.title, '个股研究与回测');
+  // 09-28 用户裁定：交易日志从「我的股票」里拿出来独立成一级模块；10-27 新顺序把它排在**最后一位**
+  // （完整一级顺序由上面那条 deepEqual 钉住，这里只查归属与"仍在我的股票之后"这条相对关系）。
   assert.equal(moduleFor('/journal')?.title, '交易日志');
-  assert.equal(MODULES.findIndex(m => m.title === '交易日志'),
-    MODULES.findIndex(m => m.title === '我的股票') + 1, '「交易日志」要紧跟在「我的股票」后面');
+  assert.ok(MODULES.findIndex(m => m.title === '交易日志') > MODULES.findIndex(m => m.title === '我的股票'),
+    '「交易日志」要在「我的股票」之后 —— 它 09-28 就是从那一组里独立出去的');
   assert.equal(moduleFor('/notes')?.title, '我的股票');
   assert.equal(moduleFor('/settings'), undefined);
 });
@@ -112,5 +116,10 @@ test('renamed navigation preserves legacy conversation and recovery identities',
 test('watch pages and retained legacy links belong to correct modules',()=>{
   // 盘面数据不再属于任何一级模块（09-27 裁定：内容并到首页，入口是首页里那条链接）
   assert.equal(moduleFor('/daily-review'), undefined);
-  assert.equal(moduleFor('/backtest-agent')?.title, '回测');
+  // 10-27 裁定：「回测」不再是一级模块，`/backtest-agent` 与 `/stock-review` 同组。
+  assert.equal(moduleFor('/backtest-agent')?.title, '个股研究与回测');
+  // 10-28 裁定：原「数据链路」六个内容点整组进「资讯雷达」—— 归属要认这一组，
+  // 侧栏展开的、面包屑念的都是「资讯雷达」。
+  for (const route of ['/intel','/datasource','/data-process','/quality','/coverage','/tdx','/pipeline'])
+    assert.equal(moduleFor(route)?.title, '资讯雷达', `${route} 该归在「资讯雷达」组里`);
 });

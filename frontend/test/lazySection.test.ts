@@ -16,6 +16,8 @@ import test from 'node:test';
 
 const LAZY = fs.readFileSync(new URL('../src/components/ui/LazySection.tsx', import.meta.url), 'utf8');
 const PANO = fs.readFileSync(new URL('../src/components/home/MarketPanorama.tsx', import.meta.url), 'utf8');
+// 10-29：首板分析那一块从首页搬到短线复盘页（LazySection 跟着搬，不是撤掉）
+const PAGE = fs.readFileSync(new URL('../src/pages/FirstBoard.tsx', import.meta.url), 'utf8');
 const LAYOUT = fs.readFileSync(new URL('../src/components/layout/Layout.tsx', import.meta.url), 'utf8');
 const CSS = fs.readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
 
@@ -52,10 +54,14 @@ test('LazySection：只延后、不卸载、认不出观察者就直接画', () 
     '不预留高度：靠猜的预留值会在读者眼皮底下把行挪走，位置跳动只许发生在看不见的地方');
 });
 
-test('首页只把「自己取数、自己带控件」的整块延后', () => {
-  const wraps = [...PANO.matchAll(/<LazySection label="([^"]+)">\s*<(\w+)\s*\/>\s*<\/LazySection>/g)];
-  assert.deepEqual(wraps.map(m => m[2]), ['FirstBoardDailyPanel', 'AbnormalMoveBoard'],
-    '接进来的只能是这两个整块（实测 2,645px／4,154px，两个 2,032 个节点）');
+test('只把「自己取数、自己带控件」的整块延后（首页一处、短线复盘页一处）', () => {
+  const WRAP = /<LazySection label="([^"]+)">\s*<(\w+)\s*\/>\s*<\/LazySection>/g;
+  const panoWraps = [...PANO.matchAll(WRAP)];
+  assert.deepEqual(panoWraps.map(m => m[2]), ['AbnormalMoveBoard'],
+    '首页接进来的只能是这一块（实测 4,154px）—— 首板分析 10-29 搬到短线复盘页了');
+  const pageWraps = [...PAGE.matchAll(WRAP)];
+  assert.deepEqual(pageWraps.map(m => m[2]), ['FirstBoardDailyPanel'],
+    '短线复盘页延后的是首板分析那一块（实测 2,645px／1,014 个节点）');
   for (const name of ['FirstBoardDailyPanel', 'AbnormalMoveBoard']) {
     const f = fs.readFileSync(new URL(`../src/components/home/${name}.tsx`, import.meta.url), 'utf8');
     assert.match(f, /useProbe</, `${name} 不自己取数的话，延后它就等于延后父页共用的一份数据`);
@@ -67,7 +73,8 @@ test('首页只把「自己取数、自己带控件」的整块延后', () => {
 
 test('闸：这两节的取数入口没被搬进 LazySection 内部', () => {
   // 面板自己 useProbe ⇒ 挂载即取数，滚动到才画；把请求塞进 LazySection 的子层里就会变成"到了才发"
-  assert.match(PANO, /<FirstBoardDailyPanel \/>\s*<\/LazySection>/);
+  assert.match(PAGE, /<FirstBoardDailyPanel \/>\s*<\/LazySection>/);
+  assert.match(PANO, /<AbnormalMoveBoard \/>\s*<\/LazySection>/);
   // 文档注释里会提到 `useProbe`（那是解释"接进来的块必须自己取数"），所以只看函数体
   const lazyCode = LAZY.slice(LAZY.indexOf('export function LazySection'));
   assert.doesNotMatch(lazyCode, /useProbe|fetch\(|probe\(/,

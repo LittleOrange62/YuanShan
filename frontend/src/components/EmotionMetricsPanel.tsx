@@ -1,7 +1,7 @@
 import { Flame, TrendingUp, Layers, CalendarClock } from "lucide-react";
 import { pctColor, UP_TEXT, DOWN_TEXT } from "@/lib/colors";
 import { cn } from "@/lib/utils";
-import { Caliber } from "@/components/ui/Caliber";
+import { DocDrawer } from "@/components/ui/DocDrawer";
 import { finite, plain, safeArray, safeRecord } from "@/lib/agent";
 import type {
   ConsecPremium, EmotionCycle, EmotionMetrics, LadderGap, MoneyEffect, Promotion,
@@ -22,7 +22,9 @@ function tone(v?: number | null): string {
   return n == null ? "text-muted-foreground" : pctColor(n);
 }
 
-/** 指标卡外壳。`caliber` = 这个数到底怎么算的（见 Caliber 组件的说明）。 */
+/** 指标卡外壳。`caliber` = 这个数到底怎么算的；那颗「这块的说明」摆在**标题这一行的最右边**
+ *  （用户 2026-10-31：原先是标题旁一枚「口径」悬停芯片，鼠标不扫就永远看不见）。
+ *  hint 那一行是读数引导，留在屏上；卡里没有 caliber 时不长出空按钮。 */
 export function Card({
   icon: Icon, title, hint, caliber, available, reason, children,
 }: {
@@ -31,10 +33,14 @@ export function Card({
 }) {
   return (
     <div className="glass rounded-2xl p-5">
-      <div className="mb-1 flex items-center gap-1.5">
+      <div className="mb-1 flex flex-wrap items-center gap-1.5">
         <Icon className="h-4 w-4 text-primary" />
         <h3 className="text-sm font-bold">{title}</h3>
-        {caliber && <Caliber text={caliber} />}
+        {caliber && (
+          <span className="ml-auto"><DocDrawer title={title}>
+            <p className="whitespace-pre-line leading-relaxed">{plain(caliber)}</p>
+          </DocDrawer></span>
+        )}
       </div>
       <p className="mb-3 text-[11px] leading-relaxed text-muted-foreground/70">{hint}</p>
       {available ? children : (

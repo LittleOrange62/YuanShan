@@ -11,6 +11,7 @@ import {
   observedText, rangeText, rateText, signedText,
   type FbOption, type FbPayload, type FbRow,
 } from "@/lib/firstBoardShape";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 倍量形态页 →「首板形状预示：能走到几板 · 进场划不划算」
@@ -79,7 +80,6 @@ export function FirstBoardShapeBoard() {
 
   return (
     <Panel title="首板形状预示：能走到几板 · 次日开盘进场划不划算"
-      note="母体＝每一个连板段的第一天（当天可构造、真能下单），段长是结果不是筛子"
       slowHint="切点与逐年都在库里现算：第一发约 1~3 秒（5 年、约 6 万条首板事件）"
       state={state} contract="/api/quant/first-board-shape"
       controls={<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -135,7 +135,7 @@ export function FirstBoardShapeBoard() {
           <ExplainBox title="这一张表怎么点 · 双击去哪里">
             <p className="text-[10.5px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
           </ExplainBox>
-          {!!popHint && <p role="status" className="mt-1 text-[10.5px] leading-relaxed text-warning">{popHint}</p>}
+          {!!popHint && <NoticeBar kind="warning">{popHint}</NoticeBar>}
           <div className="mt-2 overflow-x-auto">
             <table className="w-full border-collapse text-[11.5px]">
               <thead>
@@ -232,8 +232,9 @@ export function FirstBoardShapeBoard() {
           <Caveats items={(data.caveats ?? []).map((t, i) => ({ code: `fb${i}`, text: t }))} />
           <Caliber text={data.caliber ?? ""} />
           <Definitions map={data.definitions} />
-          <ExplainBox title="这一块与上面那屏的分工（为什么要两块）">
-            <p>上面「启动前量能分布」的母体是<b>已经走出 4 板</b>的那批票 —— 它回答"这种票启动前长什么样"，
+          <ExplainBox title="母体与分工（为什么要两块 · 这一块的母体是哪些天）">
+            <p>母体＝每一个连板段的第一天（当天可构造、真能下单），段长是结果不是筛子。</p>
+            <p className="mt-1">上面「启动前量能分布」的母体是<b>已经走出 4 板</b>的那批票 —— 它回答"这种票启动前长什么样"，
             但它的前提要回头看才成立，所以它那一列"启动后收益"里含着头几板白送的一段
             （同一批实测：从启动日收盘起算 5 场 +32%，从真能下单那天开盘起算 −6.3%、胜率 37%）。</p>
             <p className="mt-1">这一块的母体是<b>每一个连板段的第一天</b>：那天收盘就知道它是首板，

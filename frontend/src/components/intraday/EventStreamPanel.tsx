@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * 盘中涨跌停**事件流**（东财涨跌停池每 5 分钟一针的逐条事件差），挂在
- * 「日间复盘及首板」（`pages/FirstBoard.tsx`）的**上半部分**。
+ * 「短线复盘」（`pages/FirstBoard.tsx`，10-28 前叫「日间复盘及首板」）的**上半部分**。
  *
  * 数据只读 `GET /api/intraday/timeline`（`useProbe` 自己补 `/api`、自己剥 `{data}` 信封，
  * 所以这一份源码里一个 `/api` 都不写）。判据、事件差的中文标签、首封那两把尺的说明
@@ -112,7 +112,7 @@ export function EventStreamPanel() {
   );
 
   return (
-    <GlassCard className="mb-4">
+    <GlassCard className="mb-4" docTitle={`盘中涨跌停事件流 · ${dash(d?.trade_date)}`}>
       <div className="mb-1.5 flex flex-wrap items-center gap-2">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold">
           <Waves className="h-4 w-4 text-primary" /> 盘中涨跌停事件流 · {dash(d?.trade_date)}

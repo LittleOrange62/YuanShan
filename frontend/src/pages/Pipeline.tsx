@@ -3,6 +3,7 @@ import { RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { DocDrawer } from "@/components/ui/DocDrawer";
 import { Contract, Panel, Row } from "@/components/ui/DataPanel";
 import { useNonce, useProbe } from "@/lib/probe";
 import { dash } from "@/lib/datastate";
@@ -100,8 +101,14 @@ export function Pipeline() {
         </Panel>
 
         <GlassCard>
-          <h2 className="text-sm font-bold">还没接上的两环</h2>
-          <p className="mb-2 mt-0.5 text-[11px] text-muted-foreground">这两环的数在库里，但没有接口端出来 —— 按各自契约补齐后本页自动出数。</p>
+          {/* 用户 10-31：这一块「为什么还空着」那句是说明，搬进标题行最右边的抽屉；
+              Contract 是缺哪些字段的验收单（不是散文段落），留在屏上。 */}
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <h2 className="text-sm font-bold">还没接上的两环</h2>
+            <span className="ml-auto"><DocDrawer title="还没接上的两环">
+              <p>这两环的数在库里，但没有接口端出来 —— 按各自契约补齐后本页自动出数。</p>
+            </DocDrawer></span>
+          </div>
           <Contract path="GET /api/pipeline" source="下载→入库→校验→加工 四环的逐环状态" fields={[
             ["stages[].name", "环节名（下载 / 入库 / 校验 / 加工）"],
             ["stages[].last_ok_at", "该环最后一次成功"],

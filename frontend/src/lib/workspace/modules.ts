@@ -1,6 +1,6 @@
 // 本文件继承自上游 vibe-astock v1.1.0（Apache-2.0，见根 LICENSE），本机有实质性改动。
 // 改动与归属清单：docs/上游改动与归属清单.md；本机自写部分：LICENSE.local.md。
-import { Radio, Swords, LineChart, Briefcase, FlaskConical, LayoutDashboard, Database, Sigma, NotebookPen } from 'lucide-react';
+import { Radio, Swords, LineChart, Briefcase, LayoutDashboard, Sigma, NotebookPen } from 'lucide-react';
 // Primary navigation follows daily workflows; existing deep links remain valid.
 export const MODULES = [
   // 首页就是原「汇总看板」那一屏（工作台首页已取消），所以入口图标用仪表盘而不是原来的房子。
@@ -10,15 +10,12 @@ export const MODULES = [
   // features 清单、首页底部链接三处都不再指向 `/daily-review` —— 老书签由路由兜底回首页。
   { title: '首页', to: '/', icon: LayoutDashboard, pages: [{ to: '/', title: '首页' }]},
   // 汇总看板已改名成首页（上面那条），不再单列一个入口 —— 一个页面两个导航项会让人以为有两处数据
-  // 数据链路：回答"今天的数据到位了吗、卡在哪一环"。这一组页面本身不算指标，
-  // 只把各环的落库日期与缺口摆出来 —— 判据是数据日期，不是"上次跑过"。
-  // 顺序照映射表：先"源能不能用"，再"拿到之后算到哪一天"，再"入库后坏没坏"，再"缺哪几天"，最后才是"整体进度"。
-  //  landing 选 /datasource 而不是 /pipeline —— 后者四环里两环还没接上，进来先看到半屏契约没意义。
-  { title: '数据链路', to: '/datasource', icon: Database, pages: [
-    { to: '/datasource', title: '数据获取' }, { to: '/data-process', title: '数据加工' },
-    { to: '/quality', title: '质量闸' },
-    { to: '/coverage', title: '覆盖体检' }, { to: '/tdx', title: '通达信控制' },
-    { to: '/pipeline', title: '链路总览' },
+  { title: '复盘', to: '/agent/review', icon: Swords, pages: [
+    // 2026-10-26 用户裁定：「首板分析」改名「日间复盘及首板」（这屏上半挂盘中事件流、下半是首板样本）。
+    // 2026-10-28 用户裁定再改一次：「日间复盘及首板」→「短线复盘」（路由 `/first-board` 照旧不变）。
+    { to: '/agent/review', title: '复盘报告' }, { to: '/first-board', title: '短线复盘' },
+    { to: '/heat', title: '近5天热度' }, { to: '/backtest', title: '历史统计' },
+    { to: '/qd-compare', title: 'quantdash 口径对照' },
   ] },
   // 量化选股：FinanceTool 那套打分/象限/热度/形态的呈现位。与「复盘」里的
   // 归因四象限是两件事（一个判"该不该买"，一个判"看对了没"），两边都保留、各自标口径。
@@ -33,25 +30,31 @@ export const MODULES = [
     // （用户：先分析分组的整体情况，再分析分组自选）。判据与表格实现住在
     // `components/quant/GroupAnalyticsBoard.tsx`，功能点文档跟着搬到 `我的股票/分组整体分析.md`。
   ] },
-  { title: '复盘', to: '/agent/review', icon: Swords, pages: [
-    // 2026-10-26 用户裁定：「首板分析」改名「日间复盘及首板」（这屏上半挂盘中事件流、下半是首板样本）。
-    { to: '/agent/review', title: '复盘报告' }, { to: '/first-board', title: '日间复盘及首板' },
-    { to: '/heat', title: '近5天热度' }, { to: '/backtest', title: '历史统计' },
-    { to: '/qd-compare', title: 'quantdash 口径对照' },
+  // 资讯雷达 2026-10-28 用户裁定：原「数据链路」那一组的内容点整体搬进这一组
+  // （一级模块「数据链路」10-27 已从侧栏撤掉，六个页面当时成了没有导航入口的孤儿页 ——
+  //  `modules.test.ts` 的"每条路由都要有入口"那条不变量当场抓到 /pipeline 进不去）。
+  // 组内顺序照旧映射表：先"源能不能用"，再"拿到之后算到哪一天"，再"入库后坏没坏"，
+  // 再"缺哪几天"，最后才是"整体进度"。判据与页面实现都没动，只换归属。
+  { title: '资讯雷达', to: '/intel', icon: Radio, pages: [
+    { to: '/intel', title: '资讯雷达' },
+    { to: '/datasource', title: '数据获取' }, { to: '/data-process', title: '数据加工' },
+    { to: '/quality', title: '质量闸' },
+    { to: '/coverage', title: '覆盖体检' }, { to: '/tdx', title: '通达信控制' },
+    { to: '/pipeline', title: '链路总览' },
   ] },
-  { title: '资讯雷达', to: '/intel', icon: Radio, pages: [{ to: '/intel', title: '资讯雷达' }] },
-  // 2026-10-15 用户裁定：把「个股研究」与「多空辩论」两屏**合**成一个个股深度复盘页
-  // （`/stock-review`：档案 · 趋势量化 · 窗口趋势 · 公开资料 · 多空辩论集中在同一屏，可从明细双击带代码开新窗口）。
-  // 老地址 `/stock-data`、`/agent/deepdive` 在 `router.tsx` 里留跳转，不再占导航条目 ——
-  // 两处入口指同一份内容会让人以为库里是两套数。
-  { title: '个股研究', to: '/stock-review', icon: LineChart, pages: [
-    { to: '/stock-review', title: '个股深度复盘' },
-  ] },
-  { title: '回测', to: '/backtest-agent', icon: FlaskConical, pages: [{ to: '/backtest-agent', title: '回测' }] },
   { title: '我的股票', to: '/my-stocks', icon: Briefcase, pages: [
     { to: '/my-stocks', title: '重点关注（持仓）' },
     { to: '/grouped', title: '分组自选（含本机名单）' },
     { to: '/notes', title: '研究记录' },
+  ] },
+  // 2026-10-15 用户裁定：把「个股研究」与「回测」两屏**合**成一个个股深度复盘页
+  // （`/stock-review`：档案 · 趋势量化 · 窗口趋势 · 公开资料 · 多空辩论集中在同一屏，可从明细双击带代码开新窗口）。
+  // 2026-10-27 用户裁定：「个股研究」与「回测」合并成一个导航项，内部用 tab 页切换。
+  // 老地址 `/stock-data`、`/agent/deepdive` 在 `router.tsx` 里留跳转，不再占导航条目 ——
+  // 两处入口指同一份内容会让人以为库里是两套数。
+  { title: '个股研究与回测', to: '/stock-review', icon: LineChart, pages: [
+    { to: '/stock-review', title: '个股深度复盘' },
+    { to: '/backtest-agent', title: '策略回测' },
   ] },
   // 交易日志 09-28 从「我的股票」里拿出来独立成一级模块（用户裁定），排在它后面。
   // 复盘笔记与提醒**不另开一级模块**：同一件事的三个视图挂在这一页的三个 tab 上
@@ -78,11 +81,12 @@ const CHAT_PAGES: Record<string, string> = {
   '/notes': '研究记录',
   '/': '首页', '/intel': '资讯雷达', '/agent/review': '复盘看板',
   '/daily-review': '盘面数据',
-  // 2026-10-26 用户裁定页面改名「日间复盘及首板」，这一条跟着改（用户点名的第二处登记点）。
-  // ⚠️ 本文件顶部那条"标识要稳"的纪律在这里被有意让了一步：会话按 page 名在服务端与
-  // localStorage 里归档，改名后**旧会话仍挂在 `首板分析` 那个名下**、新屏默认看不到，
-  // 需要时按旧名检索。路由 `/first-board` 与判据都没动。
-  '/first-board': '日间复盘及首板', '/heat': '近5天热度',
+  // 2026-10-26 用户裁定页面改名「日间复盘及首板」，10-28 再改成「短线复盘」，这一条两次都跟着改
+  // （用户点名的第二处登记点）。
+  // ⚠️ 本文件顶部那条"标识要稳"的纪律在这里被有意让了两步：会话按 page 名在服务端与
+  // localStorage 里归档，改名后**旧会话仍挂在旧名下**（10-26 前那批在 `首板分析`、10-26~10-27 那批在
+  // `日间复盘及首板`）、新屏默认看不到，需要时按旧名检索。路由 `/first-board` 与判据都没动。
+  '/first-board': '短线复盘', '/heat': '近5天热度',
   '/backtest': '涨停样本统计', '/watch': '盯盘', '/agent/intraday': '盘中核验',
   '/stock-data': '个股数据', '/agent/deepdive': '个股深挖',
   // 2026-10-15 新页（上面两条老地址从此只做跳转，会话标识照旧留着，别删 ——

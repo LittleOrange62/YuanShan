@@ -17,7 +17,7 @@ def test_subscription_source_not_codex_fallback():
 
 def test_explicit_responses_api_and_secrets():
     source,key=connection({'provider':'api-compatible','model':'custom-v1','baseURL':'https://example.com/v1','apiKey':'private-test'})
-    assert source=={'provider':'api-compatible','model':'custom-v1','baseURL':'https://example.com/v1'}
+    assert source=={'provider':'api-compatible','model':'custom-v1','baseURL':'https://example.com/v1','timeout_seconds':180}
     assert key=='private-test' and 'private-test' not in json.dumps(source)
     for url in ['http://example.com','https://user:pw@example.com','https://example.com/?key=secret','https://example.com:123/v1']:
         with pytest.raises(EvidenceError):connection({'provider':'api-compatible','model':'m','baseURL':url,'apiKey':'private-test'})

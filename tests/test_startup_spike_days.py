@@ -239,7 +239,7 @@ def test_spikedays_接进每日加工段_排在_quadtrack_与_fbshape_之后():
     import ingest.jobs.e1_fill_all as e1
     names = [s[0] for s in e1.STAGES]
     assert 'spikedays' in names, '没接进每日链 ⇒ 判据表从此不再更新，页面上的「最近一场」会永远停在建表那天'
-    assert names.index('spikedays') == 31, f'spikedays 该是加工段第 32 步（实得第 {names.index("spikedays") + 1}）'
+    assert names.index('spikedays') == 33, f'spikedays 该是加工段第 34 步（实得第 {names.index("spikedays") + 1}）'
     assert names.index('spikedays') > names.index('quadtrack') > names.index('fbshape'), \
         '它读 fb-2 当天补完的母体与结果列，排前面拿到的是昨天那份'
     assert names.index('spikedays') > names.index('startupvol') and names.index('spikedays') > names.index('volratio'), \

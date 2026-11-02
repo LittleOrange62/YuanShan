@@ -467,6 +467,34 @@ class TestExtremes:
         assert e['divergence']['matched'] == 0
         assert e['skipped_no_gap'] == 3, '判不了的期数必须交回去，不然图上没点＝"这段很安全"是句假话'
 
+    def test_每一条命中都交出五格里除时间外的四格(self):
+        """用户 2026-11-01 的标准：指标名／时间／数值／与阈值的比较结果／结果含义（如风险提示）。
+
+        时间＝这一行已有的 `label`，其余四格由 `_extreme_cells()` 拼在这里交出去 ——
+        页面只决定哪一格摆哪一列。四格里任何一格空着，屏上那一格就是 `—`（宁可念 —，
+        也不许页面自己拼一句"看起来像"的判据句，那是把缺数读成 0 的同一种错）。
+        """
+        rows = [_daily(),
+                _daily(trade_date='2026-09-22', up_ratio=42.62, up_count=2300, down_count=3088)]
+        e = R.find_extremes(R.attach_ratio_view(R.aggregate_periods(rows, 'day')))
+        d, c = e['divergence']['rows'][0], e['collapse']['rows'][0]
+        th = R.EXTREME_THRESHOLDS
+        for row in (d, c):
+            for k in ('metric', 'alert_type', 'value_text', 'compare_text', 'meaning_text'):
+                assert row.get(k), f'{row["kind"]} 这一行的 {k} 没交'
+                assert '**' not in str(row[k]), '裸星号上屏就是脏字'
+            assert row['alert_type'] == '风险提示'
+            assert row['meaning_text'] == R.EXTREME_ALERT[row['kind']][1], '含义句只住 EXTREME_ALERT 一处'
+        assert d['metric'] == R.EXTREME_METRIC['divergence'] and c['metric'] == R.EXTREME_METRIC['collapse']
+        gap = float(d['share_gap'])
+        assert f'{gap:+.1f}pp' in d['value_text'] and '宽度 81.6%' in d['value_text']
+        assert (f'≥ 阈值 {th["share_gap_pp"]:.0f}pp 且宽度 ≥ {th["width_min_pct"]:.0f}%' in d['compare_text']
+                and f'家数钱差超出 {gap - th["share_gap_pp"]:.1f}pp' in d['compare_text'])
+        drop = float(c['drop_pp'])
+        assert c['prev_label'] in c['value_text'] and c['label'] in c['value_text']
+        assert (f'掉幅 ≥ 阈值 {th["collapse_drop_pp"]:.0f}pp' in c['compare_text']
+                and f'掉幅超出 {drop - th["collapse_drop_pp"]:.1f}pp' in c['compare_text'])
+
     def test_面板把新东西都交齐并带自救那句(self, fake):
         rows = [_daily(), _daily(trade_date='2026-09-22', up_ratio=42.62)] + _rows(25)
         rows[0]['trade_date'] = rows[2]['trade_date']      # 别让手工那两天撞上序列日期
@@ -612,3 +640,55 @@ def test_真库_2026年9月21日的背离与次日崩塌都在清单里():
     day = {r['period']: r for r in p['series']}['2026-09-21']
     assert 80 < day['up_ratio'] < 84 and 95 <= (day['limit_up_count'] or 0) <= 110
     assert 65 < day['amount_share_up'] < 78 and day['share_gap'] >= R.EXTREME_THRESHOLDS['share_gap_pp']
+    # 五格标准（11-01）在真库这两类命中上都得齐备 —— 桩绿不代表真数能填满那四格
+    for row in e['divergence']['rows'] + e['collapse']['rows']:
+        for k in ('metric', 'alert_type', 'value_text', 'compare_text', 'meaning_text'):
+            cell = str(row.get(k) or '')
+            assert cell, f'{row["period"]} 的 {k} 交不出来 ⇒ 屏上那一格是 —'
+            assert 'nan' not in cell.lower() and '**' not in cell
+
+
+def test_follow_through_现算_与屏上那句自洽():
+    """「这两类点之后怎么发展」必须是自己算出来的，不是抄在文字里的（用户 2026-11-02）。
+
+    不打桩：这一条直接读 `analytics.market_breadth` 全史。上一轮抓到的正是抄写漂移 ——
+    屏上的句子写着「全史 1,193 期」，同一库实测已 1,270 场。
+    """
+    d = R.follow_through(force=True)
+    if not d.get('available'):
+        raise AssertionError(f'现算没跑成，屏上会念这句 reason：{d.get("reason")}')
+    n = int(d['sessions'])
+    assert n >= 200, f'全史只有 {n} 场，样本底不够，这一档不该交中位数'
+    assert d['from'] <= d['to']
+    base = d['baseline']['median_width']
+    assert base is not None and 0 <= base <= 100
+    for kind in ('collapse', 'divergence'):
+        blk = d[kind]
+        assert blk['hits'] > 0, f'{kind} 一次都没命中 ⇒ 图上一个标记都没有，措辞要跟着改'
+        assert 0 < blk['hit_rate'] < 50, f'{kind} 命中率 {blk["hit_rate"]}% 不像话'
+        for k in R.FOLLOW_STEPS:
+            cell = blk.get(f'after_{k}')
+            if cell:
+                assert cell['samples'] > 0 and cell['median_width'] is not None
+                assert 0 <= cell['median_width'] <= 100
+    # 崩点掉幅与"之后回落"这两件事都在句子交出过，且句里没有 markdown 星号
+    txt = d['text']
+    assert f'{n} 场' in txt and '%' in txt
+    assert '权重' not in txt, '判据里没有权重股这一维，措辞不许替它编原因'
+    assert '**' not in txt and 'nan' not in txt.lower()
+    # panel() 交出的那一份与现算的一致（界面只念 `follow.text`，第二份不许在页面里拼）
+    p = R.panel(months=3)
+    assert p['follow']['text'] == txt or p['follow']['cached'] is True
+    assert p['follow']['sessions'] == n
+
+
+def test_含义句不许自带类型名前缀():
+    """展示层拼的是「风险提示：」＋`meaning_text`（前缀只住一处，见 `_extreme_cells` 那条注释）。
+
+    措辞里再自带一个「风险提示：」或「代表什么：」，屏上就成「风险提示：代表什么：……」两个冒号叠着
+    —— 11-02 实测到过这一形状。
+    """
+    for kind, (name, meaning) in R.EXTREME_ALERT.items():
+        assert name == '风险提示', f'{kind} 的类型名不是那句前缀'
+        for bad in ('风险提示', '代表什么', '：'):
+            assert not meaning.startswith(bad), f'{kind} 的含义句以「{bad}」开头，拼出来会双冒号'

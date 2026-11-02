@@ -156,3 +156,49 @@ test('判读层交出去的每一段屏上文字都没有裸星号', () => {
     }
   }
 });
+
+test('默认只摆本地那一列；另一把尺切出来才显示，切过去才去取（2026-10-28 用户点名）', () => {
+  // ① 默认档是"不对照"——不是默认摆三列再藏两列
+  assert.match(panorama, /const \[cmp, setCmp\] = useState<"none" \| "legu" \| "live">\("none"\)/,
+    '默认必须是不对照（只看本地库）');
+  // ② 显示哪几列由下拉决定，本地永远在第一列；**列名仍只住 sentimentCompare 那一份**
+  assert.match(panorama, /wanted: CaliberKey\[\] = cmp === "none" \? \["local"\] : \["local", cmp\]/);
+  assert.match(panorama, /CALIBER_COLUMNS\.filter\(\(c\) => c\.key !== "local"\)\.map/);
+  assert.doesNotMatch(panorama, /<option value="legu">乐咕/, '下拉选项不许再抄一份列名（两处各写一遍迟早走偏）');
+  // ③ 东财实时池不进默认的 5 秒轮询组：不切过去就一发都不打
+  assert.match(panorama, /if \(cmpRef\.current === "live"\) api\.liveEmotion\(\)/,
+    'loadLive 里必须条件化，否则默认状态每 5 秒白打一发');
+  assert.match(panorama, /useEffect\(\(\) => \{ cmpRef\.current = cmp; \}, \[cmp\]\)/,
+    '定时器复用的 loadLive 会带旧闭包，开关必须走 ref');
+  assert.match(panorama, /if \(k === "live" && !liveEmo\) api\.liveEmotion\(\)/,
+    '切过去那一刻要发第一发（否则表上只有"—"却没人去取）');
+  // ④ 只留一根差值列；没对照时差值列整根不存在
+  assert.match(panorama, /const diffKey = cmp === "legu" \? "vsLegu" as const : cmp === "live" \? "vsLive" as const : null/);
+  assert.match(panorama, /\{diffKey && \(\n\s*<th/);
+  assert.doesNotMatch(panorama, /diffText\(r, "vsLegu"\)[\s\S]{0,160}diffText\(r, "vsLive"\)/,
+    '两根差值列同时在 = 旧形状，说明没跟着下拉走');
+  // ⑤ 刚切过去、第一发没回来要说"取数中"，不能只留一个 —（会被读成"这一刻没数"）
+  assert.match(panorama, /盘中截面取数中/);
+  // ⑥ 乐咕那一列不能谎称"不取"：同一份 overview 还喂上面两格卡片与板块资金 ⇒ 这话必须在悬停里说清
+  assert.match(panorama, /marketOverview[\s\S]{0,220}乐咕|乐咕那一列不额外花请求/);
+});
+
+test('只摆一列时不许摊成两列的表：紧凑两栏、该说的照样说（10-31 用户点名）', () => {
+  /* 实测默认档（不对照）那张表 14 行 × 37px ≈ 518px 高，每行只有一个数字，
+     行高还被「口径」那颗小芯片顶成两行 —— 纵向空间全花在表格骨架上。 */
+  const code = panorama.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\/\/.*$/gm, '');
+  assert.match(code, /const compact = cols\.length === 1 && !diffKey;/,
+    '判据必须是"只有一列且不算差值"（列数由那个下拉决定，写死档名就会漂）');
+  assert.match(code, /\{compact \? compactView : \(/, '紧凑栏与那张表二选一，不许叠着画');
+  // 紧凑栏不能因为"省地方"把话说少：列名与它自己的时间戳、每格的分子分母、列级没读到的原因
+  assert.match(code, /stamp\.stamp \|\| "日期未确认"/);
+  assert.match(code, /r\.values\[c\.key\]\.note &&/);
+  assert.match(code, /stamp\.warn && /);
+  assert.match(code, /grid gap-x-6 sm:grid-cols-2/, '要两栏网格，不是一条长列表（那还是每行一个数）');
+  // 缺数声明写在条件之外：两种形状都得有（写在表里面＝紧凑档没有）
+  const closing = code.indexOf('compactView : (');
+  const opened = code.indexOf('<NoticeBar kind="missing">');
+  const condEnd = code.indexOf(')}', code.indexOf('</table>'));
+  assert.ok(closing > 0 && opened > 0 && condEnd > closing && opened > condEnd,
+    `顺序应为「条件开 → 表 → 条件关 → NoticeBar」：${closing}/${condEnd}/${opened}`);
+});

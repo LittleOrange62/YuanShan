@@ -178,3 +178,42 @@ def test_nan_一律变_none_否则浏览器解析不了整份_json():
 class Decimal_like:
     def __init__(self, v): self.v = v
     def __float__(self): return float(self.v)
+
+def test_分界线纯函数_缺数交available_false并说明为什么():
+    """#104：屏幕那句「当日中位数」以前没有数据支撑（中位数用完就丢，图上画的是 50）。
+
+    纯函数层：行里没有 `toll_median`/`imagine_median` ⇒ `available:false` + 一句为什么，
+    前端据此**不画线**，也不许拿 50 顶上。
+    """
+    from duanxian import allocator_view as AV
+    empty = AV._medians([])
+    assert empty['available'] is False and empty['toll'] is None, empty
+    assert 'toll_median' in empty['reason'] and '不拿 50 顶上' in empty['reason'], empty['reason']
+    one = AV._medians([{'toll_median': None, 'imagine_median': None},
+                       {'toll_median': 51.57, 'imagine_median': 45.68}])
+    assert one == {'toll': 51.57, 'imagine': 45.68, 'available': True, 'reason': None}, one
+
+
+def test_真库分界线与入库象限必须同一把尺():
+    """不打桩：补写回去的中位数（`58_allocator_medians.sql`）必须与当时判出的 `quadrant` 一致。
+
+    这条就是"已回算"的那类判据的事后自证 —— 不一致说明这把尺不是当时那把，
+    那屏幕上的线与点所属的格子就会两套并存（正是 #104 的形状）。
+    """
+    import pytest
+    from duanxian import pg
+    if not pg.enabled():
+        pytest.fail('库不通：这条真库核对不许兜成跳过')
+    bad = pg.fetch_df(
+        """select count(*)::int as n from analytics.sector_allocator
+            where toll_score is not null and imagine_score is not null
+              and toll_median is not null and imagine_median is not null
+              and ((toll_score >= toll_median) <> (quadrant in ('toll','consensus'))
+                or (imagine_score >= imagine_median) <> (quadrant in ('consensus','story')))""")
+    n = int(bad.to_dict('records')[0]['n'])
+    assert n == 0, f'分界线与象限归属不一致的行数 = {n}'
+    miss = pg.fetch_df(
+        "select count(*)::int as n from analytics.sector_allocator "
+        "where toll_score is not null and toll_median is null")
+    assert int(miss.to_dict('records')[0]['n']) == 0, '有场次没补回分界线 ⇒ 图上会少线，先回算'
+

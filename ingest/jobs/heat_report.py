@@ -26,7 +26,7 @@ try:
 except Exception:  # noqa: BLE001
     pass
 
-from app.intraday import sources, store                            # noqa: E402
+from app.intraday import sources, store, tasks                     # noqa: E402
 from app.intraday.pool_events import SPEC_VERSION                  # noqa: E402
 from ingest.jobs import zt_watch                                   # noqa: E402  池子出口只有一份
 
@@ -34,7 +34,8 @@ CFG = json.loads((ROOT / 'app' / 'intraday' / 'broadcast_config.json').read_text
 TPL = json.loads((ROOT / 'app' / 'intraday' / 'templates.json').read_text(encoding='utf-8'))
 
 
-def one_round(*, dry_run: bool, send: bool, channel: str, force: bool = False) -> int:
+def one_round(*, dry_run: bool, send: bool, channel: str | None,
+              force: bool = False) -> int:
     now = dt.datetime.now()
     if not force and not zt_watch.in_session(now):
         print(f'[{now:%H:%M:%S}] 不在交易时段（12:10 那类午休时点属正常）—— 不播不写')
@@ -88,19 +89,21 @@ def one_round(*, dry_run: bool, send: bool, channel: str, force: bool = False) -
 
 def _send(now, text, channel):
     from duanxian import notify
-    res = notify.send_to([channel], '概念热度', text)
+    keys = tasks.send_channels(channel)       # 不给就读系统配置里的盘中播报渠道
+    res = notify.send_to(keys, '概念热度', text)
     store.write_broadcast(now, task='heat', what='sent', body=text,
                           ok=bool(res.get('ok')), delivered=bool(res.get('ok')),
-                          channel_key=channel,
+                          channel_key=','.join(keys),
                           err=None if res.get('ok') else str(res.get('detail'))[:300])
-    print(f'  发送 → {channel}：{"已确认" if res.get("ok") else "未确认"}')
+    print(f'  发送 → {",".join(keys)}：{"已确认" if res.get("ok") else "未确认"}')
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description='H3 · 概念热度（单次一针）')
     ap.add_argument('--dry-run', action='store_true')
     ap.add_argument('--send', action='store_true')
-    ap.add_argument('--channel', default=CFG.get('channel', 'feishu-main'))
+    ap.add_argument('--channel', default=None,
+                    help='逗号分隔的渠道串；不给就读系统配置「盘中播报」那一格')
     ap.add_argument('--force', action='store_true', help='非交易时段手工看数（收盘后取的是当日终态池）')
     a = ap.parse_args(argv)
     return one_round(dry_run=a.dry_run, send=a.send, channel=a.channel, force=a.force)

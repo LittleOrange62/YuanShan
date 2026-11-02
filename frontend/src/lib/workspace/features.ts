@@ -3,12 +3,15 @@ import { Flame, Layers, CalendarRange, LayoutDashboard, Swords, LineChart, Radio
 export const FEATURE_GROUPS = [
   { title: '首页与复盘', features: [
     { to: '/', title: '首页（汇总看板）', icon: LayoutDashboard, detail: '盯盘、情绪梯队、板块资金并到一屏；不新算指标、不合并口径' },
-    { to: '/agent/review', title: '复盘看板', icon: Swords, detail: '完整复盘、依据与报告历史' },
+    // 10-29 名字收口：屏上不许有两块地方抢「短线复盘」这一个词 —— 那名字只属于 `/first-board`。
+    // 聊天标识仍留旧值「复盘看板」（`modules.ts` 的 CHAT_PAGES，历史会话按它归档，不改显示名就动它＝把老会话弄丢）。
+    { to: '/agent/review', title: '复盘报告', icon: Swords, detail: '完整复盘、依据与报告历史' },
     // 「盘面数据」不再单列：09-27 裁定整屏并入首页（`components/home/MarketPanorama.tsx`），
     // 再摆一个入口等于指到一个已经删掉的页面。
     // 2026-10-26 用户裁定：「首板分析」改名「日间复盘及首板」，并把盘中涨跌停事件流挂在这屏上半部分
-    // （路由 `/first-board` 不变，老书签照用）。detail 要说清上下两半各是什么，只写「首板样本」会漏掉新那半。
-    { to: '/first-board', title: '日间复盘及首板', icon: Flame, detail: '上半是盘中涨跌停事件流（每 5 分钟一针的逐条事件差）、下半是首板样本与结构' },
+    // （路由 `/first-board` 不变，老书签照用）。2026-10-28 用户裁定再改成「短线复盘」。
+    // detail 要说清上下两半各是什么，只写「首板样本」会漏掉新那半。
+    { to: '/first-board', title: '短线复盘', icon: Flame, detail: '上半是盘中涨跌停事件流（每 5 分钟一针的逐条事件差）、下半是首板样本与结构' },
     { to: '/heat', title: '近5天热度', icon: CalendarRange, detail: '已有归档的热度变化' },
   ] },
   { title: '标的与资讯', features: [

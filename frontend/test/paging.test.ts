@@ -9,6 +9,9 @@ const startup = readFileSync(new URL('../src/components/quant/StartupVolumeBoard
 const cycle = readFileSync(new URL('../src/components/qd/SectorCyclePanel.tsx', import.meta.url), 'utf8');
 const unlock = readFileSync(new URL('../src/components/UnlockCalendarPanel.tsx', import.meta.url), 'utf8');
 const panorama = readFileSync(new URL('../src/components/home/MarketPanorama.tsx', import.meta.url), 'utf8');
+// 10-29 并表：连板股那张表搬出首页，成了短线复盘页的「涨停分析」（另加同屏一块「跌停分析」）
+const limitUp = readFileSync(new URL('../src/components/review/LimitUpBoard.tsx', import.meta.url), 'utf8');
+const limitDown = readFileSync(new URL('../src/components/review/LimitDownBoard.tsx', import.meta.url), 'utf8');
 
 /** 用户 2026-10-22：「异动提醒③那块内容太多了，分页显示」。分页算法收在一处（全站十几块榜各写一份会漂）。 */
 test('分页算法：先夹页再切片，句子里永远带共多少行', () => {
@@ -45,7 +48,8 @@ test('首页密度：一屏读到底的那几块全部改为分页（用户 2026
     ['启动前量能比对（31 列 × 200 行＝一次单击重建约 6,200 格）', startup, 'sorted', 'paged'],
     ['生命周期阶段（本轨，约 1,068 个板块）', cycle, 'sorted', 'paged'],
     ['限售解禁日历', unlock, 'sorted', 'paged'],
-    ['连板股榜', panorama, 'lbSorted', 'lbPaged'],
+    ['连板股榜（10-29 起是本页「涨停分析」那张表）', limitUp, 'sorted', 'paged'],
+    ['跌停分析那张表', limitDown, 'sorted', 'paged'],
   ] as const) {
     assert.match(src, /slicePage\(/, `${名称}：tbody 要走 lib/paging 那一份切片，不要各写一遍 ceil/slice`);
     assert.match(src, new RegExp(`const ${排好的数组} = [\\w.]+\\.apply\\(`),
@@ -56,7 +60,10 @@ test('首页密度：一屏读到底的那几块全部改为分页（用户 2026
   // 老写法不许回来：整表 map / 硬截前 N 行还不给翻页
   assert.doesNotMatch(startup, /\{svSort\.apply\(rows\)\.map\(/, '启动前量能那张表不许再整表铺开');
   assert.doesNotMatch(cycle, /scSort\.apply\(shown\)\.slice\(0, 40\)/, '生命周期那张表原来硬截 40 行，第 41 行往后根本翻不到');
-  assert.doesNotMatch(panorama, /lbSort\.apply\(emotion\.lianban_stocks\)\.map\(/, '连板榜不许再整表铺开（热市几十行 × 13 列）');
+  assert.doesNotMatch(limitUp, /sort\.apply\(rows\)\.map\(/, '涨停分析那张表不许再整表铺开（热市几十行 × 17 列）');
+  assert.doesNotMatch(limitDown, /sort\.apply\(rows\)\.map\(/, '跌停分析那张表同上：一屏读到底就是没分页');
+  // 首页不再自己铺那张连板股表（整块搬走了，不许留一份只读不画的残骸）
+  assert.doesNotMatch(panorama, /lianban_stocks\.map\(|lbSort/, '首页还留着连板股那张表的渲染路径＝同一批数在两个屏各排一次');
 });
 
 test('foldAll（用户点名把缺数那几条也收）：条数仍然写在 summary 上，框外那份不再出现', () => {

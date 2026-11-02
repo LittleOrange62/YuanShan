@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { DocDrawer } from "@/components/ui/DocDrawer";
 import { ExternalLink, RotateCcw, Save } from "lucide-react";
 import { loadLinks, saveLink, type LinkRoute, type LinksState } from "@/lib/quoteLinkTemplates";
 import { cn } from "@/lib/utils";
@@ -44,26 +45,31 @@ export function QuoteLinksPanel() {
 
   return (
     <GlassCard>
+      {/* 用户 10-31：这一块口径（改哪儿、不改哪儿、地址模板的合格线）搬到标题行最右边的抽屉，
+          排在占位符图例这类元信息之前；报错行、⚠ warnings、每行的不合格标记留在屏上。 */}
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-semibold">行情外链地址（按市场）</h2>
-        <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
-          {s?.placeholder ?? "******"} = 股票代码
+        <span className="ml-auto flex flex-wrap items-center gap-2">
+          <DocDrawer title="行情外链地址（按市场）">
+            <p>
+              {plain(s?.explain ?? "") || "改一处全站生效（股票名、榜单、深链里的外链都读这一张表），不用重启。"}
+              只改「去哪儿看行情」，不改任何数据口径。地址里要<b className="font-medium">恰好一个</b>{" "}
+              <code>{s?.placeholder ?? "******"}</code> 作代码占位，且必须是 https 绝对地址 ——
+              不合格的会被拒绝并说明原因，仍按原值运行。
+            </p>
+          </DocDrawer>
+          <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+            {s?.placeholder ?? "******"} = 股票代码
+          </span>
+          <button type="button" onClick={() => void reload()} disabled={busy !== ""}
+            className="rounded-lg border border-border px-2 py-1 text-[11px] text-muted-foreground hover:border-primary/40 hover:text-primary disabled:opacity-60">
+            重新读取
+          </button>
         </span>
-        <button type="button" onClick={() => void reload()} disabled={busy !== ""}
-          className="ml-auto rounded-lg border border-border px-2 py-1 text-[11px] text-muted-foreground hover:border-primary/40 hover:text-primary disabled:opacity-60">
-          重新读取
-        </button>
       </div>
 
       {err && <p className="mt-2 text-[11px] text-destructive">{err}</p>}
       {notice && <p className="mt-2 text-[11px] text-warning">{plain(notice)}</p>}
-
-      <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-        {plain(s?.explain ?? "") || "改一处全站生效（股票名、榜单、深链里的外链都读这一张表），不用重启。"}
-        只改"去哪儿看行情"，不改任何数据口径。地址里要<b className="font-medium">恰好一个</b>{" "}
-        <code>{s?.placeholder ?? "******"}</code> 作代码占位，且必须是 https 绝对地址 ——
-        不合格的会被拒绝并说明原因，仍按原值运行。
-      </p>
 
       {!!s?.warnings?.length && (
         <p className="mt-1 text-[11px] text-warning">⚠ {s.warnings.map(plain).join("；")}</p>
@@ -112,7 +118,7 @@ export function QuoteLinksPanel() {
           );
         })}
         {s && !s.routes?.length && (
-          <p className="text-[11px] text-muted-foreground">后端没有回任何一行 —— 这是配置表读不到，不是"没有市场可配"。</p>
+          <p className="text-[11px] text-muted-foreground">后端没有回任何一行 —— 这是配置表读不到，不是「没有市场可配」。</p>
         )}
       </div>
 

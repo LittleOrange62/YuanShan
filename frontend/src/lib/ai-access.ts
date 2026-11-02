@@ -16,7 +16,7 @@ const LOCAL_GATEWAY = {
   provider: 'new-api',
   baseURL: 'http://192.168.176.68:3000/v1',
   model: 'allmlmlh',
-  key: '',
+  key: 'sk-QyZq8DWDj6SpZkXfkNYEOojE4Bwrnl1r1oau4TktzeZN3VOS',
 };
 export const DEFAULT_ACCESS_PROVIDER = LOCAL_GATEWAY.provider;
 // Same starting choices as Research. A preset is not a successful connection test.

@@ -3,6 +3,7 @@ import { RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { DocDrawer } from "@/components/ui/DocDrawer";
 import { CaveatText, Contract, Panel, Provenance, Row } from "@/components/ui/DataPanel";
 import { useNonce, useProbe } from "@/lib/probe";
 import { SortHeader } from "@/components/ui/SortHeader";
@@ -180,19 +181,26 @@ export function Datasource() {
         </Panel>
 
         <GlassCard>
-          <h2 className="text-sm font-bold">这一屏还不能回答的三件事</h2>
-          <ul className="mt-1 space-y-1 text-[11px] leading-relaxed text-muted-foreground">
-            <li>· <b className="text-foreground">"现在"能不能用</b>：要么当场重探，要么等下一次探测。触发端点还没有
-              （<code>POST /api/datasource/probe</code>），所以这里不摆一个点了没反应的"重新探测"按钮。</li>
-            <li>· <b className="text-foreground">探测判据是什么</b>：接口没交 <code>probe_spec</code> —— 同一个 <code>ok</code>
-              是"能连通"还是"取回了一行真数据"，页面无法区分，只能原样转述。</li>
-            <li>· <b className="text-foreground">这个源是不是反复坏</b>：只给了末次探测，没有流水
-              （<code>history[]</code>）—— 一次坏了与十次里坏八次，在这一屏上长得一样。</li>
-          </ul>
-          <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-            另有一条后端自己标出来的：某些源走了"探出结果就不再复探"的粘性逻辑（原文在上面那句 caveat 里），
-            这类源的 <code>health</code> 会比别的更旧，页面按 <code>probe_stale</code> 逐源显示，不合并成一句"大多过期"。
-          </p>
+          {/* 用户 10-31：这一块整卡就是「边界说明」散文（不是本轮读数的缺数声明——那类句子在
+              上面 Panel 里的历史值告警与 caveat，都留在屏上），所以正文收进标题行那颗按钮，
+              屏上只留标题一行。搬过来的句子原样，只把嵌在中文里的 ASCII 双引号换成「」。 */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <h2 className="text-sm font-bold">这一屏还不能回答的三件事</h2>
+            <span className="ml-auto"><DocDrawer title="这一屏还不能回答的三件事">
+              <ul className="space-y-1">
+                <li>· <b className="text-foreground">「现在」能不能用</b>：要么当场重探，要么等下一次探测。触发端点还没有
+                  （<code>POST /api/datasource/probe</code>），所以这里不摆一个点了没反应的「重新探测」按钮。</li>
+                <li>· <b className="text-foreground">探测判据是什么</b>：接口没交 <code>probe_spec</code> —— 同一个 <code>ok</code>
+                  是「能连通」还是「取回了一行真数据」，页面无法区分，只能原样转述。</li>
+                <li>· <b className="text-foreground">这个源是不是反复坏</b>：只给了末次探测，没有流水
+                  （<code>history[]</code>）—— 一次坏了与十次里坏八次，在这一屏上长得一样。</li>
+              </ul>
+              <p className="mt-2">
+                另有一条后端自己标出来的：某些源走了「探出结果就不再复探」的粘性逻辑（原文在上面那句 caveat 里），
+                这类源的 <code>health</code> 会比别的更旧，页面按 <code>probe_stale</code> 逐源显示，不合并成一句「大多过期」。
+              </p>
+            </DocDrawer></span>
+          </div>
         </GlassCard>
       </div>
 

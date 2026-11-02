@@ -157,6 +157,6 @@ test('10-19 夜「描述收缩」自查：怎么点那句折进说明框，母�
     '折叠块那份字典的头必须念中文标题（caliber_items），不念 mother/no_fish_pond 这种机器码');
   assert.ok(!/definitions=\{d\.calibers\}/.test(page),
     '把机器键字典直接当 definitions 传＝屏幕上会念出 mother、gap、stop 这种标识符');
-  assert.match(page.slice(boxEnd, boxEnd + 400), /cell\.popHint && <p role="status"/,
+  assert.match(page.slice(boxEnd, boxEnd + 400), /cell\.popHint && <NoticeBar kind="warning"/,
     '弹窗被拦的告警留在说明框外面');
 });

@@ -301,6 +301,50 @@ export interface ShortTermEmotion {
   gap_texts?: Record<string, string> | null;
   /** 日期口径说明（库里最近一场 ≠ 日历最近交易日时后端给的话），非空必须显示 */
   caliber_note?: string | null;
+  /** 档位那一排按钮的键序与中文名（只在这一份里，界面不自己排档、不自写中文） */
+  tier_keys?: string[] | null;
+  tier_labels?: Record<string, string> | null;
+  /** 每一档的家数：母体是**本场全部封住的行**，不跟着勾选走（勾选只筛表） */
+  tier_counts?: Record<string, number> | null;
+  tier_parent_total?: number | null;
+  /** 这张表的母体是怎么框出来的：`lianban_default`（默认二板及以上）／`tier_filtered`（按档筛过） */
+  lianban_parent?: string | null;
+  tiers_requested?: string | null;
+  lianban_shown?: number | null;
+}
+
+/** 「跌停分析」的一行：全部来自本地日线，**没有**封单额／首封时刻／涨停原因那三族
+ *  （本机跌停侧没有这三个读数，整列不出现，不是摆 `—` 占位）。 */
+export interface LimitDownRow {
+  code: string; name: string; board?: string | null; is_st?: boolean | null;
+  close: number | null; pct: number | null; limit_down: number | null; limit_basis?: string | null;
+  amount: number | null; turnover: number | null;
+  /** 流通市值：读 `market_data.stock_snapshot.float_market_value_yuan`，那一场没有这只的行 = null（显示 —） */
+  float_cap: number | null;
+  /** 连续跌停场次（半分容差，与上面那个家数同一把尺）；整列读不到时 `streak_warn` 会出声 */
+  streak: number | null; streak_bars?: number | null;
+  /** 几天几跌停（board_span 那把更严的 0.001 容差、允许中间空一场）：与上一列是两把尺，都留着 */
+  days_boards?: string | null; board_days?: number | null; board_ct?: number | null;
+  board_dates?: string[] | null;
+  /** 概念（本地 reference_data.sector_member，窄题材在前）；库里没行 = null，不等于没有题材 */
+  industry?: string | null; concept_count?: number | null;
+}
+export interface LimitDownData {
+  date: string; available?: boolean; reason?: string | null;
+  dt_count?: number | null; touched_count?: number | null; opened_count?: number | null;
+  seal_rate?: number | null; open_rate?: number | null;
+  prev_date?: string | null; prev_sealed?: number | null;
+  streak_ge2_count?: number | null; continuation_rate?: number | null;
+  rows?: LimitDownRow[] | null; rows_shown?: number | null;
+  parent?: string | null; tiers_requested?: string | null;
+  tier_keys?: string[] | null; tier_labels?: Record<string, string> | null;
+  tier_counts?: Record<string, number> | null; tier_parent_total?: number | null;
+  caliber?: string | null; streak_rule?: string | null; streak_warn?: string | null;
+  days_boards_rule?: string | null; days_boards_warn?: string | null;
+  coverage?: { first_day?: string | null; last_day?: string | null; sessions?: number | null } | null;
+  window_sessions?: number | null; eps?: number | null;
+  float_cap_missing?: number | null; no_limit_rows?: number | null;
+  caliber_note?: string | null;
 }
 
 // 每日盯盘：3 秒实时快照（持仓/自选/500亿大票/三板+/昨日成交前十 + 异动流）
@@ -373,6 +417,15 @@ export interface FirstBoardData {
   reason_summary?: { name: string; count: number }[] | null;
   /** 同一口径的行业计数 */
   industry_summary?: { name: string; count: number }[] | null;
+  /** 10-29 用户点名：概念板块按"挂上该概念的只数"从高到低，只列前 10（`firstboard.CONCEPT_TOP`）。
+   *  实现只住 `duanxian/pg_sources.py::concept_rollup` 一份；`covered`/`pool_size` 是分母，
+   *  `failed`＝查询坏了（≠ 这批票没有题材）。 */
+  concept_board?: {
+    rows?: { concept: string; stocks: number | null; members_total: number | null;
+             pool_share_pct: number | null; lift_pctile: number | null; sample_codes?: string | null }[] | null;
+    rows_total?: number | null; top?: number | null;
+    pool_size?: number | null; covered?: number | null; failed?: boolean; caliber?: string | null;
+  } | null;
   summary_meta?: {
     scope?: string; stock_count?: number; no_reason?: number;
     dropped_single_reason?: number; dropped_single_industry?: number;
@@ -567,6 +620,55 @@ export interface LiveEmotion {
   promotion_base_date?: string | null;
 }
 
+
+/** 首板四层过滤深析（`/api/market/first-board-deep`）。列名与口径都从后端 `bounds`/`definitions` 读，
+ *  页面一个中文列名都不抄（抄的那份会漂）。 */
+export interface FirstBoardDeepRow {
+  code: string; name?: string | null; board?: string | null; is_st?: boolean | null;
+  pct_change?: number | null;
+  concept_top?: string | null; concept_count?: number | null; concept_lift?: number | null;
+  concept_gap?: number | null; concept_base?: number | null;
+  concept_all?: string[] | null; concept_n?: number | null; reason?: string | null;
+  first_seal?: string | null; first_seal_min?: number | null; reopen?: number | null;
+  at_limit_minutes?: number | null; seal_ratio_pct?: number | null; seal_basis?: string | null;
+  vol_mult?: number | null; turnover?: number | null;
+  src_row?: boolean | null; missing?: string | null;
+  on_dt?: boolean | null; dt_lists?: number | null; dt_buy_sell?: number | null;
+  dt_net_yi?: number | null; dt_net_ratio?: number | null;
+  inst_buy_count?: number | null; inst_sell_count?: number | null; inst_net_yi?: number | null;
+}
+
+export interface FirstBoardDeepData {
+  available: boolean; reason?: string | null; date?: string | null;
+  parent?: { total?: number | null; text?: string | null } | null;
+  rows?: FirstBoardDeepRow[] | null; rows_shown?: number | null; rows_limit?: number | null;
+  layers?: Record<string, string> | null;
+  bounds?: { key: string; label: string; unit: string; layer: string;
+             external: string; local: string; hi: string }[] | null;
+  cannot?: { what: string; why: string }[] | null;
+  definitions?: Record<string, string> | null;
+  session?: {
+    date?: string | null;
+    promotion_rate?: { current?: number | null; p25?: number | null; median?: number | null;
+                       p75?: number | null; sessions?: number | null;
+                       percentile_in_20?: number | null } | null;
+    broken_rate?: { current?: number | null; median?: number | null;
+                    percentile_in_20?: number | null } | null;
+    highest_board?: { current?: number | null; median?: number | null;
+                      percentile_in_20?: number | null } | null;
+    up_ratio?: { current?: number | null; median?: number | null;
+                 percentile_in_20?: number | null } | null;
+    median_pct?: { current?: number | null; median?: number | null;
+                   percentile_in_20?: number | null } | null;
+    limit_up_count?: number | null; limit_down_count?: number | null;
+    breadth_source?: string | null; prev_day?: string | null;
+    premium?: { avg_pct?: number | null; n?: number | null; text?: string | null } | null;
+  } | null;
+  coverage?: Record<string, { have?: number | null; total?: number | null; pct?: number | null } | string> | null;
+  caveats?: { code: string; text: string }[] | null;
+  generated_at?: string | null;
+}
+
 export const api = {
   health: () => get<{ ok: boolean }>("/health"),
   indices: () => get<IndexQuote[]>("/indices"),
@@ -584,6 +686,30 @@ export const api = {
     return get<SectorRotation>(`/market/sector-rotation${s ? `?${s}` : ""}`);
   },
   emotion: () => get<ShortTermEmotion>("/market/emotion"),
+  /** 「涨停分析」那张合并后的表（短线复盘页）。与首页那块**同一份后端实现**，
+   *  只多两个入参：指定交易日 + 连板档位多选（`1,2,3,4p` 逗号拼接，空＝默认二板及以上）。 */
+  limitMove: (date?: string, tiers?: string) => {
+    const q = new URLSearchParams();
+    if (date) q.set("date", date);
+    if (tiers) q.set("tiers", tiers);
+    const s = q.toString();
+    return get<ShortTermEmotion>(`/market/limit-move${s ? `?${s}` : ""}`);
+  },
+  /** 「跌停分析」：母体是本地日线（与涨停那张库表无关），档位键与涨停同一套 */
+  limitDown: (date?: string, tiers?: string) => {
+    const q = new URLSearchParams();
+    if (date) q.set("date", date);
+    if (tiers) q.set("tiers", tiers);
+    const s = q.toString();
+    return get<LimitDownData>(`/market/limit-down${s ? `?${s}` : ""}`);
+  },
+  firstBoardDeep: (date?: string, limit?: number) => {
+    const q = new URLSearchParams();
+    if (date) q.set("date", date);
+    if (limit) q.set("limit", String(limit));
+    const s = q.toString();
+    return get<FirstBoardDeepData>(`/market/first-board-deep${s ? `?${s}` : ""}`);
+  },
   monitorSnapshot: async (watch: string) => {
     const codes = watch.split(',').filter(Boolean);
     const monitored = codes.slice(0, 100).join(',');

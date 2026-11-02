@@ -15,6 +15,7 @@ import {
   StatsView, Themes, ThemeTreeView,
 } from "@/components/MarketFactsPanel";
 import { BreadthPanel } from "@/components/BreadthPanel";
+import { NationalTeamPanel } from "@/components/NationalTeamPanel";
 import { TrendPanel } from "@/components/TrendPanel";
 import {
   agentFetch, agentPost, finite, localDate, phaseTone, safeArray,
@@ -400,7 +401,7 @@ export function AgentReview() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <Swords className="h-6 w-6 text-primary" /> 短线复盘看板
+            <Swords className="h-6 w-6 text-primary" /> 复盘报告
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             情绪温度 · 明日验证条件
@@ -458,6 +459,13 @@ export function AgentReview() {
           </details>
         </div>
       ) : null}
+
+      {/* ───────────────────── 顶部：国家队代理指标（用户 2026-10-26 点名要做成图表，
+          并选定落点＝复盘报告这一屏的顶部）─────────────────────
+          挂在"没有报告"那段之前，而不是塞进 `{data && ...}` 里面：这一块读的是库
+          （`analytics.national_team_etf_daily`），与 AI 有没有生成过报告是两件事 ——
+          那天没报告时它照样应该有数，有报告时它也不该被报告的生成状态带着消失。 */}
+      <NationalTeamPanel />
 
       {!data && (!running || jobDate !== date) && (
         <div className="glass rounded-2xl py-16 text-center text-muted-foreground">

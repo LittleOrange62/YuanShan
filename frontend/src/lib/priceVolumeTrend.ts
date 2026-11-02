@@ -127,6 +127,68 @@ export function barTooltip(b: PvBar, kind: "day" | "week" | "month", label: stri
   return lines.join("\n");
 }
 
+/** 图下方那一行的日期：日线给完整交易日，周/月线要说清它是"哪一期"而不是某一天。 */
+export function barDate(b: PvBar | null | undefined, kind: "day" | "week" | "month"): string {
+  const d = String(b?.date ?? "");
+  if (!d) return "—";
+  if (kind === "month") return `${d.slice(0, 4)}年${d.slice(5, 7)}月`;
+  if (kind === "week") return `${d.slice(0, 10)} 起那一周`;
+  return d.slice(0, 10);
+}
+
+/**
+ * 图下方那一行的读数（用户 2026-10-28：「鼠标点上去可以有显示当天的高点低点开盘收盘 涨跌幅。
+ * 可以点击任何一根k线之后再下方显示数字」）。
+ *
+ * 三条别做错的：
+ *  · 缺数给 `—` 不给 0（`price`/`pctText` 已经判过，这里不另写一套）；
+ *  · 复权收与不复权收**两列都给** —— 只给一个就会被当成当天真成交的价；
+ *  · 涨跌的颜色由调用方按 A 股习惯映射（红涨绿跌），这一层只交"涨/跌/判不了"三态，
+ *    `isUp` 返回 null（没有开或没有收）时不许蒙一个方向。
+ */
+export type ReadoutTone = "up" | "down" | "none";
+
+export function readoutCells(b: PvBar | null | undefined): { k: string; v: string; tone: ReadoutTone }[] {
+  if (!b) return [];
+  const up = isUp(b);
+  const tone: ReadoutTone = up === null ? "none" : up ? "up" : "down";
+  const pctTone: ReadoutTone = numOrNull(b.pct) === null ? "none" : (b.pct as number) > 0 ? "up" : (b.pct as number) < 0 ? "down" : "none";
+  const turnover = numOrNull(b.turnover_sum);
+  return [
+    { k: "开", v: price(b.open), tone },
+    { k: "高", v: price(b.high), tone },
+    { k: "低", v: price(b.low), tone },
+    { k: "收", v: price(b.close), tone },
+    { k: "涨跌", v: pctText(b.pct), tone: pctTone },
+    { k: "不复权收", v: price(b.close_raw), tone: "none" },
+    { k: "量", v: volText(b.volume_wan_shares), tone: "none" },
+    { k: "额", v: amtText(b.amount_yi), tone: "none" },
+    { k: "换手", v: turnover === null ? "—" : `${turnover.toFixed(2)}%`, tone: "none" },
+    { k: "含日线", v: `${numOrNull(b.bars) ?? "—"} 根`, tone: "none" },
+  ];
+}
+
+/**
+ * 现在该显示哪一根：**悬停 > 点选钉住 > 最新一根**。
+ * 悬停优先是因为读者鼠标在哪儿就看哪儿；钉住排在中间是因为鼠标移开之后那一根还得留在下面
+ * （用户要的"点击之后再下方显示数字"就是这个意思）；都没选时给最新一根，
+ * 与股票软件默认停在最后一根一致 —— 留空不如给一个有出处的默认值。
+ * 越界（换了一只票、根数变少）一律作废，不许拿旧下标去指新数组。
+ */
+export function pickBarIndex(n: number, hover: number | null, pinned: number | null): number | null {
+  const valid = (i: number | null): i is number => typeof i === "number" && i >= 0 && i < n;
+  if (valid(hover)) return hover;
+  if (valid(pinned)) return pinned;
+  return n > 0 ? n - 1 : null;
+}
+
+/** 那一行左上角要念出这一根是**怎么被选中**的（三种来路读法不同，不能混成一句）。 */
+export function readoutSource(hover: number | null, pinned: number | null): string {
+  if (typeof hover === "number") return "悬停这一根";
+  if (typeof pinned === "number") return "已钉住这一根（再点同一根取消）";
+  return "最新一根（把鼠标放到图上、或点一根钉住）";
+}
+
 /** 一块下面那行读数：最后一根 + 根数不足时的那句。 */
 export function seriesCaption(s: PvSeries | null | undefined, kind: "day" | "week" | "month"): string {
   const rows = s?.rows ?? [];

@@ -59,7 +59,7 @@ export function Settings() {
         <SavedSources />
         {/* 这一段的口径（旧设置的去处 · 页面问答读什么 · 复盘与深挖怎么发起）折进通用说明框（用户 10-14）。
             下一行「后端访问密钥」那块本来就已经是收起来的 details，不再套第二层。 */}
-        <ExplainBox title="旧设置的去处 · 页面问答读什么 · 复盘与深挖怎么发起">
+        <ExplainBox title="旧设置的去处 · 页面问答读什么 · 复盘与深挖怎么发起" block="AI 来源">
           <p className="text-sm">旧版分散的 AI 设置不再用于产品调用；此前保存的单条来源已自动并入下面的来源列表，密钥没有被迁移到别处。页面问答在 Agent 关闭时仅阅读本次明确提供的材料；开启后可查询公开资料。完整复盘与个股深挖由各自的任务按钮明确发起。</p>
         </ExplainBox>
         <details className="glass rounded-2xl p-5"><summary className="cursor-pointer text-sm font-medium">后端访问设置</summary><div className="mt-4 space-y-3"><h3 className="flex items-center gap-2 text-sm"><KeyRound size={16} />后端访问密钥（可选）</h3><p className="text-xs text-muted-foreground">仅当后端设置了访问密钥时填写，本机默认可留空。保存在本浏览器中，清理网站数据会移除；这不是 AI 服务商密钥。</p><div className="flex gap-2"><input type="password" value={accessKey} onChange={e=>setAccessKey(e.target.value)} className="min-w-0 flex-1 rounded-lg border border-border bg-card px-3 py-2" aria-label="后端访问密钥" /><button className="rounded-lg bg-primary px-4 py-2 text-primary-foreground" onClick={()=>{try { saveAccessKey(accessKey.trim()); workspace.refresh(); toast.success('已保存后端访问设置'); } catch(e) { toast.error(e instanceof Error ? e.message : '保存失败'); }}}>保存</button></div></div></details>

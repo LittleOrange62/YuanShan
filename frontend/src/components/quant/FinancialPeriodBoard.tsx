@@ -1,6 +1,7 @@
 import { RefreshCw } from "lucide-react";
 import { Caliber } from "@/components/ui/Caliber";
-import { CaliberFold, ExplainBox, Panel } from "@/components/ui/DataPanel";
+import { CaliberFold, Panel } from "@/components/ui/DataPanel";
+import { DrawerSection } from "@/components/ui/DocDrawer";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { useNonce, useProbe } from "@/lib/probe";
@@ -74,8 +75,7 @@ export function FinancialPeriodBoard({ code }: { code: string | null }) {
         </button>
       </div>
 
-      <Panel title="逐期 · 累计档与单季档 · 三格外推" state={state}
-        note="金额一律亿元、比率百分数；缺的格子是「—」并带后端给的原因，不补 0。">
+      <Panel title="逐期 · 累计档与单季档 · 三格外推" state={state}>
         {p => {
           const qRows = sort.apply(p.quarters ?? []);
           const kindsMiss = missingKindSentence(p.kinds);
@@ -224,25 +224,30 @@ export function FinancialPeriodBoard({ code }: { code: string | null }) {
                 </table>
               </div>
 
-              {/* 后端声明 + 表下那两句散文（取数口径原句、字段义）收成一处默认收起的折叠块
-                  （用户 2026-10-21：「把页面上的描述性内容全部收缩起来，避免过多占屏」——
-                  这两段是口径解释，不是读数，原先各占一整行摊在两叠表下面）。
+              {/* 一模块一颗（用户 10-29 第 4 条 ＋ 11-01「做」）：这块原来有标题行 `Panel note` 一颗、
+                  这一颗折叠块、再加下面那个 `ExplainBox` 一颗 —— 三处点完才看全。
+                  现在两处文字都并进这一颗抽屉（那句单位与缺数写法成了 notes 的第一段）。
                   **没跟着折的**：上面那四格读数、「这份财务多旧」那句、`kinds` 缺档与 Q4 更粗那两句
                   `text-warning`；缺数／截断一族的 caveat 由折叠块自己留在屏上。 */}
               <CaliberFold caveats={p.caveats ?? []} definitions={p.definitions}
-                notes={[p.caliber ? `取数口径（后端原句，页面未改写）：${p.caliber}` : null]} />
-              <ExplainBox title="这三格外推到底是什么、不是什么">
-                <p>
-                  三条腿各自可反驳：
-                  <b className="text-foreground">下一季</b>＝上年同季 ×（1 + 近 4 季单季同比的半衰加权），
-                  再用近 3 年同一季的季节环比校验，两法相差超过 25% 就<b className="text-foreground">不给单一数</b>；
-                  <b className="text-foreground">当年</b>＝已披露累计原样保留 + 未披露的各季逐季补（含 Q4 时那一格更粗）；
-                  <b className="text-foreground">明年</b>＝0.4×近 5 年年报 CAGR + 0.6×近 3 年 CAGR，
-                  旁边的带子是<b className="text-foreground">近 5 份年报同比的 25/75 分位情景带</b>，
-                  与点估计取并，<b className="text-foreground">不是置信区间</b>。
-                  它不是券商一致预期、不是公司公告：历史里没出现过的那种变化（政策、大额减值、并表口径调整）外推看不出来。
-                </p>
-              </ExplainBox>
+                notes={[
+                  "金额一律亿元、比率百分数；缺的格子是「—」并带后端给的原因，不补 0。",
+                  p.caliber ? `取数口径（后端原句，页面未改写）：${p.caliber}` : null,
+                ]}
+                extra={(
+                  <DrawerSection heading="这三格外推到底是什么、不是什么">
+                    <p>
+                      三条腿各自可反驳：
+                      <b className="text-foreground">下一季</b>＝上年同季 ×（1 + 近 4 季单季同比的半衰加权），
+                      再用近 3 年同一季的季节环比校验，两法相差超过 25% 就<b className="text-foreground">不给单一数</b>；
+                      <b className="text-foreground">当年</b>＝已披露累计原样保留 + 未披露的各季逐季补（含 Q4 时那一格更粗）；
+                      <b className="text-foreground">明年</b>＝0.4×近 5 年年报 CAGR + 0.6×近 3 年 CAGR，
+                      旁边的带子是<b className="text-foreground">近 5 份年报同比的 25/75 分位情景带</b>，
+                      与点估计取并，<b className="text-foreground">不是置信区间</b>。
+                      它不是券商一致预期、不是公司公告：历史里没出现过的那种变化（政策、大额减值、并表口径调整）外推看不出来。
+                    </p>
+                  </DrawerSection>
+                )} />
             </>
           );
         }}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 import { loadLoops, patchLoop, WEEK_DAY_LABELS, freqProblem, parseWeeklyDays, switchBadge,
   type LoopsState, type LoopRow } from "@/lib/closeChain";
 import { cn } from "@/lib/utils";
@@ -74,19 +75,45 @@ export function LoopSwitchboard() {
   const offCount = loops.filter(l => l.switchable && l.enabled === false).length;
 
   return (
-    <GlassCard>
+    <GlassCard docTitle="常驻循环与定时任务">
+      {/* 用户 10-31：说明按钮摆标题行最右边、排在「线程在 N 条」这类状态标记之前；
+          读数、开关、逐条警示与那一屏的操作全部留在屏上，抽屉里只有说明散文（后端原句 + 命名表 + 步数提醒）。 */}
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-semibold">常驻循环与定时任务（本进程共 {s ? dashCount(s.declared_count) : DASH} 条在册）</h2>
-        <span className={cn("rounded-md px-1.5 py-0.5 text-[11px]",
-          !s ? "bg-muted text-muted-foreground"
-            : offCount ? "bg-warning/15 text-warning" : "bg-primary/15 text-primary")}>
-          {!s ? "读取中" : `线程在 ${dashCount(s.alive_count)} 条`
-            + (offCount ? `，其中 ${offCount} 条被关着` : "，在册的都在")}
+        <span className="ml-auto flex flex-wrap items-center gap-2">
+          {s && (
+            <DocDrawer title="常驻循环与定时任务">
+              <DrawerSection heading="这一屏的说明（后端原句 · 「调度器」在本机指五件不同的事 · 步数为什么不抄在屏上）">
+                <p>{plain(s.note ?? "")}</p>
+                <p className="mt-1.5">{plain(s.explain ?? "")}</p>
+                <ul className="mt-2 space-y-1">
+                  {NAMING.map(([what, meaning]) => (
+                    <li key={what}><span className="font-medium">{what}</span>
+                      {/* 这段是前端自写的句子，但里面用了成对星号当强调：抽屉里也是裸文本出口，一起剥掉 */}
+                      —— <span className="text-muted-foreground">{plain(meaning)}</span></li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-muted-foreground">
+                  收盘链两段内部还串着几十步（获取段 10 步 ＋ 加工段若干步 —— 加工段每一步入链都会让总数变，
+                  所以这里那句总数以 <code>len(e1_fill_all.STAGES)</code> 现读为准，别抄屏幕上的数），
+                  那不是几十条定时任务 ——
+                  它们由 <code>daily_close</code> 这一条在 15:59 串起来跑，逐步说明在
+                  「任务调度」页与 <code>docs/系统配置工作指南/05-调度宿主.md</code>。
+                </p>
+              </DrawerSection>
+            </DocDrawer>
+          )}
+          <span className={cn("rounded-md px-1.5 py-0.5 text-[11px]",
+            !s ? "bg-muted text-muted-foreground"
+              : offCount ? "bg-warning/15 text-warning" : "bg-primary/15 text-primary")}>
+            {!s ? "读取中" : `线程在 ${dashCount(s.alive_count)} 条`
+              + (offCount ? `，其中 ${offCount} 条被关着` : "，在册的都在")}
+          </span>
+          <button type="button" onClick={() => void reload()} disabled={busy !== ""}
+            className="rounded-lg border border-border px-2 py-1 text-[11px] text-muted-foreground hover:border-primary/40 hover:text-primary disabled:opacity-60">
+            重新读取
+          </button>
         </span>
-        <button type="button" onClick={() => void reload()} disabled={busy !== ""}
-          className="ml-auto rounded-lg border border-border px-2 py-1 text-[11px] text-muted-foreground hover:border-primary/40 hover:text-primary disabled:opacity-60">
-          重新读取
-        </button>
       </div>
 
       {err && <p className="mt-2 text-[11px] text-destructive">{err}</p>}
@@ -145,27 +172,8 @@ export function LoopSwitchboard() {
         </ul>
       )}
 
-      {/* 后端这两句是纯文本：`plain()` 去掉 ** 粗体标记，不然星号会原样显示在页面上 */}
-      <p className="mt-2 text-[11px] leading-4 text-muted-foreground">{plain(s?.note ?? "")}</p>
-      <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{plain(s?.explain ?? "")}</p>
-
-      <details className="mt-2 rounded-lg border border-border/60 p-2 text-[11px] leading-relaxed">
-        <summary className="cursor-pointer font-medium">「调度器」这个词在本机指五件不同的事（点开设别）</summary>
-        <ul className="mt-1.5 space-y-1">
-          {NAMING.map(([what, meaning]) => (
-            <li key={what}><span className="font-medium">{what}</span>
-              {/* 这段是前端自写的句子，但里面用了 ** 当强调：屏幕上就是裸星号。走同一个纯文本出口。 */}
-              —— <span className="text-muted-foreground">{plain(meaning)}</span></li>
-          ))}
-        </ul>
-        <p className="mt-1.5 text-muted-foreground">
-          收盘链两段内部还串着几十步（获取段 10 步 ＋ 加工段若干步 —— 加工段每一步入链都会让总数变，
-          所以这里那句总数以 <code>len(e1_fill_all.STAGES)</code> 现读为准，别抄屏幕上的数），
-          那不是几十条定时任务 ——
-          它们由 <code>daily_close</code> 这一条在 15:59 串起来跑，逐步说明在
-          「任务调度」页与 <code>docs/系统配置工作指南/05-调度宿主.md</code>。
-        </p>
-      </details>
+      {/* 2026-10-31（用户点名）：这一块的说明（后端那两句 + 前端自写的命名表 + 步数那句提醒）
+          从卡底正文折框搬进了标题行那颗「这块的说明」的抽屉，卡底不再摊第二遍。 */}
     </GlassCard>
   );
 }

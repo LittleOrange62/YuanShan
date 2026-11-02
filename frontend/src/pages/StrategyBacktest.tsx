@@ -54,7 +54,7 @@ export function StrategyBacktest(){
   return <div className="space-y-6"><PageHeader title="回测" subtitle="把想验证的历史规则说清楚，确认条件后用真实日线计算，结果自动保存在本机。" />
     {/* 说明与定义折进通用说明框（用户 10-14）。没跟着折的：费用披露与「历史表现不能证明
         未来收益」这两句留在框外，「AI 探索 · 接入设置」是入口链接、不能藏进折叠框。 */}
-    <ExplainBox title="这套回测支持哪些市场与规则 · 不支持什么">
+    <ExplainBox title="这套回测支持哪些市场与规则 · 不支持什么" block="回测">
       <p>支持 A 股、美股、港股的日线买入持有、均线交叉和 RSI 均值回归。目前只支持上述三种规则；短线是日线级验证，不模拟盘中打板。持有周期由规则触发决定，买入持有一直持有到期末；不支持任意固定 N 日卖出。</p>
     </ExplainBox>
     <p className="text-sm text-muted-foreground">费用、滑点与市场约束随报告披露；历史表现不能证明未来收益。<Link to="/settings?tab=access" className="ml-2 text-primary">AI 探索 · 接入设置</Link></p>

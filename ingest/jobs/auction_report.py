@@ -33,12 +33,12 @@ try:
 except Exception:  # noqa: BLE001
     pass
 
-from app.intraday import sources, store                             # noqa: E402
+from app.intraday import sources, store, tasks                      # noqa: E402
 from app.intraday.pool_events import SPEC_VERSION, money_text       # noqa: E402
 from ingest.jobs import zt_watch                                    # noqa: E402  池子出口只有一份
 
 CFG = {**{'min_pct': 5.0, 'top_n': 60, 'sector_top': 10, 'max_members': 1500,
-          'channel': 'feishu-main', 'page_size': 100, 'max_pages': 3,
+          'page_size': 100, 'max_pages': 3,
           'fresh_min_movers': 30, 'retry': 3, 'retry_wait_s': 15},
        **json.loads((ROOT / 'app' / 'intraday' / 'broadcast_config.json').read_text(encoding='utf-8'))}
 TPL = json.loads((ROOT / 'app' / 'intraday' / 'templates.json').read_text(encoding='utf-8'))
@@ -117,7 +117,8 @@ def _side_block(board_key, rows, cfg, now, board_rows, concept_rows):
     return out
 
 
-def one_round(*, dry_run: bool, send: bool, force: bool, channel: str) -> int:
+def one_round(*, dry_run: bool, send: bool, force: bool,
+              channel: str | None) -> int:
     now = dt.datetime.now()
     if now.hour != 9 and not force:
         print(f'[{now:%H:%M:%S}] 不在 9 点档（竞价价还没产生）—— 手工看数请加 --force')
@@ -180,12 +181,13 @@ def one_round(*, dry_run: bool, send: bool, force: bool, channel: str) -> int:
 
 def _send(now, text, channel):
     from duanxian import notify
-    res = notify.send_to([channel], '竞价速览', text)
+    keys = tasks.send_channels(channel)       # 不给就读系统配置里的盘中播报渠道
+    res = notify.send_to(keys, '竞价速览', text)
     store.write_broadcast(now, task='auction', what='sent', body=text,
                           ok=bool(res.get('ok')), delivered=bool(res.get('ok')),
-                          channel_key=channel,
+                          channel_key=','.join(keys),
                           err=None if res.get('ok') else str(res.get('detail'))[:300])
-    print(f'  发送 → {channel}：{"已确认" if res.get("ok") else "未确认"}')
+    print(f'  发送 → {",".join(keys)}：{"已确认" if res.get("ok") else "未确认"}')
 
 
 def main(argv=None) -> int:
@@ -194,7 +196,8 @@ def main(argv=None) -> int:
     ap.add_argument('--send', action='store_true')
     ap.add_argument('--force', action='store_true', help='非 9 点档手工跑（文案标样机演示）')
     ap.add_argument('--wake-at', default='', help='睡到该时刻再取数，如 09:25:30')
-    ap.add_argument('--channel', default=CFG['channel'])
+    ap.add_argument('--channel', default=None,
+                    help='逗号分隔的渠道串；不给就读系统配置「盘中播报」那一格')
     a = ap.parse_args(argv)
     if a.wake_at:
         target = dt.datetime.combine(dt.date.today(),

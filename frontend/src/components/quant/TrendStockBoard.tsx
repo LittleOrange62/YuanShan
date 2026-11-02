@@ -16,6 +16,7 @@ import {
   coverageSentence, groupReading, groupRows, pctText, sectorTags, stateSentence,
   truncationSentence, yiText, featureTags, type TrendPayload, type TrendRow,
 } from "@/lib/trendStocks";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 趋势股（用户 2026-10-15 点名：把那份说明里我们没有的那一屏补上）。
@@ -84,7 +85,6 @@ export function TrendStockBoard() {
       </div>
 
       <Panel title="近 N 日站上 5 日线 · 当天没封涨停" state={state}
-        note="周期、上限都是后端参数；行数、母体、组内只数都由后端交出，页面不自己数。"
         controls={
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <div className="flex items-center gap-1.5">
@@ -165,7 +165,8 @@ export function TrendStockBoard() {
                   **没跟着折的**：上面那句覆盖与判据版本（读数）、榜被上限截断那句 `text-warning`、
                   组内汇总那句、每组「一只都没有」的说明、`ts.popHint`；
                   缺数／截断一族的 caveat 由折叠块自己留在屏上。 */}
-              <CaliberFold caveats={d.caveats ?? []} definitions={d.definitions} />
+              <CaliberFold caveats={d.caveats ?? []} definitions={d.definitions}
+                notes={["周期、上限都是后端参数；行数、母体、组内只数都由后端交出，页面不自己数。"]} />
 
               {ordered.map(g => (
                 <section key={g.board} className="mt-3">
@@ -226,7 +227,7 @@ export function TrendStockBoard() {
               {/* 弹窗被拦这句不许折进说明框：收着等于没说（且要排在任何折叠框之前，
                   `test/trendStocks.test.ts` 按源码先后钉这一条）。
                   "怎么点"与取数口径两句描述收进下面的说明框（用户 2026-10-19 夜：「把选项留出，描述内容都收缩起来」） */}
-              {ts.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{ts.popHint}</p>}
+              {ts.popHint && <NoticeBar kind="warning">{ts.popHint}</NoticeBar>}
               <ExplainBox title="这一张表怎么点 · 取数口径（后端原句）">
                 <p className="text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
                 {d.caliber && (

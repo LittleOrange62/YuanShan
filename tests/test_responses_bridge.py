@@ -51,8 +51,8 @@ def chat_sse(events):
 class Gateway:
     """Minimal stand-in for a chat-completions-only gateway."""
 
-    def __init__(self, script, status=200, body=""):
-        self.script, self.status, self.body = script, status, body
+    def __init__(self, script, status=200, body="", gap=0.0):
+        self.script, self.status, self.body, self.gap = script, status, body, gap
         self.received = []
         outer = self
 
@@ -78,6 +78,10 @@ class Gateway:
                 self.end_headers()
                 for chunk in outer.script[len(outer.received) - 1]:
                     self.wfile.write(b"%x\r\n" % len(chunk) + chunk + b"\r\n")
+                    # gap>0 模拟"一直有字节、迟迟不收尾"的渠道：读超时不会触发，
+                    # 只有整条回答的总时长闸能把它停住。
+                    if outer.gap:
+                        time.sleep(outer.gap)
                 self.wfile.write(b"0\r\n\r\n")
 
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
@@ -119,7 +123,8 @@ def test_chat_sources_keep_their_identity_and_allow_only_local_http():
     for provider in CHAT_PROVIDERS:
         source, key = connection({"provider": provider, "model": "deepseek-chat",
                                   "baseURL": "http://192.168.176.68:3000/v1/", "apiKey": "gateway-key"})
-        assert source == {"provider": provider, "model": "deepseek-chat", "baseURL": "http://192.168.176.68:3000/v1"}
+        assert source == {"provider": provider, "model": "deepseek-chat", "baseURL": "http://192.168.176.68:3000/v1",
+                          "timeout_seconds": 180}, "每条来源自带总时长闸，默认 180 秒"
         assert key == "gateway-key"
         assert config_for(None, source)["model_providers.astock_api"]["wire_api"] == "responses"
     for url in ['http://127.0.0.1:3000/v1', 'http://10.1.2.3:3000/v1', 'http://172.20.1.9/v1', 'http://[fd00::1234]:3000/v1']:
@@ -264,3 +269,72 @@ def test_real_engine_completes_a_bounded_run_through_the_bridge(tmp_path, monkey
         assert "sk-REAL-GATEWAY-KEY" not in canonical({"source": source, "result": result})
     finally:
         gateway.close()
+
+
+LOCAL_GATEWAY = "http://192.168.176.68:3000/v1"
+
+
+def test_每条来源的总时长闸由请求带到转换层():
+    """默认 180 秒、每条可填 30~600；界面上填错要当场说错，不许静默变成一个数。"""
+    assert connection({"provider": "new-api", "model": "m", "baseURL": LOCAL_GATEWAY, "apiKey": "k"})[0][
+        "timeout_seconds"] == bridge.UPSTREAM_TOTAL_SECONDS == 180
+    assert connection({"provider": "new-api", "model": "m", "baseURL": LOCAL_GATEWAY, "apiKey": "k",
+                       "timeoutSeconds": 45})[0]["timeout_seconds"] == 45
+    assert connection({"provider": "new-api", "model": "m", "baseURL": LOCAL_GATEWAY, "apiKey": "k",
+                       "timeoutSeconds": "90"})[0]["timeout_seconds"] == 90, "输入框传来字符串也要认"
+    for blank in (None, ""):
+        assert connection({"provider": "new-api", "model": "m", "baseURL": LOCAL_GATEWAY, "apiKey": "k",
+                           "timeoutSeconds": blank})[0]["timeout_seconds"] == 180, "留空按默认，不报错"
+    for bad in (0, 29, 601, "abc", []):
+        with pytest.raises(EvidenceError, match="超时"):
+            connection({"provider": "new-api", "model": "m", "baseURL": LOCAL_GATEWAY, "apiKey": "k",
+                        "timeoutSeconds": bad})
+
+
+def test_会话记住这一条来源的总闸():
+    gateway = Gateway([[delta({"content": "好"}, finish="stop"), b"data: [DONE]\n\n"]])
+    tokens = []
+    try:
+        tokens.append(bridge.open_session(gateway.url, "k", 45)[1])
+        assert bridge._sessions.get(tokens[0])["total_seconds"] == 45
+        tokens.append(bridge.open_session(gateway.url, "k")[1])
+        assert bridge._sessions.get(tokens[1])["total_seconds"] == bridge.UPSTREAM_TOTAL_SECONDS
+    finally:
+        for token in tokens:
+            bridge.close_session(token)
+        gateway.close()
+
+
+def test_上游一直吐字节却不收尾时总闸到点就停(monkeypatch):
+    """读超时管不住这种渠道（每 0.3 秒挤一点，永远不 finish）。今天 8 token 短问 120 秒不答
+    就是这一类：总闸不到点，"这次不通"就永远不会发生，自动切换也就永远等不到那次失败。
+
+    断言方式是"这个测试能在 6 秒内跑完"：转换层若不写终止块、不关连接，引擎侧会对着
+    keep-alive 一直读，httpx 就会抛读超时，这条测试当场红。
+    """
+    notes = []
+    monkeypatch.setattr(bridge, "_note_failure", lambda exc, where: notes.append((exc, where)))
+    monkeypatch.setattr(bridge, "_note_success", lambda: notes.append((None, "success")))
+    dribble = [delta({"content": "第一段"}), delta({"content": "第二段"}), delta({"content": "第三段"})]
+    gateway = Gateway([dribble], gap=.3)
+    try:
+        base_url, token = bridge.open_session(gateway.url, "k", total_seconds=.5)
+        with httpx.Client(timeout=6) as client:
+            with client.stream("POST", base_url + "/responses",
+                               headers={"authorization": "Bearer " + token}, json=ENGINE_REQUEST) as response:
+                lines = list(response.iter_lines())
+        assert notes and notes[-1][1].startswith("Responses 转换层已发给引擎、上游未正常收尾"), notes
+        assert "0.5 秒内没答完" in str(notes[-1][0]), notes[-1]
+        assert any(line.startswith("data:") for line in lines), "半截内容照样要发给引擎，只是到点收尾"
+    finally:
+        gateway.close()
+        bridge.close_session(token)
+
+
+def test_三段计时的口径写死并且不是一刀切60秒():
+    """用户拍的是"拆开三段"，不是 60 秒一刀：同一条链今天 39.7 秒成过、下午 120 秒不答。"""
+    assert bridge.UPSTREAM_CONNECT_SECONDS == 10
+    assert bridge.UPSTREAM_FIRST_BYTE_SECONDS == 45
+    assert bridge.UPSTREAM_TOTAL_SECONDS == 180
+    assert bridge.UPSTREAM_TIMEOUT.connect == bridge.UPSTREAM_CONNECT_SECONDS
+    assert bridge.UPSTREAM_TIMEOUT.read == bridge.UPSTREAM_FIRST_BYTE_SECONDS

@@ -10,8 +10,7 @@ import { STOCK_ROW_HINT, useStockRowInteraction } from "@/lib/useStockRowInterac
 import { pctColor, UP_TEXT } from "@/lib/colors";
 import { NotebookPen, Loader2, Trash2, BarChart3, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Caliber } from "@/components/ui/Caliber";
-import { ExplainBox } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 import { agentFetch, agentPost, finite, localDate, plain, ratioPct, safeArray, safeRecord } from "@/lib/agent";
 import { StockLink } from "@/components/ui/StockLink";
 import { StockSearch } from "@/components/ui/StockSearch";
@@ -20,6 +19,7 @@ import type {
   Fill, Inbox, InboxItem, JournalStats, ModePerf, ModesResponse, QuadrantCell,
   RiskReport, RiskRules, Rolling, Trade, Violation, WindowStats,
 } from "@/lib/agent";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /** 交易日志：记录自己的每一笔交易，并附上成交当天的市场环境快照。
  *
@@ -133,26 +133,27 @@ function ModesPanel({ revision }: { revision: number }) {
           className="cursor-pointer rounded-lg bg-primary/90 px-2.5 py-1 text-[11px] font-bold text-primary-foreground transition-colors hover:bg-primary">
           {editing ? "取消" : "+ 新建模式卡"}
         </button>
+        {/* 这一块唯一的说明出口：标题行最右边那颗「这块的说明」（用户 10-31）。
+            原先标题旁一枚「口径」芯片、正文里又卧一只折框，两处都不像"这一块的说明"，现在并成一颗；
+            归属口径与「为什么带版本」两段都进同一口抽屉，文字逐字留着，屏上不再摊第二遍。 */}
+        <span className="ml-auto"><DocDrawer title="我这套打法">
+          <p className="whitespace-pre-line leading-relaxed">{plain(
+            "每笔交易先按 `打法` 归到卡片，再按**成交日期落在哪个版本的生效区间**分到该版本。\n\n" +
+            "· 归属用的是「那天生效的那个版本的打法」，不是卡片现在的打法 —— " +
+            "所以改了卡片不会重写历史归属。\n" +
+            "· 卡片创建之前的交易单独列出，不计入任何版本。\n" +
+            "· 版本笔数不足下方标注的门槛时带 *，该版本的读数单看没有意义。\n" +
+            "· 两个版本都够样本才做比较，否则只显示「暂不比较」。\n\n" +
+            "本表胜率 = 盈利 ÷ (盈利 + 亏损)，持平不计入分母 —— 与上方「自我体检」同一口径。")}</p>
+          <DrawerSection heading="模式卡为什么要带版本 · 改动什么时候生效">
+            <p>
+              打法改过之后，改动前后的统计不能混在一起算 —— 混了那个平均数谁都用不上。
+              写下来并<b>带版本</b>，业绩就能按版本分段，才能回答「上次那个改动到底是好是坏」。
+              写下来同时也给「按计划」一个具体的参照物。修改规则从次日生效，今天及以前的交易仍按原版本统计。
+            </p>
+          </DrawerSection>
+        </DocDrawer></span>
       </div>
-      <p className="mb-3 text-[11px] leading-relaxed text-muted-foreground">
-        <Caliber text={
-          "每笔交易先按 `打法` 归到卡片，再按**成交日期落在哪个版本的生效区间**分到该版本。\n\n" +
-          "· 归属用的是「那天生效的那个版本的打法」，不是卡片现在的打法 —— " +
-          "所以改了卡片不会重写历史归属。\n" +
-          "· 卡片创建之前的交易单独列出，不计入任何版本。\n" +
-          "· 版本笔数不足下方标注的门槛时带 *，该版本的读数单看没有意义。\n" +
-          "· 两个版本都够样本才做比较，否则只显示「暂不比较」。\n\n" +
-          "本表胜率 = 盈利 ÷ (盈利 + 亏损)，持平不计入分母 —— 与上方「自我体检」同一口径。"
-        } />
-      </p>
-      {/* 说明小字折进通用说明框（用户 10-14）；「口径」浮层按钮留在原位没折进去。 */}
-      <ExplainBox title="模式卡为什么要带版本 · 改动什么时候生效">
-        <p>
-          打法改过之后，改动前后的统计不能混在一起算 —— 混了那个平均数谁都用不上。
-          写下来并<b>带版本</b>，业绩就能按版本分段，才能回答「上次那个改动到底是好是坏」。
-          写下来同时也给「按计划」一个具体的参照物。修改规则从次日生效，今天及以前的交易仍按原版本统计。
-        </p>
-      </ExplainBox>
 
       {editing && (
         <div className="mb-3 space-y-2 rounded-xl border border-border bg-muted/20 p-3">
@@ -454,7 +455,7 @@ function AtRiskPanel({ revision }: { revision: number }) {
         </div>
         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
         {/* 弹窗被拦是**告警**，摊在表下面，不折进任何默认收起的说明框 */}
-        {atX.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{atX.popHint}</p>}
+        {atX.popHint && <NoticeBar kind="warning">{atX.popHint}</NoticeBar>}
       </div>
     </section>
   );
@@ -544,14 +545,18 @@ function ExcursionPanel() {
   const items = safeArray<ExcursionItem>(rep.items);
   return (
     <div className="glass rounded-2xl p-5">
-      <h3 className="text-sm font-bold">是不是总在最高点前就跑了</h3>
-      {/* 字段义折进通用说明框（用户 10-14）；下面的 bias_note 与样本不足告警仍默认摊在屏上。 */}
-      <ExplainBox title="MFE / MAE 是什么 · 差额能说明什么、不能说明什么">
-        <p>
-          结果只说了终点。<b>MFE</b> = 这笔最多曾赚到多少，<b>MAE</b> = 最多曾亏到多少。
-          MFE/MAE 基于持有期日线高低价，是区间上界，不代表盘中曾能按该价成交。差额只提示需要回看交易记录，不能直接归因于卖点或进场判断；复权价格与实际成交价的差异也会影响结果。
-        </p>
-      </ExplainBox>
+      {/* 说明按钮在标题这一行最右边（用户 10-31）；下面的 bias_note 与样本不足告警仍默认摊在屏上。 */}
+      <div className="mb-1 flex flex-wrap items-center gap-1.5">
+        <h3 className="text-sm font-bold">是不是总在最高点前就跑了</h3>
+        <span className="ml-auto"><DocDrawer title="是不是总在最高点前就跑了">
+          <DrawerSection heading="MFE / MAE 是什么 · 差额能说明什么、不能说明什么">
+            <p>
+              结果只说了终点。<b>MFE</b> = 这笔最多曾赚到多少，<b>MAE</b> = 最多曾亏到多少。
+              MFE/MAE 基于持有期日线高低价，是区间上界，不代表盘中曾能按该价成交。差额只提示需要回看交易记录，不能直接归因于卖点或进场判断；复权价格与实际成交价的差异也会影响结果。
+            </p>
+          </DrawerSection>
+        </DocDrawer></span>
+      </div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div>
           <div className="text-xl font-extrabold tabular-nums">
@@ -684,7 +689,7 @@ function ExcursionPanel() {
         </div>
         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
         {/* 弹窗被拦是**告警**，摊在表下面，不折进任何默认收起的说明框 */}
-        {exX.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{exX.popHint}</p>}
+        {exX.popHint && <NoticeBar kind="warning">{exX.popHint}</NoticeBar>}
       </>)}
     </div>
   );
@@ -711,20 +716,24 @@ function RollingTable({ r }: { r: Rolling }) {
   ];
   return (
     <div className="glass rounded-2xl p-5">
-      <h3 className="text-sm font-bold">最近还在状态上吗</h3>
+      {/* 说明按钮在标题这一行最右边（用户 10-31）；`r.note` 那句读法与标灰星号的 text-warning
+          脚注仍然默认摊在屏上。 */}
+      <div className="mb-1 flex flex-wrap items-center gap-1.5">
+        <h3 className="text-sm font-bold">最近还在状态上吗</h3>
+        <span className="ml-auto"><DocDrawer title="最近还在状态上吗">
+          <DrawerSection heading="窗口样本不够时为什么标灰 · 这张表为什么没有排序">
+            <p>
+              样本不够那个窗口时标灰并注明 —— 只有 12 笔却报「近 50 笔」，
+              会让人以为打法在 50 笔的尺度上验证过。
+            </p>
+            <p>
+              这张是矩阵（每行一个不同的量、每列一个窗口长度），没有「按某一列排序」这回事：
+              行与行之间单位不同（笔数、胜率、均值），把它们按某个数上下换序会读出假的关系。要排的是清单表，不是这张。
+            </p>
+          </DrawerSection>
+        </DocDrawer></span>
+      </div>
       <p className="mb-3 text-[11px] leading-relaxed text-muted-foreground">{plain(r.note)}</p>
-      {/* 页面自己写的读法小字折进通用说明框（用户 10-14）；标灰星号那条 text-warning
-          脚注仍然默认摊在表下面。 */}
-      <ExplainBox title="窗口样本不够时为什么标灰 · 这张表为什么没有排序">
-        <p>
-          样本不够那个窗口时标灰并注明 —— 只有 12 笔却报「近 50 笔」，
-          会让人以为打法在 50 笔的尺度上验证过。
-        </p>
-        <p>
-          这张是矩阵（每行一个不同的量、每列一个窗口长度），没有"按某一列排序"这回事：
-          行与行之间单位不同（笔数、胜率、均值），把它们按某个数上下换序会读出假的关系。要排的是清单表，不是这张。
-        </p>
-      </ExplainBox>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[420px] text-[12px] tabular-nums">
           <thead>
@@ -805,15 +814,20 @@ function AttributionGrid() {
   ];
   return (
     <div className="glass rounded-2xl p-5">
-      <h3 className="text-sm font-bold">看错了，还是没执行好</h3>
-      {/* 口径小字折进通用说明框（用户 10-14）；样本太少的 text-warning 与笔数回显留在框外。 */}
-      <ExplainBox title="四格是怎么对出来的 · 对齐口径">
-        <p>
-          把「昨晚那份市场判断成立没成立」和「自己那天赚没赚」交叉起来。
-          看对了却亏钱和看错了才亏钱是<b>两个病</b>，一个要改执行、一个要改读盘。
-          按<b>入场日</b>对齐（那天的操作依据是前一晚的判断），盈亏为 0 的日子不进任何一格。
-        </p>
-      </ExplainBox>
+      {/* 说明按钮在标题这一行最右边（用户 10-31）；口径句进抽屉，样本太少的 text-warning 与
+          笔数回显留在框外。 */}
+      <div className="mb-1 flex flex-wrap items-center gap-1.5">
+        <h3 className="text-sm font-bold">看错了，还是没执行好</h3>
+        <span className="ml-auto"><DocDrawer title="看错了，还是没执行好">
+          <DrawerSection heading="四格是怎么对出来的 · 对齐口径">
+            <p>
+              把「昨晚那份市场判断成立没成立」和「自己那天赚没赚」交叉起来。
+              看对了却亏钱和看错了才亏钱是<b>两个病</b>，一个要改执行、一个要改读盘。
+              按<b>入场日</b>对齐（那天的操作依据是前一晚的判断），盈亏为 0 的日子不进任何一格。
+            </p>
+          </DrawerSection>
+        </DocDrawer></span>
+      </div>
       <div className="grid grid-cols-2 gap-2.5">
         {CELLS.map((c) => {
           const cell = q[c.key];
@@ -1258,19 +1272,22 @@ function FeeConfig({onSaved}: {onSaved: () => Promise<void>}) {
     <div className="glass rounded-2xl p-5">
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="text-sm font-bold">交易费率</h3>
+        {/* 说明按钮在标题这一行最右边（用户 10-31）；「还在用初值」是档位标记，排在按钮右边留屏。
+            净额的口径全在这一颗后面，正文不再挂「口径」芯片。 */}
+        <span className="ml-auto"><DocDrawer title="交易费率">
+          <p className="whitespace-pre-line leading-relaxed">{plain(
+            "所有盈亏都按**净额**算：毛盈亏 − 佣金 − 印花税 − 过户费。\n\n" +
+            "· 在成交明细里填了实际费用的，以那个为准（对账单上的数最可靠）。\n" +
+            "· 没填的按这里的费率估算，界面上会标「费估」。\n" +
+            "· 印花税只在卖出收；佣金有单笔最低值，小仓位试仓时它占比很高。\n\n" +
+            "⚠️ 默认值只是能跑起来的初值，**不是推荐值** —— 各家券商佣金差别很大，" +
+            "不改成自己的真实费率，胜率与期望会带着偏差。")}</p>
+        </DocDrawer></span>
         {isDefault && (
           <span className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] text-warning">
             还在用初值
           </span>
         )}
-        <Caliber text={
-          "所有盈亏都按**净额**算：毛盈亏 − 佣金 − 印花税 − 过户费。\n\n" +
-          "· 在成交明细里填了实际费用的，以那个为准（对账单上的数最可靠）。\n" +
-          "· 没填的按这里的费率估算，界面上会标「费估」。\n" +
-          "· 印花税只在卖出收；佣金有单笔最低值，小仓位试仓时它占比很高。\n\n" +
-          "⚠️ 默认值只是能跑起来的初值，**不是推荐值** —— 各家券商佣金差别很大，" +
-          "不改成自己的真实费率，胜率与期望会带着偏差。"
-        } />
       </div>
       <p className="mb-3 mt-1 text-[11px] text-muted-foreground">
         对高换手的短线打法，费用不是小数：一堆薄利交易在计费后可能接近持平甚至转亏。
@@ -1533,21 +1550,24 @@ function TradeJournal() {
       {/* 自我体检 */}
       {stats?.available && (
         <section className="space-y-4">
-          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
+          <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
             <BarChart3 className="h-3.5 w-3.5" /> 自我体检 · Self Check
-            <Caliber text={
-              "本区所有读数只统计**你自己录入的交易**，不含任何市场预测。\n\n" +
-              "· 胜率 = 盈利笔数 ÷ (盈利 + 亏损) 笔数。**持平不计入分母** —— " +
-              "加一笔持平不会拉低胜率；全部持平时显示「—」而不是 0%。\n" +
-              "· 平均每笔 / 最好 / 最差：按盈亏**百分比**算，与仓位无关。\n" +
-              "· 净盈亏：只汇总**填了成交明细**的那些笔的已实现金额，" +
-              "未平仓部分不计浮盈浮亏。所以它的样本数通常小于总笔数。\n" +
-              "· **所有盈亏都是净额，已扣佣金、印花税与过户费。** 没在成交里填实际费用时，" +
-              "按本页底部配置的费率估算；费率没配过就用一套初值，那不是你的真实费率。\n" +
-              "  ⚠️ 对高换手的打法这不是小数：一堆薄利交易在计费后可能接近持平甚至转亏。\n" +
-              "· 百分比与金额是两个口径：仓位不同时，两者结论可能相反。\n\n" +
-"全站胜率口径一致（模式卡那一块用的是同一个算法）。"
-            } />
+            {/* 这一大块的说明按钮在标题行最右边（用户 10-31）：整个区共一颗，卡片们各自另有
+                自己的那颗（交易费率与这里不同一张卡）。口径原文一字未改，只搬了位置。 */}
+            <span className="ml-auto"><DocDrawer title="自我体检">
+              <p className="whitespace-pre-line leading-relaxed normal-case">{plain(
+                "本区所有读数只统计**你自己录入的交易**，不含任何市场预测。\n\n" +
+                "· 胜率 = 盈利笔数 ÷ (盈利 + 亏损) 笔数。**持平不计入分母** —— " +
+                "加一笔持平不会拉低胜率；全部持平时显示「—」而不是 0%。\n" +
+                "· 平均每笔 / 最好 / 最差：按盈亏**百分比**算，与仓位无关。\n" +
+                "· 净盈亏：只汇总**填了成交明细**的那些笔的已实现金额，" +
+                "未平仓部分不计浮盈浮亏。所以它的样本数通常小于总笔数。\n" +
+                "· **所有盈亏都是净额，已扣佣金、印花税与过户费。** 没在成交里填实际费用时，" +
+                "按本页底部配置的费率估算；费率没配过就用一套初值，那不是你的真实费率。\n" +
+                "  ⚠️ 对高换手的打法这不是小数：一堆薄利交易在计费后可能接近持平甚至转亏。\n" +
+                "· 百分比与金额是两个口径：仓位不同时，两者结论可能相反。\n\n" +
+                "全站胜率口径一致（模式卡那一块用的是同一个算法）。")}</p>
+            </DocDrawer></span>
           </div>
           <div className="glass rounded-2xl p-5">
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -1729,7 +1749,7 @@ function TradeJournal() {
           </div>
           <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
           {/* 弹窗被拦是**告警**，摊在表下面，不折进任何默认收起的说明框 */}
-          {jX.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{jX.popHint}</p>}
+          {jX.popHint && <NoticeBar kind="warning">{jX.popHint}</NoticeBar>}
         </>
         )}
         {jSort.sort && (

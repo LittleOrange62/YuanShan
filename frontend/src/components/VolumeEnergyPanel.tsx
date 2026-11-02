@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 import { RotateCcw, Save } from "lucide-react";
 import { apiUrl } from "@/lib/base";
 import { authHeaders } from "@/lib/api";
@@ -287,18 +288,52 @@ export function VolumeEnergyPanel() {
 
   return (
     <GlassCard>
+      {/* 用户 2026-10-31：「这块的说明」摆在这一块标题这一行的最右边（排在指纹/同批徽标这些
+          元信息前面），抽屉里只放接口本来交出的口径原文（scale.formula / scale.unit / scale.note /
+          rank_rule 与出厂档那两句）。「保存了不等于已生效」「是数学上限不是实测」「没单配的市场落回
+          全局那张」「实测分布没读到」这些误读提醒与缺数声明留在屏上，不进抽屉；后端没交那一项时，
+          「没有出处」那句也留在屏上，抽屉里不摆空句子。 */}
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-semibold">倍量加权分档（倍量榜那把尺子）</h2>
-        <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
-          {dash(cfg?.fingerprint)}
+        <span className="ml-auto flex flex-wrap items-center gap-1.5">
+          {(cfg?.scale?.formula || cfg?.scale?.unit || cfg?.scale?.note || cfg?.rank_rule
+            || typeof cfg?.top_n_default === "number" || typeof cfg?.page_size === "number") && (
+            <DocDrawer title="倍量加权分档（倍量榜那把尺子）">
+              {(cfg.scale?.formula || cfg.scale?.unit) && (
+                <DrawerSection heading="算式与单位（接口 scale.formula / scale.unit 原文，页面不抄第二份）">
+                  {cfg.scale?.formula && <p>{plain(cfg.scale.formula)}</p>}
+                  {cfg.scale?.unit && <p className="mt-1">单位：{plain(cfg.scale.unit)}。</p>}
+                </DrawerSection>
+              )}
+              {cfg.scale?.note && (
+                <DrawerSection heading="这一把尺的口径注（接口 scale.note 原文）">
+                  {plain(cfg.scale.note)}
+                </DrawerSection>
+              )}
+              {cfg.rank_rule && (
+                <DrawerSection heading="名次与这张尺是一套（接口 rank_rule 原文，界面不自造那一句）">
+                  {plain(cfg.rank_rule)}
+                </DrawerSection>
+              )}
+              {(typeof cfg.top_n_default === "number" || typeof cfg.page_size === "number") && (
+                <DrawerSection heading="倍量形态页「进榜后逐日涨跌幅」的出厂档">
+                  <p>母体＝当日前 {dash(cfg?.top_n_default)} 名、每页 {dash(cfg?.page_size)} 行
+                    （两个数都只住后端一处，界面读接口不写死）。</p>
+                </DrawerSection>
+              )}
+            </DocDrawer>
+          )}
+          <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+            {dash(cfg?.fingerprint)}
+          </span>
+          {status?.in_sync === true && <span className="rounded bg-primary/12 px-1.5 py-0.5 text-[10px] text-primary">库里批次与生效指纹一致</span>}
+          {status?.in_sync === false && <span className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] text-warning">库里还是旧批：改完档表的重算没跑完</span>}
+          {status?.in_sync == null && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">是否同批：没读到（不是「没问题」）</span>}
+          <button type="button" onClick={() => { setErr(""); void reload(); }} disabled={busy !== ""}
+            className="rounded-lg border border-border px-2 py-1 text-[11px] text-muted-foreground hover:border-primary/40 hover:text-primary disabled:opacity-60">
+            重新读取
+          </button>
         </span>
-        {status?.in_sync === true && <span className="rounded bg-primary/12 px-1.5 py-0.5 text-[10px] text-primary">库里批次与生效指纹一致</span>}
-        {status?.in_sync === false && <span className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] text-warning">库里还是旧批：改完档表的重算没跑完</span>}
-        {status?.in_sync == null && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">是否同批：没读到（不是「没问题」）</span>}
-        <button type="button" onClick={() => { setErr(""); void reload(); }} disabled={busy !== ""}
-          className="ml-auto rounded-lg border border-border px-2 py-1 text-[11px] text-muted-foreground hover:border-primary/40 hover:text-primary disabled:opacity-60">
-          重新读取
-        </button>
       </div>
 
       {err && <p role="alert" className="mt-2 text-[11px] text-destructive">{err}</p>}
@@ -307,17 +342,14 @@ export function VolumeEnergyPanel() {
           noticeKind === "bad" ? "text-destructive" : "text-warning")}>{plain(notice)}</p>
       )}
 
-      {/* 算式与上限、实测分布、名次规则：四句都念接口原文，前端不另写一把尺 */}
+      {/* 算式与单位、口径注、名次规则、出厂档的原文已搬进标题行那颗「这块的说明」（用户 2026-10-31），
+          屏上不再摊第二遍。这里留下的只有换尺告警与「后端没交」那两句缺数声明。 */}
       <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-        算式（后端 <code>scale.formula</code> 原话）：
-        <b className="text-foreground">{plain(cfg?.scale?.formula ?? "后端没交 formula —— 这一张尺的算式没有出处，界面不自己补一句")}</b>
-        。改这里等于换尺子：<b className="text-foreground">保存了不等于已生效</b> —— 指纹一变后端会自动起一次后台全量重算，
+        改这里等于换尺子：<b className="text-foreground">保存了不等于已生效</b> —— 指纹一变后端会自动起一次后台全量重算，
         跑完之前倍量榜筛的还是旧批（那一侧的 caveat 写的是 <code>energy_batch_stale</code>）。
-        单位：{plain(cfg?.scale?.unit ?? "后端没交 unit")}。
+        {!cfg?.scale?.formula && <>算式（后端 <code>scale.formula</code>）没有出处：后端没交 —— 界面不自己补一句。</>}
+        {!cfg?.scale?.unit && <>单位：后端没交 unit。</>}
       </p>
-      {cfg?.scale?.note && (
-        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{plain(cfg.scale.note)}</p>
-      )}
       <div className="mt-1 grid gap-1 text-[11px] leading-relaxed sm:grid-cols-2">
         <p className="text-muted-foreground">
           <span className="text-muted-foreground">这一张尺的上限：</span>
@@ -344,14 +376,10 @@ export function VolumeEnergyPanel() {
           </p>
         )}
       </div>
-      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-        名次与这张尺是一套（规则原文读接口，界面不自造那一句）：
-        {plain(cfg?.rank_rule ?? "后端没交 rank_rule —— 名次规则没有出处，这一卡只显示分数不显示名次规则")}
-      </p>
-      {(typeof cfg?.top_n_default === "number" || typeof cfg?.page_size === "number") && (
-        <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-          倍量形态页那块「进榜后逐日涨跌幅」的出厂档：母体＝当日前 {dash(cfg?.top_n_default)} 名、
-          每页 {dash(cfg?.page_size)} 行（两个数都只住后端一处，界面读接口不写死）。
+      {!cfg?.rank_rule && (
+        /* 名次规则原文已搬进标题行那颗按钮开的抽屉；这里只剩「后端没交」那句缺数声明。 */
+        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+          后端没交 rank_rule —— 名次规则没有出处，这一卡只显示分数不显示名次规则
         </p>
       )}
       {status?.profile_source && (

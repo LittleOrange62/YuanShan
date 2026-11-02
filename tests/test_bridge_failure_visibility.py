@@ -64,7 +64,11 @@ def test_两处上游失败都不再是静默return():
 
 def test_翻译层自己不做重试并说清为什么():
     """这条通道**故意**不重试：一次 Responses 调用背后是付费模型调用，
-    重试的钱要由调用方（有上限的那几道）决定。上限见 runtime 的 budget 与
-    `UPSTREAM_TIMEOUT`。"""
+    重试的钱要由调用方（有上限的那几道）决定。
+    超时按三段拆开（用户 2026-10-27 拍）：连接 10 秒、上游 45 秒不吐字节就断、整条回答默认 180 秒。
+    不是一刀切 60 秒 —— 同一条链今天 39.7 秒成过、下午 8 token 的短问 120 秒不答。"""
     assert "for attempt" not in SOURCE and "retry" not in SOURCE.lower()
-    assert "UPSTREAM_TIMEOUT = httpx.Timeout(connect=15, read=180, write=30, pool=15)" in SOURCE
+    assert "UPSTREAM_CONNECT_SECONDS = 10" in SOURCE
+    assert "UPSTREAM_FIRST_BYTE_SECONDS = 45" in SOURCE
+    assert "UPSTREAM_TOTAL_SECONDS = 180" in SOURCE
+    assert "connect=UPSTREAM_CONNECT_SECONDS, read=UPSTREAM_FIRST_BYTE_SECONDS" in SOURCE

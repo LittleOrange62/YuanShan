@@ -355,22 +355,25 @@ test('选中单元格时高亮整行和整列', () => {
 // --------------------------------------------- 说明文字折起来（用户 2026-10-15：调用统一说明框、默认收起）
 
 test('三处说明文字走通用说明框，而告警与读数留在框外', () => {
-  // 折起来的三块
-  assert.match(comp, /<ExplainBox title="这一屏的取数口径（后端原句，页面未改写）">/,
+  // 折起来的三块。11-01「一模块一颗」：口径那句原来自己一颗按钮（表尾那颗 ExplainBox），
+  // 现在并进这一块唯一那颗 CaliberFold 的 provenance —— 抽屉里那段仍是后端原句，屏上少一颗按钮。
+  assert.match(comp, /<CaliberFold[\s\S]{0,400}provenance=\{\[d\.caliber\]\}/,
     'caliber 那句要收进说明框（用户点名的正是这一类长段说明）');
+  assert.doesNotMatch(comp, /<ExplainBox title="这一屏的取数口径/,
+    '同一句口径不许在表尾再长出一颗按钮（一模块一颗）');
   assert.match(comp, /<ExplainBox title="上面那些整组读数的键是什么/, 'summary 键值那段小字同样折起');
   assert.match(comp, /<ExplainBox title="这一张表怎么点/, 'STOCK_ROW_HINT 折起（与 /grouped 同一形状）');
-  assert.equal((comp.match(/<ExplainBox/g) ?? []).length, 4,
-    '母体切换那块 + 口径 + 键说明 + 怎么点这张表，共四块');
+  assert.equal((comp.match(/<ExplainBox/g) ?? []).length, 2,
+    '键说明 + 怎么点这张表两颗带小节名的按钮，口径并进那颗「这块的说明」（母体切换那块 10-31 搬进了标题行那颗，见 quantModuleDoc.test.ts）');
   // 不许折的：告警、缺料声明、被拦提示、以及那两行读数
   for (const box of [...comp.matchAll(/<ExplainBox[\s\S]{0,2500}?<\/ExplainBox>/g)]) {
     assert.doesNotMatch(box[0], /text-warning|text-destructive|<Caveats |x\.popHint/,
       '说明框里出现了告警 —— 折起来等于没写');
   }
-  const gap = comp.indexOf('{x.popHint && <p role="status"');
+  const gap = comp.indexOf('{x.popHint && <NoticeBar kind="warning"');
   assert.ok(gap > comp.lastIndexOf('<ExplainBox title="这一张表怎么点'),
     '被拦提示必须排在折叠框之后（否则它是跟着提示一起被折进去的）');
-  assert.match(comp, /\{x\.popHint && <p role="status"/, '被拦告警留在框外');
+  assert.match(comp, /\{x\.popHint && <NoticeBar kind="warning"/, '被拦告警留在框外');
   assert.match(comp, /<CaliberFold caveats=\{\(d\.caveats \?\? \[\]\)\.filter/,
     'caveats 走共用出口（limit_band 那条单独摆在表前，其余进折叠块的 visible 份＝仍在屏上）');
   assert.match(comp, /coverageSentence\(launchRange\(all\), d\)/, '覆盖那行是读数，留在屏上');

@@ -135,7 +135,8 @@ test('说明默认收起、告警不折、页面上不许有裸星号', () => {
     '机器键字典不许当 definitions 传：屏上会念出 cohort／forward／seq 这种标识符');
   assert.ok(page.includes('(d.caliber_items ?? [])') || page.includes('d.caliber_items'),
     '上屏那份字典要读「中文标题 + 句子」那一份（后端同源交出的 caliber_items）');
-  assert.match(page, /cell\.popHint && \(\s*<p role="status"/, '弹窗被拦的告警留在说明框外面');
+  assert.match(page, /cell\.popHint && <NoticeBar kind="warning">\{cell\.popHint\}/,
+    '弹窗被拦的告警留在说明框外面，且走公用声明条');
   const body = page.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   assert.ok(!body.includes('**'), '源码正文里有字面 ** —— 会被当正文渲染出来');
 });

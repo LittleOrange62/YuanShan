@@ -9,6 +9,7 @@ import { useNonce, useProbe } from "@/lib/probe";
 import { STOCK_ROW_HINT, useStockRowInteraction } from "@/lib/useStockRowInteraction";
 import { useTableSort } from "@/lib/useSort";
 import { Cell, n2, pc, tone } from "@/components/quant/SystemEntryBoard";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 交易体系榜下面那一叠（用户 2026-10-22 点名）：近 N 个月里走完三条的个股名单（N 读接口）。
@@ -223,14 +224,7 @@ export function SystemEntryCohort() {
 
   return (
     <Panel title={`走完三条的个股 · ${monthsHint(cur?.months)}名单（按符合日从近到远）`}
-      state={hits} controls={controls}
-      note={
-        "用户 2026-10-22 点名：把这段时间里出现过这套参数的个股都列出来，每行再看两件事 —— "
-        + "符合日之后几档场次的涨幅（档就是列头那几格，口径在同一格的悬停里），"
-        + "以及符合日前后那一段里它在交叉命中榜各源每天排第几、那个榜排序用的原值是多少"
-        + "（具体分数换行罗列；几场到几场写在位次那一列的列头上）。"
-        + "这一块一块判据都不重算，只读上面那张榜与交叉命中榜落好的行。"
-      }>
+      state={hits} controls={controls}>
       {d => {
         // 字典的头念中文标题（`caliber_items` 那一份）；`calibers` 的机器键只留给内部引用与悬停
         const items = d.caliber_items ?? [];
@@ -246,6 +240,11 @@ export function SystemEntryCohort() {
               value={`${d.page_size ?? 20} 行一页，现在第 ${cur0 + 1}/${pages} 页`
                 + `｜翻页与点列头排的都是整批 ${d.total} 行（后端一次交全，前端只切屏）`} />
             <CaliberFold caveats={d.caveats}
+              notes={["用户 2026-10-22 点名：把这段时间里出现过这套参数的个股都列出来，每行再看两件事 —— "
+                + "符合日之后几档场次的涨幅（档就是列头那几格，口径在同一格的悬停里），"
+                + "以及符合日前后那一段里它在交叉命中榜各源每天排第几、那个榜排序用的原值是多少"
+                + "（具体分数换行罗列；几场到几场写在位次那一列的列头上）。"
+                + "这一块一块判据都不重算，只读上面那张榜与交叉命中榜落好的行。"]}
               provenance={[d.spec_version ? `母体判据版本 ${d.spec_version}` : null,
                 d.confluence_spec_version ? `交叉榜版本 ${d.confluence_spec_version}` : null,
                 d.as_of ? `数出自 ${String(d.as_of)}` : null]} />
@@ -335,9 +334,7 @@ export function SystemEntryCohort() {
               <ExplainBox title="这一张表怎么点 · 单击高亮什么 · 双击去哪里">
                 <p className="text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
               </ExplainBox>
-              {cell.popHint && (
-                <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{cell.popHint}</p>
-              )}
+              {cell.popHint && <NoticeBar kind="warning">{cell.popHint}</NoticeBar>}
             </div>
           </>
         );

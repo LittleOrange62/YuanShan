@@ -7,6 +7,7 @@ import {
   Wallet, Trophy, CalendarClock, Boxes, MessageSquare, RefreshCw,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { DocDrawer } from "@/components/ui/DocDrawer";
 import { usePageAskAi } from "@/lib/workspace/pageAskAi";
 import { EarningsSnapshot } from "@/components/ui/EarningsSnapshot";
 import { Disclaimer } from "@/components/ui/Disclaimer";
@@ -240,7 +241,18 @@ export function StockData() {
     <div>
       {pctl?.gaps?.map((gap,i)=><p key={i} role="status" className="text-sm text-warning">{gap}</p>)}
       {gaps.length > 0 && <p role="status" className="mb-4 text-sm text-warning">本次取数失败：{gaps.join("、")}。这些项目未覆盖，不能视为没有相关记录。</p>}
-      <h2 className="mb-1 text-lg font-bold">个股研究（行情 · 估值 · 研报 · 新闻 · 财务 · 公告 · 资金面）</h2>
+      {/* 用户 2026-10-31 第 1、2 条（全站一起改，个股组）：这一块的「这块的说明」摆在 h2 这一行
+          最右；「重新取这一只的公开资料」那个刷新按钮与行情时点那行元信息排在它后面（另起一行也没
+          关系，关键是这一行最右只有这一颗）。抽屉里只有这一块本来就在屏上说的那句代码来源话 ——
+          原来它长在按钮旁边那一格里。⚠️ 取数失败 gaps 的告警、休市时点那行、空态引导句都没跟进抽屉。 */}
+      <div className="mb-1 flex flex-wrap items-center gap-1.5">
+        <h2 className="text-lg font-bold">个股研究（行情 · 估值 · 研报 · 新闻 · 财务 · 公告 · 资金面）</h2>
+        <span className="ml-auto">
+          <DocDrawer title="个股研究">
+            <p>这一块的代码取自页面上方选中的那一只（地址里的 <code>symbol</code>），不是另填一份。</p>
+          </DocDrawer>
+        </span>
+      </div>
       {/* 取数入口：URL 里的 symbol 一换，500ms 后那个 effect 就会自动跑；但人点「重新取数」时
           同值不换 state、不经过 URL ⇒ 这里必须留一个手动重取的按钮，不靠调用方猜。 */}
       <div className="mb-3 flex items-center gap-2 text-[12px] text-muted-foreground">
@@ -249,7 +261,6 @@ export function StockData() {
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
           重新取这一只的公开资料
         </button>
-        <span>这一块的代码取自页面上方选中的那一只（地址里的 <code>symbol</code>），不是另填一份。</span>
       </div>
 
       {err && (
@@ -291,11 +302,19 @@ export function StockData() {
 
           {gstock.metrics && (
             <GlassCard className="mb-4">
-              <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
-                <BarChart3 className="h-4 w-4 text-primary" /> 关键财务指标
-                <span className="text-xs font-normal text-muted-foreground/60">· {gstock.metrics.report_date}</span>
-              </h3>
-              <p className="mb-3 text-[11px] text-muted-foreground/60">东财 GMAININDICATOR，最新报告期。金额为原生币种。</p>
+              {/* 10-31：这一块唯一的说明按钮在标题行最右，报告期（时间戳元信息）排在按钮后面；
+                  原来表上面那句「东财 GMAININDICATOR…」原样搬进抽屉，屏上不出现第二遍。 */}
+              <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+                  <BarChart3 className="h-4 w-4 text-primary" /> 关键财务指标
+                </h3>
+                <span className="ml-auto flex flex-wrap items-center gap-1.5">
+                  <DocDrawer title="关键财务指标">
+                    <p>东财 GMAININDICATOR，最新报告期。金额为原生币种。</p>
+                  </DocDrawer>
+                  <span className="text-xs text-muted-foreground/60">· {gstock.metrics.report_date}</span>
+                </span>
+              </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[
                   { k: "营业收入", v: bigMoney(gstock.metrics.revenue, gstock.market), yoy: gstock.metrics.revenue_yoy != null ? round2(gstock.metrics.revenue_yoy, "%") : "" },
@@ -355,8 +374,18 @@ export function StockData() {
 
           {pctl && (pctl.metrics.pe_ttm || pctl.metrics.pb) && (
             <GlassCard glow className="mb-4">
-              <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold"><LineChart className="h-4 w-4 text-primary" /> 估值历史分位 · {pctl.period}</h3>
-              <p className="mb-4 text-[11px] text-muted-foreground/60">绿=历史低分位 / 灰=历史中段 / 红=历史高分位。只显示当前处于历史什么位置，不构成买卖建议。</p>
+              {/* 10-31：颜色图例（字段解释）进标题行最右那颗按钮的抽屉，period 元信息排在按钮后面。
+                  「只显示位置、不构成买卖建议」是防误读的那半句，**留在屏上**（同一句不在屏上出现第二遍）。 */}
+              <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                <h3 className="flex items-center gap-1.5 text-sm font-semibold"><LineChart className="h-4 w-4 text-primary" /> 估值历史分位</h3>
+                <span className="ml-auto flex flex-wrap items-center gap-1.5">
+                  <DocDrawer title="估值历史分位">
+                    <p>绿=历史低分位 / 灰=历史中段 / 红=历史高分位。</p>
+                  </DocDrawer>
+                  <span className="text-xs text-muted-foreground/60">· {pctl.period}</span>
+                </span>
+              </div>
+              <p className="mb-4 text-[11px] text-muted-foreground/60">只显示当前处于历史什么位置，不构成买卖建议。</p>
               <div className="space-y-4">
                 {pctl.metrics.pe_ttm && <ValBand label="PE-TTM" m={pctl.metrics.pe_ttm} />}
                 {pctl.metrics.pb && <ValBand label="市净率 PB" m={pctl.metrics.pb} />}
@@ -366,8 +395,17 @@ export function StockData() {
 
           {fin && (fin.revenue || fin.roe) && (
             <GlassCard className="mb-4">
-              <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold"><BarChart3 className="h-4 w-4 text-primary" /> 财务关键指标{fin.period && <span className="text-xs font-normal text-muted-foreground/60">· {fin.period}</span>}</h3>
-              <p className="mb-3 text-[11px] text-muted-foreground/60">同花顺财务摘要,最新报告期。</p>
+              {/* 10-31：同上——「同花顺财务摘要,最新报告期。」这块的字段口径进标题行最右的抽屉，
+                  报告期元信息排在按钮后面。 */}
+              <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                <h3 className="flex items-center gap-1.5 text-sm font-semibold"><BarChart3 className="h-4 w-4 text-primary" /> 财务关键指标</h3>
+                <span className="ml-auto flex flex-wrap items-center gap-1.5">
+                  <DocDrawer title="财务关键指标">
+                    <p>同花顺财务摘要,最新报告期。</p>
+                  </DocDrawer>
+                  {fin.period && <span className="text-xs text-muted-foreground/60">· {fin.period}</span>}
+                </span>
+              </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[
                   { k: "营业总收入", v: fin.revenue, yoy: fin.revenue_yoy },

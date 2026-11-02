@@ -1,6 +1,7 @@
 import { GlassCard } from "@/components/ui/GlassCard";
-import { Caliber } from "@/components/ui/Caliber";
+import { DocDrawer } from "@/components/ui/DocDrawer";
 import { Contract } from "@/components/ui/DataPanel";
+import { plain } from "@/lib/agent";
 import { ageText, describeState, hasData } from "@/lib/datastate";
 import { useProbe } from "@/lib/probe";
 import { jobCardClass, jobLabelClass } from "@/lib/colors";
@@ -29,16 +30,24 @@ export function TdxWatchPanel({ nonce }: { nonce: number }) {
     { label: "同步", r: readTri(f.syncing, "正在同步", "当前没在同步") },
   ] : [];
 
+  // 「只读」这三句是这一块的口径说明（用户 10-31：从标题行旁的悬停口径牌换成全站那颗「这块的说明」，
+  // 摆标题行最右边、排在 `GET /api/tdx/watch` 那枚出处标记之前）。原句一字不动，只是换了出口。
+  const docLines = [
+    "这一格只读不做任何操作：不启动客户端、不点窗口、不提交登录。",
+    "进程／窗口／登录框／同步四项是三态：在、不在、未探测到。未探测到不等于不在 —— 它只说明界面不知道。",
+    "最近探测时间来自后端的探测记录，不是本机时钟；没有记录就直说没有记录，不拿现在这一刻充数。",
+  ];
+
   return (
     <GlassCard className={cn("mt-4 border", v && jobCardClass(v.tone === "unknown" ? "warn" : v.tone === "bad" ? "bad" : "normal"))}>
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <h2 className="text-base font-bold">通达信客户端看护（只读探测）</h2>
-        <Caliber text={
-          "这一格只读不做任何操作：不启动客户端、不点窗口、不提交登录。\n" +
-          "进程／窗口／登录框／同步四项是三态：在、不在、未探测到。未探测到不等于不在 —— 它只说明界面不知道。\n" +
-          "最近探测时间来自后端的探测记录，不是本机时钟；没有记录就直说没有记录，不拿现在这一刻充数。"
-        } />
-        <span className="ml-auto text-[11px] text-muted-foreground">GET /api/tdx/watch</span>
+        <span className="ml-auto flex flex-wrap items-center gap-1.5">
+          <DocDrawer title="通达信客户端看护（只读探测）">
+            {docLines.map(line => <p key={line.slice(0, 12)}>{plain(line)}</p>)}
+          </DocDrawer>
+          <span className="text-[11px] text-muted-foreground">GET /api/tdx/watch</span>
+        </span>
       </div>
 
       {text && <p className="mb-2 text-[12px] leading-relaxed text-warning">{text}</p>}

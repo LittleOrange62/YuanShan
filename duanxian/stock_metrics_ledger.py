@@ -17,7 +17,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-#: 页面上的块序（与 `StockReview.tsx` 的挂载顺序一致；测试钉住两边不许分叉）
+#: 页面上的块序（与 `StockReview.tsx` 的挂载顺序一致；测试钉住两边不许分叉）。
+#: 2026-10-28 用户点名「量价走势移动到这只票的量化档案的前面」⇒ `pv` 从第 5 位挪到第 2 位。
+#: ⚠️ 这一份与前端 JSX 是**两份真源**：挪一块必须两处一起改（前端那条测试钉 JSX，
+#: `tests/test_stock_facts_ledger.py` 钉这里），只改一处就是屏幕上换了、总账那一屏还在按旧序讲。
 BLOCKS: List[Dict[str, Any]] = [
     {'key': 'facts', 'title': '个股信息', 'endpoint': '/api/stock/facts',
      'owner': 'duanxian/stock_facts.py',
@@ -27,6 +30,13 @@ BLOCKS: List[Dict[str, Any]] = [
      'logic': '全部本机库、不出网；每个数各带自己的日期，行情与档案不同日就分开念。'
               '主档没有的两列（上市日/总股本）与快照里全 0 的三列（eps/bps/roe）在这里不出现。',
      'defs_from': 'duanxian/stock_facts.py::DEFINITIONS'},
+    {'key': 'pv', 'title': '量价走势（日 / 周 / 月三块）', 'endpoint': '/api/stock/price-volume-trend',
+     'owner': 'duanxian/price_volume_trend.py',
+     'source': 'market_data.stock_daily（唯一一张日线表，周线与月线由它聚合；不另找源、不建表）',
+     'logic': '开=本期首根开、高=本期最高、低=本期最低、收=末根收，量/额逐根相加；价格一律乘复权因子'
+              '（最新一场为 1 ⇒ 前复权形状），区间涨跌与上一期复权收比；均线是复权收的简单移动平均，'
+              '整段算完再截断。最后一根标 partial（本期未走完），不足 6 根的那一块不画线。',
+     'defs_from': 'duanxian/price_volume_trend.py::DEFINITIONS'},
     {'key': 'dossier', 'title': '这只票的量化档案', 'endpoint': '/api/quant/stock-dossier',
      'owner': 'duanxian/quant.py',
      'source': 'analytics.score / indicator_value / volume_double / startup_volume_profile / '
@@ -44,13 +54,6 @@ BLOCKS: List[Dict[str, Any]] = [
      'logic': '逐期表只是搬运；三格外推是半衰加权同比 + 季节环比 + 年报 CAGR 加权，'
               '参数（半衰期 2 季 / 增速夹 −60%~+150% / 分歧 25% / 情景带近 5 份）写死在判据文件一处。',
      'defs_from': 'duanxian/stock_fundamentals.py::DEFINITIONS'},
-    {'key': 'pv', 'title': '量价走势（日 / 周 / 月三块）', 'endpoint': '/api/stock/price-volume-trend',
-     'owner': 'duanxian/price_volume_trend.py',
-     'source': 'market_data.stock_daily（唯一一张日线表，周线与月线由它聚合；不另找源、不建表）',
-     'logic': '开=本期首根开、高=本期最高、低=本期最低、收=末根收，量/额逐根相加；价格一律乘复权因子'
-              '（最新一场为 1 ⇒ 前复权形状），区间涨跌与上一期复权收比；均线是复权收的简单移动平均，'
-              '整段算完再截断。最后一根标 partial（本期未走完），不足 6 根的那一块不画线。',
-     'defs_from': 'duanxian/price_volume_trend.py::DEFINITIONS'},
     {'key': 'similarity', 'title': '近 30 根量价形状与历史最相近样本',
      'endpoint': '/api/stock/volume-similarity',
      'owner': 'duanxian/volume_similarity.py',

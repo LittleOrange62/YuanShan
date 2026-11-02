@@ -1,9 +1,10 @@
-import type { ReactNode } from "react";
+import { useContext, type ReactNode } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { ageText, dash, describeState, hasData, isQuiet, type Availability, type DataState } from "@/lib/datastate";
 import { cn } from "@/lib/utils";
 import { plain } from "@/lib/agent";
 import { splitCaveats } from "@/lib/caveatKind";
+import { BlockTitleCtx, DrawerSection, DocDrawer, InsideDrawerCtx, useBlockTitle } from "@/components/ui/DocDrawer";
 
 /**
  * 新页（数据链路 / 量化选股）共用的三块呈现：
@@ -89,23 +90,35 @@ export function Panel<T>({ title, note, slowHint, state, contract, controls, chi
    * 不靠额外状态、也不会被用户手动点开的那次盖住。
    */
   const quiet = isQuiet(state);
+  // 标题往下发一口：这一块里的说明按钮（`ExplainBox`／`CaliberFold`）开抽屉时念的就是这行字，
+  // 逐块再抄一遍标题必然分叉 —— 屏上叫「名次稳定榜」、弹窗叫「这一屏」，读者不知道是不是同一块。
   return (
-    <GlassCard>
-      {!quiet && <h2 className="text-sm font-bold">{title}</h2>}
-      {note && !quiet && <ExplainBox title="这一屏的口径说明">{plain(note)}</ExplainBox>}
-      {controls && <div className="mb-1.5">{controls}</div>}
-      {quiet
-        ? <QuietFold title={title} text={plain(text)} note={note ? plain(note) : undefined} contract={contract} />
-        : ready
-          ? (children ? children(state.data) : null)
-          : <>
-            <p className={cn("text-[12px] leading-relaxed", state.kind === "error" || state.kind === "offline" ? "text-destructive" : "text-warning")}>{plain(text)}</p>
-            {state.kind === "loading" && slowHint && (
-              <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{plain(slowHint)}</p>
-            )}
-            {state.kind !== "loading" && contract && <div className="mt-2 border-t border-dashed border-border pt-2">{contract}</div>}
-          </>}
-    </GlassCard>
+    <BlockTitleCtx.Provider value={title}>
+      <GlassCard>
+        {/* 标题这一行：左边是块名，右边那颗「这块的说明」开的就是这一块自己的抽屉
+            （用户 10-31：说明按钮要长在标题行最右边，不像原先那样落在正文里、
+            看起来像"数下面的一段话"）。抽屉标题沿用屏上那一行字，两处不许分叉。
+            同一句 `note` 从此**只在抽屉里出现一次**，不再在正文里摊一遍。 */}
+        <div className="mb-1 flex flex-wrap items-center gap-1.5">
+          {!quiet && <h2 className="text-sm font-bold">{title}</h2>}
+          {note && !quiet && (
+            <span className="ml-auto"><DocDrawer title={title}>{plain(note)}</DocDrawer></span>
+          )}
+        </div>
+        {controls && <div className="mb-1.5">{controls}</div>}
+        {quiet
+          ? <QuietFold title={title} text={plain(text)} note={note ? plain(note) : undefined} contract={contract} />
+          : ready
+            ? (children ? children(state.data) : null)
+            : <>
+              <p className={cn("text-[12px] leading-relaxed", state.kind === "error" || state.kind === "offline" ? "text-destructive" : "text-warning")}>{plain(text)}</p>
+              {state.kind === "loading" && slowHint && (
+                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{plain(slowHint)}</p>
+              )}
+              {state.kind !== "loading" && contract && <div className="mt-2 border-t border-dashed border-border pt-2">{contract}</div>}
+            </>}
+      </GlassCard>
+    </BlockTitleCtx.Provider>
   );
 }
 
@@ -211,10 +224,16 @@ export function CaveatText({ text }: { text?: string | null }) {
  *
  * 只显示后端写了的键 —— 没有说明的字段不编解释，宁可少列一行。
  */
-export function Definitions({ map, bare = false }: { map?: Record<string, string> | null; bare?: boolean }) {
+export function Definitions({ map, bare = false, block }: {
+  map?: Record<string, string> | null; bare?: boolean;
+  /** 卡片外面就有标题、没走 `Panel` 的那几块要交（同 `ExplainBox.block`） */
+  block?: string;
+}) {
   const entries = Object.entries(map ?? {});
   if (entries.length === 0) return null;
-  // `bare` 只给 `CaliberFold` 用：它自己已经是一层折叠，再套一层就是同一个内容两个摘要行，
+  // `bare` 给已经在自己的容器里讲说明的那两处用（`CaliberFold` 的折叠体、`DocDrawer` 的抽屉体，
+  // 后者 2026-10-28 用户点名「个股信息的说明要做到弹窗里去，用统一的那个组件」）：
+  // 容器自己已经有一层标题/摘要，字段字典再套一层 `<details>` 就是同一个内容两个摘要行，
   // 密度问题没解决反而多一次点击。字典的 markup 仍然只有这一份。
   const body = (
     <dl className="space-y-0.5">
@@ -227,7 +246,7 @@ export function Definitions({ map, bare = false }: { map?: Record<string, string
     </dl>
   );
   if (bare) return <div className="mt-1">{body}</div>;
-  return <ExplainBox title="这些字段是什么意思" count={entries.length}>{body}</ExplainBox>;
+  return <ExplainBox title="这些字段是什么意思" count={entries.length} block={block}>{body}</ExplainBox>;
 }
 
 /** 数据覆盖区间（后端 `coverage{}`）—— "从哪天起、共几场"决定了一个空档是历史短还是没算 */
@@ -256,33 +275,44 @@ export function Provenance({ bits }: { bits: (string | null | undefined)[] }) {
 }
 
 /**
- * 通用说明框（用户 2026-10-14 点名要的东西）：把「说明与定义」这类**不是读数的文字**
- * 收进一个**默认收起**的框，读数那一屏才留给数。
- * 用户原话：「自选明细里面直接显示内容，说明内容和定义的内容占用了太多屏幕空间，
- * 你做一个通用的说明框，把这些内容全放进去，并且这个框默认是收起来的状态。
- * 同样的检查整个程序所有相关的地方，都做这样的修改。」
+ * 通用说明框（用户 2026-10-14 点名要的东西）：把「说明与定义」这类不是读数的文字
+ * 收起来，读数那一屏才留给数。用户原话：「自选明细里面直接显示内容，说明内容和定义的
+ * 内容占用了太多屏幕空间，你做一个通用的说明框，把这些内容全放进去，并且这个框默认是
+ * 收起来的状态。同样的检查整个程序所有相关的地方，都做这样的修改。」
  *
- * ⚠️ 有一条纪律没跟着折：**`Caveats` 仍然默认摊在屏上**。那些句子说的是"这一屏哪里不完整、
- * 被截断、缺数、查询失败"，藏进折叠框等于没写（本文件 `Caveats` 上方原注释；10-13 那次
- * 「把查询失败念成没进榜」的事故就是这么来的）。折进去的只有口径解释与字段定义。
+ * 2026-10-28 用户把「收起来」进一步定成「转移到弹窗里」：这一格现在开的是底部说明抽屉
+ * （`DocDrawer`），屏上只剩那颗按钮。就地折叠那口原生 details 只剩 `CaliberFold` 里
+ * `viaDrawer={false}` 那一支还在用。
  *
- * 用原生 `<details>`：不需要状态、不需要 effect，浏览器负责开合，测试按"有没有 `open` 属性"判默认态。
+ * ⚠️ 有一条纪律没跟着收：`Caveats` 仍然默认摊在屏上。那些句子说的是这一屏哪里不完整、
+ * 被截断、缺数、查询失败，藏起来等于没写（本文件 `Caveats` 上方原注释；10-13 那次
+ * 「把查询失败念成没进榜」的事故就是这么来的）。收进去的只有口径解释与字段定义。
  */
-export function ExplainBox({ title, count, children }: {
+export function ExplainBox({ title, count, block, children }: {
   /** 这一格是什么说明，例如「这一屏的口径说明」 */
   title: string;
   /** 条数（字段定义那种）；没有就别写，不硬凑「（0 条）」 */
   count?: number | null;
+  /**
+   * 这一块在屏幕上叫什么。走 `Panel` 或带了 `docTitle` 的 `GlassCard` 不用交（自动往下发）；
+   * 标题写在卡片外面那一类块（首页资金轮动、指标格）要交，否则抽屉只能念「这一张表怎么点」，
+   * 读者不知道是哪一块的表。
+   */
+  block?: string;
   children: ReactNode;
 }) {
+  const inDrawer = useContext(InsideDrawerCtx);
+  const ctxBlock = useBlockTitle();
+  const blockName = block ?? ctxBlock;
+  const tally = typeof count === "number" ? `${count} 条，后端原样给出` : null;
+  const body = <div className="space-y-0.5 text-[10px] leading-relaxed text-muted-foreground">{children}</div>;
+  // 已经在抽屉里了 ⇒ 这一段只能是抽屉里的一个小节，不能再长出第二口抽屉（见 DocDrawer 同名上下文）
+  if (inDrawer) return <DrawerSection heading={title}>{body}</DrawerSection>;
   return (
-    <details className="mt-1.5 border-t border-dashed border-border pt-1.5">
-      <summary className="cursor-pointer text-[11px] leading-relaxed text-muted-foreground hover:text-foreground">
-        {title}
-        {typeof count === "number" ? `（${count} 条，后端原样给出，点开看）` : "（点开看）"}
-      </summary>
-      <div className="mt-1 space-y-0.5 text-[10px] leading-relaxed text-muted-foreground">{children}</div>
-    </details>
+    <div className="mt-1.5 border-t border-dashed border-border pt-1.5">
+      <DocDrawer title={blockName ? `${blockName} · ${title}` : title}>{body}</DocDrawer>
+      <span className="ml-2 text-[10px] text-muted-foreground">{tally}</span>
+    </div>
   );
 }
 
@@ -298,12 +328,21 @@ export function ExplainBox({ title, count, children }: {
  *    那类句子折起来就等于让屏幕说假话，规矩没变（见 `ExplainBox` 那条红线与本仓 §六 台账）；
  *  · 文字一律后端原句，只剥成对 `**`（`plain`），不许改写、不许缩短。
  */
-export function CaliberFold({ caveats, definitions, coverage, provenance, notes, foldAll }: {
+export function CaliberFold({ caveats, definitions, coverage, provenance, notes, foldAll, viaDrawer, drawerTitle, extra }: {
   caveats?: { code?: string | null; label?: string | null; text?: string | null }[] | null;
   definitions?: Record<string, string> | null;
   coverage?: Record<string, unknown> | null;
   provenance?: (string | null | undefined)[] | null;
   /** 本屏那几句"母体/读法"散句（如 `universe.note`），一起收进来，不再各占一行 */
+  /**
+   * 2026-10-28 用户定稿：说明一律走底部「说明」抽屉 —— **默认就是抽屉**（一处改、35 块同时生效），
+   * 只有明确要就地摘要行的地方才传 `viaDrawer={false}`。
+   * ⚠️ 标题不许组件自己编：给了 `drawerTitle`（拿屏幕上那几个字）就念它，没给就念「这一屏」。
+   * 逐块翻过去时要在浏览器里点开验一次，不是改完就算。
+   */
+  viaDrawer?: boolean;
+  /** 抽屉标题：就用这一块在屏幕上的标题，两处不同词会让读者不确定他说的是哪一块 */
+  drawerTitle?: string;
   notes?: (string | null | undefined)[] | null;
   /**
    * 用户 10-22 点名某几屏（首页异动提醒那四条：`no_announce_date`／`not_signal`／`no_band`／
@@ -313,6 +352,12 @@ export function CaliberFold({ caveats, definitions, coverage, provenance, notes,
    * 默认 false ⇒ 不调这个开关的每一屏仍沿用那条红线。
    */
   foldAll?: boolean;
+  /**
+   * 页面上自己长出来、但后端没有对应字段的那段说明（图例色块、"这一窗口的范围"那一行、
+   * 只在平滑线上打转折点的理由）——2026-10-31 用户点名「风险提示」这块**屏上只留图与数**，
+   * 这类句子整段搬进抽屉。用 `DrawerSection` 起小标题，与后端原句分节，不混进 `notes` 那一段。
+   */
+  extra?: ReactNode;
 }) {
   // 只有"纯口径解释"那一份被折进去；缺数／截断／查询失败那一族留在屏上（`lib/caveatKind.ts` 一处定）
   const { visible, foldable } = splitCaveats(caveats);
@@ -323,36 +368,81 @@ export function CaliberFold({ caveats, definitions, coverage, provenance, notes,
     v && typeof v === "object" && !Array.isArray(v) && ("from" in (v as object) || "to" in (v as object)));
   const ps = (provenance ?? []).filter(Boolean);
   const ns = (notes ?? []).filter(Boolean);
-  const foldCount = held.length + ds.length + vs.length + ps.length + ns.length;
+  const foldCount = held.length + ds.length + vs.length + ps.length + ns.length + (extra ? 1 : 0);
+  // 说明正文只有一份：就地折叠那一版与抽屉那一版**共用同一段 JSX**，不换壳就不换内容 ——
+  // 两处各写一遍迟早给出"屏上一个口径、弹窗里另一个口径"。
+  // 2026-10-28：抽屉体是一口气读完的长文，每类各起一个小节标题，读者才知道自己看到哪儿。
+  const body = (
+    <div className="mt-1 space-y-0.5 text-[10px] leading-relaxed text-muted-foreground">
+      {ns.length > 0 && (
+        <DrawerSection heading="母体与读法（本屏那几句散句，后端原句）">
+          {ns.map((t, i) => <p key={`n${i}`}>{plain(String(t))}</p>)}
+        </DrawerSection>
+      )}
+      {held.length > 0 && (
+        <DrawerSection heading="口径声明（后端 caveats 原句，页面未改写）">
+          <Caveats items={held} />
+        </DrawerSection>
+      )}
+      {ds.length > 0 && (
+        <DrawerSection heading="这一列是什么（字段含义，后端 definitions）">
+          {/* `bare`：这一块自己已经是一层折叠，字段字典不能再套一层摘要——
+              套上之后同一份解释会有两行标题，收起时看着像两个不同的东西。 */}
+          <Definitions map={definitions} bare />
+        </DrawerSection>
+      )}
+      {vs.length > 0 && (
+        <DrawerSection heading="覆盖区间（从哪天起、共几场）">
+          <CoverageNote map={coverage} />
+        </DrawerSection>
+      )}
+      {ps.length > 0 && (
+        <DrawerSection heading="出处">
+          <Provenance bits={(provenance ?? []).map(x => x)} />
+        </DrawerSection>
+      )}
+      {extra}
+    </div>
+  );
+  const tallyBits = [
+    held.length - heldUnhealthy ? `${held.length - heldUnhealthy} 条口径声明` : null,
+    heldUnhealthy ? `${heldUnhealthy} 条缺数与告警（本场有读不到／判不了的行）` : null,
+    ns.length ? `${ns.length} 句母体与读法` : null,
+    ds.length ? `${ds.length} 个字段解释` : null,
+    vs.length ? `${vs.length} 段覆盖区间` : null,
+    ps.length ? `出处 ${ps.length} 项` : null,
+  ].filter(Boolean).join(" · ");
+
+  // 指路牌只写一句、两个壳共用：出现两遍会让人怀疑「哪一份才是缺数声明」。
+  const guide = (!foldAll && visible.length > 0)
+    ? <span className="ml-1 text-warning">另有 {visible.length} 条缺数／截断类声明没有折，在上方</span>
+    : null;
+
+  const blockTitle = useBlockTitle();
   return (
     <>
       {!foldAll && <Caveats items={visible} />}
-      {foldCount > 0 && (
+      {foldCount > 0 && (viaDrawer !== false ? (
+        // 抽屉那一版：正文与就地折叠完全同一份 `body`；缺数／截断那几条（`visible`）
+        // 仍然留在上面这一屏里，绝不跟着搬进抽屉。
+        // 标题默认拿这一块在屏幕上的那行字（`Panel` 往下发的），逐块再抄一遍必然与屏上分叉。
+        // 但**只拿块名当标题**会让同一张卡里出现两颗一模一样的按钮：`Panel note` 那颗（标题行最右）
+        // 与这一颗（口径字典）都叫块名 ⇒ 按钮文字也相同 ⇒ 读者分不清点哪颗。
+        // 所以没给 `drawerTitle` 时补一节名「口径与覆盖」，`DocDrawer` 会把它拼进按钮文字。
+        <div className="mt-1.5 border-t border-dashed border-border pt-1.5">
+          <DocDrawer title={drawerTitle ?? (blockTitle ? `${blockTitle} · 口径与覆盖` : "这一屏")}>{body}</DocDrawer>
+          <span className="ml-2 text-[10px] text-muted-foreground">{tallyBits}</span>
+          {guide}
+        </div>
+      ) : (
         <details className="mt-1.5 border-t border-dashed border-border pt-1.5">
           <summary className="cursor-pointer text-[11px] leading-relaxed text-muted-foreground hover:text-foreground">
-            口径与覆盖：{[
-              held.length - heldUnhealthy ? `${held.length - heldUnhealthy} 条口径声明` : null,
-              heldUnhealthy ? `${heldUnhealthy} 条缺数与告警（本场有读不到／判不了的行）` : null,
-              ns.length ? `${ns.length} 句母体与读法` : null,
-              ds.length ? `${ds.length} 个字段解释` : null,
-              vs.length ? `${vs.length} 段覆盖区间` : null,
-              ps.length ? `出处 ${ps.length} 项` : null,
-            ].filter(Boolean).join(" · ")}（已收起 · 点开看全文）
-            {!foldAll && visible.length > 0 && (
-              <span className="ml-1 text-warning">另有 {visible.length} 条缺数／截断类声明没有折，在上方</span>
-            )}
+            口径与覆盖：{tallyBits}（已收起 · 点开看全文）
+            {guide}
           </summary>
-          <div className="mt-1 space-y-0.5 text-[10px] leading-relaxed text-muted-foreground">
-            {ns.map((t, i) => <p key={`n${i}`}>{plain(String(t))}</p>)}
-            <Caveats items={held} />
-            {/* `bare`：这一块自己已经是一层折叠，字段字典不能再套一层摘要——
-                套上之后同一份解释会有两行标题，收起时看着像两个不同的东西。 */}
-            <Definitions map={definitions} bare />
-            <CoverageNote map={coverage} />
-            {ps.length > 0 && <Provenance bits={(provenance ?? []).map(x => x)} />}
-          </div>
+          {body}
         </details>
-      )}
+      ))}
     </>
   );
 }

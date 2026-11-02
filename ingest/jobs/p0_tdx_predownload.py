@@ -432,7 +432,7 @@ def main(argv: list[str] | None = None) -> int:
         if rc == EXIT_HANDOFF:
             # C 类（子进程说"要人来"）：再起一轮只是把同一个失败再演一遍，
             # 而第 2 轮开头会把用户桌面上的客户端 kill_all 掉。上限 1 次，立刻出声。
-            print('\n子进程判为**要人来接手**（出口码 2），不再自动起第 %d 轮 —— '
+            print('\n子进程判为「要人来接手」（出口码 2），不再自动起第 %d 轮 —— '
                   '看上面现场包（var\\stuck\\...）里的 screen.png。' % (rnd + 1), flush=True)
             break
         if rnd < rounds and not stopped:

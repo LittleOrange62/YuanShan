@@ -7,6 +7,7 @@ import { CaliberFold, ExplainBox, Panel, Row } from "@/components/ui/DataPanel";
 import { useNonce, useProbe } from "@/lib/probe";
 import { dash } from "@/lib/datastate";
 import { STOCK_ROW_HINT, useStockRowInteraction } from "@/lib/useStockRowInteraction";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 左栏「埋伏票」（左侧机会）。右栏那半边是已经确认的突破（等它走出来了才买），
@@ -135,8 +136,7 @@ export function AmbushBoard() {
   );
 
   return (
-    <Panel title="埋伏票（左侧机会）" state={hits} controls={controls}
-      note="这一栏不等突破：看的是各周期成本挤到一起、横得紧、周线重心还在慢慢抬高。买在这里叫左侧，没走出来就是耗时间。">
+    <Panel title="埋伏票（左侧机会）" state={hits} controls={controls}>
       {d => {
         const all = d.rows ?? [];
         return (
@@ -148,8 +148,12 @@ export function AmbushBoard() {
             {/* 声明 / 字段含义 / 覆盖 / 出处收成一处默认收起的折叠块（用户 2026-10-21：
                 「把页面上的描述性内容全部收缩起来，避免过多占屏」）。summary 摆每一类的条数 ⇒ 收起不等于藏掉；
                 缺数／截断／查询失败那一族声明由 `CaliberFold` 内部留在屏上，下面那句取数上限告警也没跟着折。 */}
+            {/* 一模块一颗（用户 10-29 第 4 条、11-01「做」）：原来标题行那颗 `note` 与这一颗并存，
+                两颗按钮一个念「这块的说明」、一个念「这块的说明 · 口径与覆盖」，点了两次才看全。
+                那句话现在是这口抽屉的第一段。表尾那颗「怎么点」带着自己的小节名、讲的就是这张表怎么按，留在原地。 */}
             <CaliberFold caveats={d.caveats} definitions={d.definitions}
-              coverage={d.coverage} provenance={[d.source, d.caliber]} />
+              coverage={d.coverage} provenance={[d.source, d.caliber]}
+              notes={["这一栏不等突破：看的是各周期成本挤到一起、横得紧、周线重心还在慢慢抬高。买在这里叫左侧，没走出来就是耗时间。"]} />
             <div className="mt-2 overflow-x-auto">
               <table className="w-full text-[11px]">
                 <thead><tr className="text-left text-muted-foreground">
@@ -195,7 +199,7 @@ export function AmbushBoard() {
               <ExplainBox title="这一张表怎么点 · 单击高亮什么 · 双击去哪里">
                 <p className="text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
               </ExplainBox>
-              {am.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{am.popHint}</p>}
+              {am.popHint && <NoticeBar kind="warning">{am.popHint}</NoticeBar>}
               {all.length === 0 && (
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {types.length > 0 || onlyStrict

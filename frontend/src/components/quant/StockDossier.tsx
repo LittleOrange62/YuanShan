@@ -193,7 +193,9 @@ function Scores({ b }: { b?: Blk }) {
       {/* 这一块的声明收进共用折叠块（用户 2026-10-21：「把页面上的描述性内容全部收缩起来，避免过多占屏」——
           档案里八块各自摊一段口径，一屏大半是字）。纯口径解释那几条折起来，
           缺数／截断／失败那一族仍留在屏上（`CaliberFold` 内部分流）；上面那句「权重之和不为 1」的徽标没跟着折。 */}
-      <CaliberFold caveats={d.caveats ?? []} />
+      {/* ⚠️ `drawerTitle` 是这块自己起的名字：不给就继承外层母块的块名，两颗按钮会念成同一句
+          「这块的说明 · 口径与覆盖」—— 读者点了母块那颗，以为子块没话可说。 */}
+      <CaliberFold caveats={d.caveats ?? []} drawerTitle="趋势评分八分量 · 口径与覆盖" />
     </Shell>
   );
 }
@@ -412,8 +414,7 @@ export function StockDossier({ code, date }: { code: string | null; date?: strin
   return (
     <Panel title={code ? `这只票的量化档案 · ${code}${d?.name ? ` ${d.name}` : ""}` : "这只票的量化档案"}
       state={got}
-      slowHint="一次请求把八块读数并行取齐（八张表 × 每张 1~2 条查询），首屏实测比串行快一倍多。"
-      note="把「量化选股」那一组各自算好的读数按这一只票拼到一起。一块判据都不在这儿重算，页面也只念后端交出的字段。">
+      slowHint="一次请求把八块读数并行取齐（八张表 × 每张 1~2 条查询），首屏实测比串行快一倍多。">
       {x => x.available !== true ? (
         // 整份档案不可用只有两种：代码认不出来、或头两步查询失败。两种都要把原文念出来，
         // 不许缩成「这一屏没有数据」—— 那种措辞会让人去查回填，而真正要改的是代码或库。
@@ -446,12 +447,13 @@ export function StockDossier({ code, date }: { code: string | null; date?: strin
           )).reduce<ReactNode[]>((acc, el, i) => i === 0 ? [el] : [...acc, <span key={`s${i}`}>, </span>, el], [])}
           。不覆盖的：{(x.not_covered ?? []).map(n => `${n.where}（${n.why}）`).join("；")}
         </p>
-        {/* 声明 / 覆盖区间 / 出处收成一处默认收起的折叠块（用户 2026-10-21：
-            「把页面上的描述性内容全部收缩起来，避免过多占屏」—— 这三行原先摊在八块档案的最下面，
-            是纯粹的口径与出处说明，不是读数）。
+        {/* 一模块一颗「这块的说明」（用户 10-29 第 4 条、11-01 点头合并）：
+            原来这块有两颗同名按钮 —— `Panel note` 在标题行、这一颗在正文，读者要点两次才看全。
+            现在标题行那颗撤了，那句话变成抽屉里的第一段（字没改，只是不再另开一颗按钮）。
             **没跟着折的**：上面那句「覆盖哪些屏 / 不覆盖哪些」（带链接）、下面的重取按钮、
-            取数状态那句 `text-warning`；缺数／截断一族的 caveat 由折叠块自己留在屏上。 */}
+            取数状态那句 `text-warning`；缺数／截断一族的 caveat 由 `CaliberFold` 自己分流留在屏上。 */}
         <CaliberFold caveats={x.caveats ?? []} coverage={x.coverage}
+          notes={["把「量化选股」那一组各自算好的读数按这一只票拼到一起。一块判据都不在这儿重算，页面也只念后端交出的字段。"]}
           provenance={[x.source, x.caliber]} />
         <button type="button" onClick={refresh}
           className="mt-2 rounded-lg border border-border/60 px-2 py-1 text-[11px] text-muted-foreground hover:border-primary hover:text-primary">

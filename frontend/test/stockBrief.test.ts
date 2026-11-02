@@ -76,6 +76,17 @@ test('自动那一发的接线只照那一处判定走，闸本身不在组件�
   assert.match(box, /const row = facts\.brief \?\? null;/, '结论的唯一真源是 facts 里那一行');
 });
 
+test('有失败记录但没有正文时，不许念成「还没生成过」（自动跑一上线这就是常态）', () => {
+  assert.match(box, /这一行只记下过失败/, '两件事两句话：没这一行 vs 有这一行但没成功过');
+  assert.match(box, /还没生成过这一份（库里没有这一行/, '另一句也得留着，两者按 row 在不在分岔');
+  assert.match(box, /\{row\n?\s*\? "这一格还没有成功的正文/, '分岔走的是 row 存不存在，不是 brief 空不空');
+  // 冷却那句不许把失败归给「自动重跑」——那一发很可能是人手动点的
+  const cool = autoRunDecision({ ...READY, error: '上游返回 HTTP 500', failedAt: at(5) });
+  assert.doesNotMatch(cool.why, /自动重跑/, '失败归属不许替屏幕编因果');
+  assert.match(cool.why, /最近一次这一趟在 5 分钟前失败/);
+  assert.match(autoRunDecision({ ...READY, error: 'X', failedAt: at(0.3) }).why, /不到一分钟/, '不到一分钟不念成「0 分钟前」');
+});
+
 test('这一趟走红线档（page），不是允许给价位的那一档', () => {
   // 右侧「AI分析」那一档按设计允许给参考价位与止损；这一格只放"这是一家什么公司"
   assert.match(run, /await chatStream\(\[\{ role: "user", content: prompt \}\], mat\.material, \{\}\)/,
@@ -115,6 +126,25 @@ test('主按钮不静默 disabled：拦下来要把"还差哪几样"列出来', 
   assert.match(noLlm[0], /AI 探索 · 接入设置/, '要说清去哪一样配齐，不只说"没接入"');
   assert.deepEqual(missingPrerequisites({ hasLlm: true, available: true, numeric: '600519' }), []);
   assert.match(missingPrerequisites({ hasLlm: true, available: true, numeric: '' })[0], /还没选到一只票/);
+});
+
+test('来源已配但整轮停住：不许说成"还没接入 AI"（10-31 那条假话）', () => {
+  /* 实测案底：localStorage 里那条 new-api 一直在，只是 10-28 连着两次被判不通、
+     `currentSource()` 从此交 null。屏上那句"还没接入 AI，去保存并测通"把人支去
+     重新保存一份本来就在的凭据，而真正的解法是「测试连接」/「清除测试标记」。 */
+  const parked = "1 条来源已各试过一圈，都不通：第 1 条 new-api（网络连接中断）。已停住，不再自动重试；";
+  const both = missingPrerequisites({ hasLlm: false, available: true, numeric: '600519', blocked: parked });
+  assert.equal(both.length, 1);
+  assert.doesNotMatch(both[0], /还没接入 AI/, '停住不是"没配"，说没配就是假话');
+  assert.match(both[0], /这一轮全被判过不通/);
+  assert.match(both[0], /测试连接|清除测试标记/, '要给解法，且解法要落在真的那一格按钮上');
+  assert.ok(both[0].includes(parked), '那句停住原文要带出来（它逐条点名是哪一条、为什么）');
+  // 一条都没配时仍然是那句话（别把两档合成一档）
+  const none = missingPrerequisites({ hasLlm: false, available: true, numeric: '600519' });
+  assert.match(none[0], /还没接入 AI/);
+  // 接线：那一格必须真的把 blockedReason() 交进来，而不是永远传空
+  assert.match(box, /blocked: parked && readSources\(\)\.length > 0 \? parked : ""/);
+  assert.match(box, /const llmReady = hasLlm\(\);[\s\S]*blockedReason\(\)/, '先问 hasLlm 才读得到停住那句（顺序反了交出来是空）');
 });
 
 test('AI 正文原样摆、只剥成对粗体，不改写不截断', () => {

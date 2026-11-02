@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { CacheLine, ExplainBox, Panel, Row } from "@/components/ui/DataPanel";
+import { CacheLine, Panel, Row } from "@/components/ui/DataPanel";
 import { useNonce, useProbe } from "@/lib/probe";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { useTableSort } from "@/lib/useSort";
@@ -68,7 +68,7 @@ export function Coverage() {
 
       <div className="space-y-4">
         <Panel title="逐表覆盖" state={cov} slowHint="这一屏要扫全库逐表统计，实测冷跑过 53.6 秒（命中缓存时不到 0.1 秒）。没有进度可依，所以只说在跑；跑完会把「算于几分钟前」一起交出来。"
-          note="「应有 / 实有」的分母是交易日历从该表最早日期到今天的场次数；快照表没有日期列，所以不参与这一对比。「本场 / 基线」是条数判据：一场里应该有 N 只（或 N 行）的那几张表，本场条数必须 ≥ 前一天登记的条数减去偏离值（默认 30 条、分钟线类 200 条，两个数在系统配置里改得动）—— 新股只会让条数往上走，所以条数变少就是半截下载，日期齐了也不算全；偏离值给的是退市/停牌那几天的正常回退留的口子。">
+          note="「应有 / 实有」的分母是交易日历从该表最早日期到今天的场次数；快照表没有日期列，所以不参与这一对比。「本场 / 基线」是条数判据：一场里应该有 N 只（或 N 行）的那几张表，本场条数必须 ≥ 前一天登记的条数减去偏离值（默认 30 条、分钟线类 200 条，两个数在系统配置里改得动）—— 新股只会让条数往上走，所以条数变少就是半截下载，日期齐了也不算全；偏离值给的是退市/停牌那几天的正常回退留的口子。行数为什么标「估」、判据为什么不用写入时间戳：行数标「估」的是 pg_class.reltuples 估算值（长期不 VACUUM 会偏），只用于看量级，不当精确条数用；写入时间戳（last_touched）这里刻意不做状态判据 —— 判据是数据日期。">
           {d => {
             const tables = d.tables ?? [];
             return (
@@ -162,15 +162,10 @@ export function Coverage() {
                   <input type="checkbox" checked={showSamples} onChange={e => setShowSamples(e.target.checked)} />
                   列出具体缺的是哪几天（每表最多显示 10 天）
                 </label>
-                {/* 列口径（行数为什么是「估」、判据为什么不用写入时间戳）折进通用说明框（用户 10-14）。
+                {/* 列口径（行数为什么是「估」、判据为什么不用写入时间戳）已并进标题行那颗「这块的说明」
+                    的抽屉（用户 10-31；原先它是正文折框，长在表下面像"数下面的一段话"）。
                     「算不出（不是零缺口）」、「覆盖极薄」、known_issue、缺样本周期的「共 N 天」都留在原位 ——
                     那些是这一格读数的判读告警与截断声明，藏起来等于没写。 */}
-                <ExplainBox title="行数为什么标「估」· 判据为什么不用写入时间戳">
-                  <p>
-                    行数标「估」的是 <code>pg_class.reltuples</code> 估算值（长期不 VACUUM 会偏），只用于看量级，不当精确条数用。
-                    写入时间戳（<code>last_touched</code>）这里刻意不做状态判据 —— 判据是数据日期。
-                  </p>
-                </ExplainBox>
               </>
             );
           }}

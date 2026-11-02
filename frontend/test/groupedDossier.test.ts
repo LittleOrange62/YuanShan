@@ -69,11 +69,11 @@ test('td 的列键都是行里真有的字段（死键不会报错，只是那�
 });
 
 test('高亮的行、双击带出去的那一只、与档案的对象来自同一份行序（只排一次、只截一次）', () => {
-  assert.equal((page.match(/\.slice\(0, 150\)/g) ?? []).length, 1,
+  assert.equal((page.match(/\.slice\(0, 40\)/g) ?? []).length, 1,
     '表格与 focusRow 必须读同一份截断结果，两处各 slice 一次就会错行');
-  assert.match(page, /const shownRows = sortedRows\.slice\(0, 150\)/);
+  assert.match(page, /const shownRows = sortedRows\.slice\(0, 40\)/);
   // 10-26：「已经选中哪一只」那句提示搬进 `SelectedHint`（选中态的订阅圈在这一行里，
-  // 一次单击不再把这张 150 行 × 十几列的明细表整个重排一遍）。
+  // 一次单击不再把这张首屏明细表整个重排一遍）。
   // 「对象必须由选中行号读同一份截断结果」这条一个字没松，只是取的位置换了：
   assert.match(page, /<SelectedHint store=\{cell\.store\} rowAt=\{\(row\) => shownRows\[row\] \?\? null\} \/>/,
     '提示必须由订阅选中态的子组件渲染，并且读的就是表格那一份 shownRows');

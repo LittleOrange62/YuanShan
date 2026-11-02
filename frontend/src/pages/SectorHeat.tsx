@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { CaliberFold, Contract, ExplainBox, Panel, Row } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 import { plain } from "@/lib/agent";
 import { useNonce, useProbe } from "@/lib/probe";
 import { useTableSort } from "@/lib/useSort";
@@ -229,8 +230,7 @@ export function SectorHeat() {
         {/* 用户 2026-10-06 点名的那一格：2024 年以来 / 近 3 个月的累计净流入，前 50 + 翻页 */}
         <SectorFlowCumulative />
 
-        <Panel title="热度榜与五要素" state={heat} slowHint="五要素与阶段分布要对上千个板块逐日聚合，实测最慢 14 秒（只查当天这一档最快）。默认不查全库广度，那一档要点按钮才发。"
-          note="热度由涨幅/广度/动力/成交四分项合成；点火分由五要素加权。两套判据并排看，不相加。">
+        <Panel title="热度榜与五要素" state={heat} slowHint="五要素与阶段分布要对上千个板块逐日聚合，实测最慢 14 秒（只查当天这一档最快）。默认不查全库广度，那一档要点按钮才发。">
           {d => {
             const allRows = d.rows ?? [];
             // 默认藏掉打了 `statistical` 标的行（市值/涨跌家数这类市场级统计指数，不是板块）
@@ -431,7 +431,8 @@ export function SectorHeat() {
                     d.freshness?.stats_mode ? `stats=${d.freshness.stats_mode}` : null]}
                   notes={[d.heat_source_caliber?.note, d.freshness?.note,
                     d.breadth_reality == null ? d.breadth_reality_note : null,
-                    d.breadth_reality != null ? `全库广度覆盖实测：${JSON.stringify(d.breadth_reality)}` : null]} />
+                    d.breadth_reality != null ? `全库广度覆盖实测：${JSON.stringify(d.breadth_reality)}` : null,
+                    "热度由涨幅/广度/动力/成交四分项合成；点火分由五要素加权。两套判据并排看，不相加。"]} />
                 {(d.freshness?.cache_ttl_seconds != null || d.freshness?.cached_or_absent) && (
                   <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
                     缓存：每 {ageText(d.freshness?.cache_ttl_seconds)}才重算一次（<code>stats={dash(d.freshness?.stats_mode)}</code>）；
@@ -454,30 +455,45 @@ export function SectorHeat() {
 
         {/* ── 新增一块：趋势到底成没成型 · 左侧低吸看的是"刚转那一瞬"。判据先写清楚，数值一律来自上面的接口 ── */}
         <GlassCard>
-          <h2 className="text-sm font-bold">趋势形成度与低吸：判据（逻辑就在屏上，不藏在代码里）</h2>
-          {/* 用户 2026-10-14：判据的说明文字整摊摊开，把读数挤到第二屏。
-              六分项这一叠说明折进通用说明框（默认收起）；紧接后面那段「档位按顺序互斥」
-              没跟着折 —— 那一段里写着「点不足就不给判据、显示缺而不是 0」和「过热」的
-              误读告警，藏起来等于让屏幕说假话。 */}
-          <ExplainBox title="判据六分项：每一项判什么 · 为什么这样判">
-          <p>
-            两个问题分开答：<b className="text-foreground">① 这个板块的涨幅/热度形成趋势了吗；② 如果做左侧，它是不是刚转、位置低不低</b>。
-            合成一个分数就看不出是哪一项在起作用，所以下面六项<b className="text-foreground">分项全列、最后一列才给档位</b>。
-            完整推导与建表草案在 <code>docs/页面展示工作指南/05-板块趋势与低吸判据.md</code>。
-          </p>
-          <ul className="space-y-1">
-            {[
-              ["方向一致 dir_agree", "短/中/长三窗口（5/11/21 日）最小二乘斜率同号才算成形状。为什么不用「今日减 N 日前」：那只用首尾两点，一根插针就能把趋势判反。"],
-              ["持续性 persist", "窗口内热度逐日抬升的天数占比。斜率说方向，持续性说这个方向保持了多久 —— 左侧要的是刚起步，不是第 20 天。"],
-              ["广度 breadth", "up_count / member_count 及其 5 日均值，低于 0.55 判「普涨没起来」。板块涨幅能被 3 只权重股拉起来，广度不跟上趋势是虚的。"],
-              ["量能 volume_ok", "5 日均量比落在 [1.0, 3.0] 给满分，>3.0 反而降分：温和放量是资金进场，三倍量通常是一次性情绪。"],
-              ["位置 position", "收盘价在过去 21 日高低区间里的位置 + heat_pctile。低吸的全部含意都在这一项：同一套方向判据，位置 0.9 是追高、0.2 才是低吸。"],
-              ["排名动量 rank_momentum", "热度排名 5 日内的前进量。板块之间是零和的，它不涨排名不代表资金进来了。"],
-            ].map(([k, v]) => (
-              <li key={k}><b className="text-foreground">{k}</b><span className="text-muted-foreground"> —— {v}</span></li>
-            ))}
-          </ul>
-          </ExplainBox>
+          {/* 用户 2026-10-31：「这块的说明」摆在这一块标题这一行的最右边，不再长在正文里
+              （原来正文里的两段 ExplainBox 整段搬进这一颗按钮开的抽屉，屏上不再摊第二遍）。
+              中间那叠「档位按顺序互斥」不搬 —— 那一段里写着「点不足就不给判据、显示缺而不是 0」
+              和「过热」的误读告警，藏起来等于让屏幕说假话。 */}
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <h2 className="text-sm font-bold">趋势形成度与低吸：判据（逻辑就在屏上，不藏在代码里）</h2>
+            <span className="ml-auto flex flex-wrap items-center gap-1.5">
+              <DocDrawer title="趋势形成度与低吸：判据（逻辑就在屏上，不藏在代码里）">
+                <DrawerSection heading="判据六分项：每一项判什么 · 为什么这样判">
+                  <p>
+                    两个问题分开答：<b className="text-foreground">① 这个板块的涨幅/热度形成趋势了吗；② 如果做左侧，它是不是刚转、位置低不低</b>。
+                    合成一个分数就看不出是哪一项在起作用，所以下面六项<b className="text-foreground">分项全列、最后一列才给档位</b>。
+                    完整推导与建表草案在 <code>docs/页面展示工作指南/05-板块趋势与低吸判据.md</code>。
+                  </p>
+                  <ul className="space-y-1">
+                    {[
+                      ["方向一致 dir_agree", "短/中/长三窗口（5/11/21 日）最小二乘斜率同号才算成形状。为什么不用「今日减 N 日前」：那只用首尾两点，一根插针就能把趋势判反。"],
+                      ["持续性 persist", "窗口内热度逐日抬升的天数占比。斜率说方向，持续性说这个方向保持了多久 —— 左侧要的是刚起步，不是第 20 天。"],
+                      ["广度 breadth", "up_count / member_count 及其 5 日均值，低于 0.55 判「普涨没起来」。板块涨幅能被 3 只权重股拉起来，广度不跟上趋势是虚的。"],
+                      ["量能 volume_ok", "5 日均量比落在 [1.0, 3.0] 给满分，>3.0 反而降分：温和放量是资金进场，三倍量通常是一次性情绪。"],
+                      ["位置 position", "收盘价在过去 21 日高低区间里的位置 + heat_pctile。低吸的全部含意都在这一项：同一套方向判据，位置 0.9 是追高、0.2 才是低吸。"],
+                      ["排名动量 rank_momentum", "热度排名 5 日内的前进量。板块之间是零和的，它不涨排名不代表资金进来了。"],
+                    ].map(([k, v]) => (
+                      <li key={k}><b className="text-foreground">{k}</b><span className="text-muted-foreground"> —— {v}</span></li>
+                    ))}
+                  </ul>
+                </DrawerSection>
+                <DrawerSection heading="下面那张表的来源 · 页面不做第二次判断 · 判据版本只增行不覆盖">
+                  <p>
+                    下面那张表读的是<b className="text-foreground">落库结果</b> <code>analytics.sector_trend_signal</code>
+                    （参数在 <code>config.setting['sector_trend_signal.params']</code>，判据版本随数据一起交出）。
+                    页面不做第二次判断 —— 判据只允许存在一处，两处各判一次就会分叉。
+                    <b className="text-foreground">改阈值/权重会生成新的 <code>spec_version</code> 行、不覆盖旧行</b>：
+                    历史上哪天被算成「刚转」，就永远是当时那一版说的话。
+                  </p>
+                </DrawerSection>
+              </DocDrawer>
+            </span>
+          </div>
           <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
             <b className="text-foreground">档位按顺序互斥</b>：点不足 <code>insufficient</code>（任一窗口点数 &lt; 0.7×窗口 ⇒ 不给判据，显示「数据不足」而不是 0）
             → <code>downtrend</code> → <b className="text-foreground"><code>turn_up_seed</code>：短窗斜率在 3 日内由 ≤0 翻正、且位置 ≤0.35、且广度达标 —— 你要找的就是这一档</b>
@@ -488,19 +504,9 @@ export function SectorHeat() {
             低吸分权重 = 刚转新鲜度 35 / 位置 25 / 广度 20 / 量能 10 / 排名动量 10 ——
             <b className="text-foreground">这是可商量的先验，不是市场规律</b>。
           </p>
-          <ExplainBox title="下面那张表的来源 · 页面不做第二次判断 · 判据版本只增行不覆盖">
-          <p>
-            下面那张表读的是<b className="text-foreground">落库结果</b> <code>analytics.sector_trend_signal</code>
-            （参数在 <code>config.setting['sector_trend_signal.params']</code>，判据版本随数据一起交出）。
-            页面不做第二次判断 —— 判据只允许存在一处，两处各判一次就会分叉。
-            <b className="text-foreground">改阈值/权重会生成新的 <code>spec_version</code> 行、不覆盖旧行</b>：
-            历史上哪天被算成"刚转"，就永远是当时那一版说的话。
-          </p>
-          </ExplainBox>
         </GlassCard>
 
         <Panel title="趋势档位与低吸候选（读 `analytics.sector_trend_signal`）" state={trend}
-          note="档位、六分项、低吸分全部来自落库结果，页面不做第二次判断；`reasons` 是当时那一行的原始输入，「凭什么」直接念它。"
           slowHint="这张表读的是落库结果，本身不重算；慢只会慢在库，不会慢在浏览器。"
           contract={<Contract path="GET /api/quant/sector-trend?date=&regime=&type=&scope=" source="analytics.sector_trend_signal（判据在 app/compute/sector_trend_signal.py，只有一处）" fields={[
             ["rows[]{regime,dip_score}", "档位（互斥、按序判）与低吸分；dip_score 只在 turn_up_seed/forming 下有值"],
@@ -611,14 +617,14 @@ export function SectorHeat() {
                 </p>
                 <CaliberFold caveats={d.caveats}
                   provenance={[d.source, d.generated_at ? `生成于 ${d.generated_at}` : null]}
-                  notes={["排序 = 低吸分 → 方向一致 → 热度（后端 `order by`，页面不重排）。"]} />
+                  notes={["排序 = 低吸分 → 方向一致 → 热度（后端 `order by`，页面不重排）。",
+                    "档位、六分项、低吸分全部来自落库结果，页面不做第二次判断；`reasons` 是当时那一行的原始输入，「凭什么」直接念它。"]} />
               </>
             );
           }}
         </Panel>
 
         <Panel title="低吸候选榜（独立排序：position 升序，只看「刚转」）" state={seed}
-          note="与上面那张榜排序方向相反：上面按低吸分降序（谁最像刚转），这里按位置升序（谁还在最低位）。两榜混排会被读成「热度榜的另一种排法」，所以分成两屏。"
           contract={<Contract path="GET /api/quant/sector-trend?sort=seed&regime=turn_up_seed" source="同一张 sector_trend_signal，排序与筛选都由后端做" fields={[
             ["sort=seed", "position 升序 → dip_score 降序：左侧交易先要「低」，再要「新翻正」，最后才是分数"],
             ["regime=turn_up_seed", "只列刚转那一档；退潮/过热/没形状都不进这张榜"],
@@ -690,28 +696,36 @@ export function SectorHeat() {
                     在那之前组这一档不给「刚转」候选（见下面那一屏）。
                   </p>
                 </ExplainBox>
-                <CaliberFold caveats={d.caveats} />
+                <CaliberFold caveats={d.caveats}
+                  notes={["与上面那张榜排序方向相反：上面按低吸分降序（谁最像刚转），这里按位置升序（谁还在最低位）。两榜混排会被读成「热度榜的另一种排法」，所以分成两屏。"]} />
               </>
             );
           }}
         </Panel>
 
         <GlassCard>
-          <h2 className="text-sm font-bold">为什么榜上看不到「昨日涨停 / 连板 / 突涨」</h2>
-          {/* 两段解释收成默认收起（用户 2026-10-21），中间那一排"逐档实际数"是后端交的读数，留在外面 */}
-          <ExplainBox title="为什么这几类天然不在分母里 · 「今日有档位行 0」是什么意思">
-            <p>
-              做打板的人要看的正是这几类，所以不能静默丢掉。事实是：它们
-              <b className="text-foreground">全部 <code>sector_type='指数'</code></b>，而母体参数只取 概念 + 行业
-              —— 也就是<b className="text-foreground">天然不在"谁在领涨"的分母里</b>，不是被排除名单剔掉的。
-              下面这几档同样不参与排名，逐档列出实际数（后端交出，不是本页估的）：
-            </p>
-            <p className="mt-2">
-              「今日有档位行 0」的意思就是：这几类在库里<b className="text-foreground">没有热度行</b>，
-              所以连算判据的原料都没有。要看它们自己的走势，那要走另一条原料线（板块日线里有它们的价格，热度里没有）——
-              这句我留在文档里当欠账，不在界面上摆一个看着像有的数。
-            </p>
-          </ExplainBox>
+          {/* 用户 2026-10-31：两段解释（原来长在正文里的 ExplainBox）搬进标题行最右边这颗按钮开的抽屉；
+              中间那一排「逐档实际数」是后端交的读数，留在屏上。 */}
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <h2 className="text-sm font-bold">为什么榜上看不到「昨日涨停 / 连板 / 突涨」</h2>
+            <span className="ml-auto flex flex-wrap items-center gap-1.5">
+              <DocDrawer title="为什么榜上看不到「昨日涨停 / 连板 / 突涨」">
+                <DrawerSection heading="为什么这几类天然不在分母里 · 「今日有档位行 0」是什么意思">
+                  <p>
+                    做打板的人要看的正是这几类，所以不能静默丢掉。事实是：它们
+                    <b className="text-foreground">全部 <code>sector_type='指数'</code></b>，而母体参数只取 概念 + 行业
+                    —— 也就是<b className="text-foreground">天然不在「谁在领涨」的分母里</b>，不是被排除名单剔掉的。
+                    下面这几档同样不参与排名，逐档列出实际数（后端交出，不是本页估的）：
+                  </p>
+                  <p className="mt-2">
+                    「今日有档位行 0」的意思就是：这几类在库里<b className="text-foreground">没有热度行</b>，
+                    所以连算判据的原料都没有。要看它们自己的走势，那要走另一条原料线（板块日线里有它们的价格，热度里没有）——
+                    这句我留在文档里当欠账，不在界面上摆一个看着像有的数。
+                  </p>
+                </DrawerSection>
+              </DocDrawer>
+            </span>
+          </div>
           <p className="mt-1 flex flex-wrap gap-2 text-[11px]">
             {(() => {
               const list = excludedFromTrend ?? [];
@@ -765,25 +779,33 @@ export function SectorHeat() {
         </Panel>
 
         <GlassCard>
-          <h2 className="text-sm font-bold">算不出的项与它的后果</h2>
+          {/* 用户 2026-10-31：指路那段（原正文里的 ExplainBox）搬进标题行这颗按钮开的抽屉；
+              「缺不是 0」与「不引用注释里的常数」这两句误读提醒留在屏上，不进抽屉。 */}
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <h2 className="text-sm font-bold">算不出的项与它的后果</h2>
+            <span className="ml-auto flex flex-wrap items-center gap-1.5">
+              <DocDrawer title="算不出的项与它的后果">
+                <DrawerSection heading="同类读数在别的屏：个股档案 · 35 项技术指标 · 与 qd 轨的口径对照">
+                  <p>
+                    个股维度的读数（含八分量与窗口斜率）在
+                    <Link className="text-primary underline" to="/grouped">分组自选 · 量化档案</Link>；
+                    35 项技术指标在 <Link className="text-primary underline" to="/stock-review">个股深度复盘</Link>（那一屏的「个股研究」块里）。
+                    本轨生命周期阶段与 qd 轨轮动矩阵的对照在
+                    <Link className="text-primary underline" to="/qd-compare"> quantdash 口径对照</Link>；
+                    两者为何不合并见 <code>docs/页面展示工作指南/02</code> §5。
+                  </p>
+                </DrawerSection>
+              </DocDrawer>
+            </span>
+          </div>
           <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
             上表标 <b className="text-foreground">缺</b> 的格子是"这一项当天算不出来"，不是 0 分。
             后果就写在上面的接口 caveat 里（原文照贴、不改写）：行业板块的涨跌家数大面积为空 ⇒ 广度项算不出 ⇒
             <b className="text-foreground">行业按这套判据永远不会被标为点火</b>。
             <code>项数</code> 那一列就是这件事的分母。
-            库里 <code>ignition.term_count</code> 的列注释里写着一个常数（"230 个行业板块"），
+            库里 <code>ignition.term_count</code> 的列注释里写着一个常数（「230 个行业板块」），
             接口实测的是另一组数、且随场次变 —— 所以本页只引用当下的数，不引用注释里的常数。
           </p>
-          <ExplainBox title="同类读数在别的屏：个股档案 · 35 项技术指标 · 与 qd 轨的口径对照">
-            <p>
-              个股维度的读数（含八分量与窗口斜率）在
-              <Link className="text-primary underline" to="/grouped">分组自选 · 量化档案</Link>；
-              35 项技术指标在 <Link className="text-primary underline" to="/stock-review">个股深度复盘</Link>（那一屏的「个股研究」块里）。
-              本轨生命周期阶段与 qd 轨轮动矩阵的对照在
-              <Link className="text-primary underline" to="/qd-compare"> quantdash 口径对照</Link>；
-              两者为何不合并见 <code>docs/页面展示工作指南/02</code> §5。
-            </p>
-          </ExplainBox>
           <div className="mt-2">
             <Contract path="GET /api/quant/sector-heat?scope=group" source="analytics.ignition 的 scope='group'（自选组五要素）" fields={[
               ["scope=group 的行", "同一套五要素判据作用在自己的自选组上 —— 现在只能看板块，看不到组的分数"],

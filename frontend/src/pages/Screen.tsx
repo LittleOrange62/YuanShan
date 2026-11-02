@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { CaliberFold, CaveatText, Contract, ExplainBox, Measured, Panel, Row } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { useTableSort } from "@/lib/useSort";
 import { STOCK_ROW_HINT, useStockRowInteraction } from "@/lib/useStockRowInteraction";
@@ -12,6 +13,7 @@ import { StockLink } from "@/components/ui/StockLink";
 import { useNonce, useProbe } from "@/lib/probe";
 import { dash, num } from "@/lib/datastate";
 import { plain } from "@/lib/agent";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 筛选器（映射表 #4：FT 的 `/screen`）。
@@ -145,13 +147,13 @@ export function Screen() {
         </button>} />
 
       <div className="space-y-4">
-        <Panel title="已登记的筛选条件" state={reg}
-          note="条件是登记的（可复用、可解释），不是页面上临时拼的。停用中的也列出来，但选不到 —— 隐藏它们会让人以为条件从来只有这些。">
+        <Panel title="已登记的筛选条件" state={reg}>
           {d => (
             <>
               <Row label="条件" value={`${dash(d.count ?? d.rules?.length)} 种已登记（启用 ${enabled.length} 种）`} />
               <CaveatText text={d.caveat} />
-              <CaliberFold provenance={[d.source]} />
+              <CaliberFold provenance={[d.source]}
+                notes={["条件是登记的（可复用、可解释），不是页面上临时拼的。停用中的也列出来，但选不到 —— 隐藏它们会让人以为条件从来只有这些。"]} />
               <ul className="mt-2 space-y-1.5">
                 {(d.rules ?? []).map((r, i) => (
                   <li key={`${r.rule_key}-${i}`} className="rounded-lg border border-border p-2 text-[11px] leading-relaxed">
@@ -195,7 +197,25 @@ export function Screen() {
         </Panel>
 
         <GlassCard>
-          <h2 className="text-sm font-bold">跑这一次筛选（条件可以叠 {MAX_CONDS} 条）</h2>
+          {/* 用户 2026-10-31：这段「怎么给参数、口径怎么交回」的说明（原正文里的 ExplainBox）搬进
+              标题行最右边这颗按钮开的抽屉。
+              **下面那句「只有一条条件时并且/或者这个开关不起作用」没跟着搬** —— 它说的是控件当前
+              到底生不生效，藏进抽屉等于让屏幕对一个亮着的开关说假话；同理留在屏上的还有上面那行红字
+              与结果区里「命中数达到上限、这只是前 N 行」那一句。 */}
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <h2 className="text-sm font-bold">跑这一次筛选（条件可以叠 {MAX_CONDS} 条）</h2>
+            <span className="ml-auto flex flex-wrap items-center gap-1.5">
+              <DocDrawer title={`跑这一次筛选（条件可以叠 ${MAX_CONDS} 条）`}>
+                <DrawerSection heading="这些参数怎么给 · 命中口径怎么交回">
+                  <p>
+                    没填的那几项按库里登记的默认值走，跑完会把<b className="text-foreground">每一条</b>实际生效的参数原样交回
+                    （结果表上面那几行）—— 不然这一屏是按什么筛的没人知道。字面类参数（均线名、比较符）只能取登记过的枚举值，
+                    白名单是执行引擎那道硬门，界面不给第二个选项。
+                  </p>
+                </DrawerSection>
+              </DocDrawer>
+            </span>
+          </div>
           <div className="mt-2 space-y-2">
             {rows.map((r, i) => {
               const rule = ruleOf(active[i]);
@@ -299,17 +319,6 @@ export function Screen() {
             </button>
           </div>
           {err && <p className="mt-1 text-[11px] text-warning">{err}</p>}
-          {/* 这一屏怎么填参数的说明收进通用说明框（用户 2026-10-14），句子逐字留着。
-              **下面那一句「只有一条条件时并且/或者这个开关不起作用」没跟着折** —— 它说的是控件当前
-              到底生不生效，藏进默认收起的框里等于让屏幕对一个亮着的开关说假话；
-              同理不折的还有上面那行红字与结果区里「命中数达到上限、这只是前 N 行」那一句。 */}
-          <ExplainBox title="这些参数怎么给 · 命中口径怎么交回">
-            <p className="mt-2">
-              没填的那几项按库里登记的默认值走，跑完会把<b className="text-foreground">每一条</b>实际生效的参数原样交回
-              （结果表上面那几行）—— 不然这一屏是按什么筛的没人知道。字面类参数（均线名、比较符）只能取登记过的枚举值，
-              白名单是执行引擎那道硬门，界面不给第二个选项。
-            </p>
-          </ExplainBox>
           <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
             只有一条条件时「并且/或者」这个开关不起作用（它就在那儿亮着，别说它在筛）。
           </p>
@@ -365,8 +374,7 @@ function RunResult({ spec }: { spec: RunSpec }) {
   const sortBy = (k: string) => { x.clearAll(); sort.toggle(k); };
 
   return (
-    <Panel title="命中结果" state={run}
-      note="行是库里那些模板筛出来的，列也是它们给的（代码/名称/收盘/涨跌幅/换手率/操作分/象限 + 条件自己的列）。">
+    <Panel title="命中结果" state={run}>
       {d => {
         const rows = d.rows ?? [];
         const cols = d.columns ?? [];
@@ -426,10 +434,11 @@ function RunResult({ spec }: { spec: RunSpec }) {
               </div>
               <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
               {/* 弹窗被拦是**告警**，摊在表下面，不折进任何默认收起的说明框 */}
-              {x.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{x.popHint}</p>}
+              {x.popHint && <NoticeBar kind="warning">{x.popHint}</NoticeBar>}
             </>)}
             <CaveatText text={d.caliber} />
-            <CaliberFold provenance={[d.source]} />
+            <CaliberFold provenance={[d.source]}
+              notes={["行是库里那些模板筛出来的，列也是它们给的（代码/名称/收盘/涨跌幅/换手率/操作分/象限 + 条件自己的列）。"]} />
             <div className="mt-2">
               <Contract path="GET /api/screen" source="按 config.screen_rule 的模板实跑（模板原文不外显，只给 has_sql）" fields={[
                 ["conds（JSON 数组）+ logic / universe / date / limit", "多条条件拼一条 SQL；同一条条件出现两次时参数各带前缀，不会互相覆盖"],

@@ -13,14 +13,17 @@ import { RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { CaliberFold, ExplainBox, Panel, Row } from "@/components/ui/DataPanel";
+import { CaliberFold, Panel, Row } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 import { useNonce, useProbe } from "@/lib/probe";
+import { STAGE_QUEUE_NOTE, useStageLadder } from "@/lib/stageLadder";
 import { dash } from "@/lib/datastate";
 import { num } from "@/lib/qd";
 import { pctColor } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { plain } from "@/lib/agent";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 四维象限（规划 §2 维度二）。导航栏、面包屑、页头三处名字必须一致。
@@ -31,6 +34,14 @@ import { plain } from "@/lib/agent";
  * 合成一张表会逼其中一套的列留空，看起来像数据缺失（同双轨契约 02 §5 的理由）。
  *
  * ⚠️ 当日象限与"窗口入口象限"的分布本来就不一样，接口给了 caveat 原文，这里逐字透出。
+ *
+ * 取数是**分批**放的（用户 2026-11-01：「每个模块都显示加载中，那就直接卡住了……先加载 2 个，
+ * 再 3s 后继续加载」）：这一屏有四条独立请求（概念反向榜复用第一条的数、不另发），原先一把全发，
+ * 读者看到的是几块同时转圈（实测暖态各自 1.4／0.2／1.3／1.3 秒，冷态第一块就要 7 秒上下）。
+ * 现在前两块（选股象限 + 名次稳定榜）立刻发，之后每约 3 秒放开一批；0.006 秒就回的「复盘归因」
+ * 不拦（拦的是秒级全库聚合，把它排到第六秒是浪费）。还没轮到的那一块屏上念的是
+ * 「排在上面那块之后自动取数（现在还没发这一条请求）」—— 节奏与那句句子都在
+ * `lib/stageLadder.ts` 一处（`useStageLadder`／`STAGE_QUEUE_NOTE`），页面不自己抄一份。
  */
 
 interface Dist { count?: number | null; label?: string | null; meaning?: string | null }
@@ -81,6 +92,12 @@ interface Attribution {
 
 export function Quadrant() {
   const [nonce, refresh] = useNonce();
+  /** 分批放行（用户 2026-11-01 点名：这一屏五块同时「加载中」＝读起来像卡住了）：
+   *  四块要排队，前两块立刻发，之后每约 3 秒放开一批；顺序就是读者从屏上往下看的顺序。
+   *  排队中的那一块念的是 `STAGE_QUEUE_NOTE`（还没发请求），不是「加载中」，也不是「没有数据」。
+   *  ⚠️ 归因那一块**不进闸**：实测 0.006 秒回（它不扫全市场，只数我自己记的成交明细），
+   *  为它排到第六秒纯属浪费——分批要拦的是那几条秒级的全库聚合，不是所有请求。 */
+  const [, openRs, openRm, openMf] = useStageLadder(4);
   const q = useProbe<Quadrant>("/quant/quadrant", nonce);
   const qdSort = useTableSort();
   const attr = useProbe<Attribution>("/risk/attribution", nonce);
@@ -95,7 +112,7 @@ export function Quadrant() {
   const [rsDays, setRsDays] = useState(7);
   const [rsFresh, setRsFresh] = useState(0);
   const rs = useProbe<RankStabilityData>("/quant/rank-stability", nonce + rsFresh,
-    { days: rsDays, limit: 50, refresh: rsFresh ? 1 : undefined });
+    { days: rsDays, limit: 50, refresh: rsFresh ? 1 : undefined }, !openRs, STAGE_QUEUE_NOTE);
 
   /** 名次稳步前进榜（用户 2026-10-18 点名「xy 名次近 6 个交易日稳步增长…可以切换成总分稳步增长」）。
    *  窗口固定 6 场、判据全在接口那一份；页面只交「问哪一档、取多深」。 */
@@ -103,13 +120,13 @@ export function Quadrant() {
   const [rmLimit, setRmLimit] = useState(80);
   const [rmFresh, setRmFresh] = useState(0);
   const rm = useProbe<SteadyData>("/quant/rank-momentum", nonce + rmFresh,
-    { metric: rmMetric, limit: rmLimit, refresh: rmFresh ? 1 : undefined });
+    { metric: rmMetric, limit: rmLimit, refresh: rmFresh ? 1 : undefined }, !openRm, STAGE_QUEUE_NOTE);
 
   /** 上一场稳步前进榜 · 后续表现（用户 2026-10-20 凌晨点名「昨日前 80 名的进入股价表现」）。
    *  母体档位/前 N 与上面那张榜**共享同一个状态**（切上面那张，这块跟着换母体），
    *  基准日不在这儿选：接口默认取「库里最新有名次场次的前一场」，这句原话在 caveats 里。 */
   const mf = useProbe<FollowData>("/quant/momentum-follow", nonce + rmFresh,
-    { metric: rmMetric, limit: rmLimit, refresh: rmFresh ? 1 : undefined });
+    { metric: rmMetric, limit: rmLimit, refresh: rmFresh ? 1 : undefined }, !openMf, STAGE_QUEUE_NOTE);
 
   /** 选股象限那张榜的交互（单击交叉高亮 / 双击开深度复盘）—— 实现全站一份。 */
   const qx = useStockRowInteraction("四维象限");
@@ -125,8 +142,7 @@ export function Quadrant() {
         </button>} />
 
       <div className="space-y-4">
-        <Panel title="选股象限（质量 × 环境）" state={q} slowHint="象限分布要过全市场打分表，实测约 7 秒。"
-          note="点上面某一档可以只筛那一档的票；不点就是全量前若干名。分布是全场统计，不受下面的筛选影响。">
+        <Panel title="选股象限（质量 × 环境）" state={q} slowHint="象限分布要过全市场打分表，实测约 7 秒。">
           {d => {
             const all = d.rows ?? [];
             // 顺序只有一份：接口按 oper_value 降序交出、行上带 rank_in_pool。
@@ -160,6 +176,7 @@ export function Quadrant() {
                     「这些内容都默认收缩起来」）。summary 把每一类的条数摆在外面，所以收起≠藏掉；
                     告警类（弹窗被拦、筛出来的空、截断）仍然不折 —— 那条规矩没变。 */}
                 <CaliberFold caveats={d.caveats} definitions={d.definitions}
+                  notes={["点上面某一档可以只筛那一档的票；不点就是全量前若干名。分布是全场统计，不受下面的筛选影响。"]}
                   coverage={d.coverage} provenance={[d.source, d.labels_source]} />
                 <div className="mt-2 overflow-x-auto">
                   <table className="w-full text-[11px]">
@@ -221,7 +238,7 @@ export function Quadrant() {
                   </table>
                   {/* 怎么点这一张表：一句通用话（实现全站一份），弹窗被拦的告警单独念、不折进说明框 */}
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
-                  {qx.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{qx.popHint}</p>}
+                  {qx.popHint && <NoticeBar kind="warning">{qx.popHint}</NoticeBar>}
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
                     <span className="text-muted-foreground">
                       接口交出 {all.length} 行 · 每页 100 行，现在是第 {cur}/{pages} 页
@@ -244,7 +261,7 @@ export function Quadrant() {
                     第二页不重新发请求：一次取数交 200 行，两页是同一段时间的两刀（基准同一场，不会翻页之间数变了）。
                     点上面四张档卡只筛这一屏的行、不改名次，翻页后仍是筛完再切页。
                   </p>
-                  {pageRows.length === 0 && <p className="mt-1 text-[11px] text-muted-foreground">这一档在本次交出的行里没有票 —— 是筛出来的空，不是数据没了。</p>}
+                  {pageRows.length === 0 && <NoticeBar kind="missing">这一档在本次交出的行里没有票 —— 是筛出来的空，不是数据没了。</NoticeBar>}
                 </div>
               </>
             );
@@ -310,22 +327,29 @@ export function Quadrant() {
         </Panel>
 
         <GlassCard>
-          <h2 className="text-sm font-bold">两套象限为什么必须分开看，而且不得互相翻译</h2>
-          {/* 说明与定义收进通用说明框（用户 2026-10-14）。**下面那段「四格相加不等于全市场票数」没跟着折** ——
+          {/* 用户 2026-10-31：这段说明（原正文里的 ExplainBox）搬进标题行最右边这颗按钮开的抽屉。
+              **下面那段「四格相加不等于全市场票数」没跟着搬** ——
               它交的是缺数行数与为空占比的实际读数（象限为空的票一格都不进），藏起来等于让屏幕说假话。 */}
-          <ExplainBox title="两套象限的分母差在哪 · 为什么不得互相翻译">
-            <p className="mt-1">
-              上面那套的分母是<b className="text-foreground">全市场所有有评分的票</b>（当日），
-              下面那套的分母是<b className="text-foreground">我自己填了成交明细的已平仓交易日</b>。
-              两者数量差三四个数量级，混在一屏里读会得出"我操作性地回避了 70% 的票"这种荒谬结论。
-            </p>
-            <p className="mt-2">
-              更要说清的是<b className="text-foreground">不存在"Q1 就是判对且赚钱"</b>：上面的 Q1~Q4 是
-              X（个股质量）与 Y（环境共振）的正负组合，下面的四格是「判断对错 × 盈亏」。
-              两把尺子量的是两件不同的事，这里不做任何换算，也不给对照表 —— 谁把另一套的格子翻成自己这套，
-              就是在造一个库里没有的数。
-            </p>
-          </ExplainBox>
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <h2 className="text-sm font-bold">两套象限为什么必须分开看，而且不得互相翻译</h2>
+            <span className="ml-auto flex flex-wrap items-center gap-1.5">
+              <DocDrawer title="两套象限为什么必须分开看，而且不得互相翻译">
+                <DrawerSection heading="两套象限的分母差在哪 · 为什么不得互相翻译">
+                  <p>
+                    上面那套的分母是<b className="text-foreground">全市场所有有评分的票</b>（当日），
+                    下面那套的分母是<b className="text-foreground">我自己填了成交明细的已平仓交易日</b>。
+                    两者数量差三四个数量级，混在一屏里读会得出「我操作性地回避了 70% 的票」这种荒谬结论。
+                  </p>
+                  <p className="mt-2">
+                    更要说清的是<b className="text-foreground">不存在「Q1 就是判对且赚钱」</b>：上面的 Q1~Q4 是
+                    X（个股质量）与 Y（环境共振）的正负组合，下面的四格是「判断对错 × 盈亏」。
+                    两把尺子量的是两件不同的事，这里不做任何换算，也不给对照表 —— 谁把另一套的格子翻成自己这套，
+                    就是在造一个库里没有的数。
+                  </p>
+                </DrawerSection>
+              </DocDrawer>
+            </span>
+          </div>
           {nc && (
             <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
               <b className="text-foreground">四格相加不等于全市场票数</b>：象限为空的票一格都不进。

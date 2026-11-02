@@ -45,3 +45,15 @@ baostock>=0.8.9
 psycopg[binary]>=3.3
 psycopg-pool>=3.3
 psutil>=5.9              # app/orchestrator/runner.py 管进程树（取消/超时要把整棵树端掉）
+
+# 通知区（托盘）状态指示 —— **只在 `scripts/tray_status.py` 那个独立进程里用**，
+# 8910 服务进程不 import 它：托盘跑在服务进程里，服务一挂图标就一起没了，
+# 那时用户看到"图标消失"而不是"红＝坏了"，恰好丢掉最该报的那个信号（用户 2026-10-28 选的独立进程）。
+# 许可证实测（`pip show` / 包元数据，别照网上常写的抄）：
+#   pystray 0.19.5 → 元数据 License: LGPLv3（上游是 BSD-3 / LGPLv3 双许可）；本机按库调用、
+#                    不起它自己的分发，**不改源码、不重新分发**，属 LGPL 允许的那一侧，
+#                    但这条要一并进 docs/上游改动与归属清单.md。
+#   Pillow 13.0.0  → License-Expression: MIT-CMU。托盘图标要它画 RGBA 位图（pystray 在 Windows 上
+#                    只吃 PIL Image），tkinter 的 PhotoImage 喂不进去。
+pystray>=0.19
+Pillow>=10

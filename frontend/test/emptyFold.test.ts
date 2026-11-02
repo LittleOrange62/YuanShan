@@ -41,7 +41,14 @@ test('收起来的那一行仍然把原因整句说完，只把口径与契约�
 test('Panel 那一支：quiet 时标题与 note 折叠都让位给这一行，其余三型一支没动', () => {
   assert.match(win, /const quiet = isQuiet\(state\);/);
   assert.match(win, /\{!quiet && <h2/, 'quiet 时标题移进 summary，不再单占一行');
-  assert.match(win, /\{note && !quiet && <ExplainBox/, 'note 的折叠框在 quiet 时不再出现（它的内容进 summary 那个框）');
+  // 2026-10-31 用户点名：那颗「这块的说明」长在标题行最右边（`Panel` 一处，63 块跟着走），
+  // 同一句 note 从此只在抽屉里出现一次。钉子搬到这里，判据没放宽：quiet 时那一颗仍不许出现。
+  assert.match(win, /\{note && !quiet && \(/, 'note 的说明按钮在 quiet 时不再出现（它的内容进 summary 那个框）');
+  assert.match(win, /<DocDrawer title=\{title\}>\{plain\(note\)\}<\/DocDrawer>/,
+    'note 走的是同一口说明抽屉，标题沿用屏上那一行字（两处不同词就分不清是哪一块）');
+  assert.match(win, /className="ml-auto"/, '按钮排在标题行最右，as-of 之前');
+  assert.doesNotMatch(win.slice(win.indexOf('{controls &&')), /<ExplainBox title="这一屏的口径说明"/,
+    '正文里不再摊第二份 note（原来自带的那口 ExplainBox 必须撤，一模块一颗按钮）');
   assert.match(win, /<QuietFold title=\{title\} text=\{plain\(text\)\}/, '走共用那一个 QuietFold');
   // 另外三型（error/offline/not_wired/loading）仍走下面那支：整句摊着、坏了红着
   assert.match(win, /state\.kind === "error" \|\| state\.kind === "offline" \? "text-destructive" : "text-warning"/,

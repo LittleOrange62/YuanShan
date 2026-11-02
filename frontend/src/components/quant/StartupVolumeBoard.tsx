@@ -4,6 +4,7 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { Caliber } from "@/components/ui/Caliber";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { CaliberFold, ExplainBox, Panel } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 import { StockLink } from "@/components/ui/StockLink";
 import { useNonce, useProbe } from "@/lib/probe";
 import { useTableSort } from "@/lib/useSort";
@@ -17,6 +18,7 @@ import {
   launchRange, moodText, moodTone, nameIsCodeCount, numOrNull, ratioExtent, ratioSegments, ratioText,
   rowCountLine, windowShort, type Cohort, type StartupRow, type StartupSummary,
 } from "@/lib/startupVolume";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 倍量形态页 →「启动前量能分布」（用户 2026-10-07 定名：标题里不把"启动前一定放量"这种待验证的直觉
@@ -110,8 +112,21 @@ export function StartupVolumeBoard() {
           "四类母体的涨跌停档位不同，所以这一屏没有合计榜（board4_45 是 board4 的子集、board4_or_gain45 是两者的并集，不是另一种票）；跨板块比强度读「等效涨停」那一列。\n" +
           "「情绪」那一格是启动日那天的全市场环境读数（−100~100），同一场所有票同一个数，只用来读环境不比强弱。"
         } />
+        {/* 用户 2026-10-31：「这块的说明」摆在这一块标题这一行的最右边、排在「重新取数」前面；
+            原来长在筛选档卡正文里的那段 ExplainBox（为什么没有合计榜）整段搬进这颗按钮开的抽屉。 */}
+        <span className="ml-auto flex flex-wrap items-center gap-1.5">
+          <DocDrawer title="启动前量能分布">
+            <DrawerSection heading="为什么这一屏没有合计榜 · 跨板块比强度看哪一列">
+              <p>
+                一次只看一类母体，<b className="text-foreground">没有合计榜</b> ——
+                两类的涨跌停档位不同（各自的说明见「字段是什么意思」的 <code>cohort</code> 条），
+                并到一列排名就是拿一个档位的尺子量另一个档位的票。要跨板块比强度，看「等效涨停」那一列。
+              </p>
+            </DrawerSection>
+          </DocDrawer>
+        </span>
         <button type="button" onClick={() => { x.clearAll(); refresh(); }} title="重新取数"
-          className="ml-auto flex items-center gap-1 rounded-lg bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25">
+          className="flex items-center gap-1 rounded-lg bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25">
           <RefreshCw className="h-3.5 w-3.5" /> 重新取数
         </button>
       </div>
@@ -145,18 +160,11 @@ export function StartupVolumeBoard() {
             ))}
           </div>
         </div>
-        {/* 这里刻意不给"合并两类母体"这个选项，也不写死门槛数字：档位差异由 definitions.cohort 说 */}
-        <ExplainBox title="为什么这一屏没有合计榜 · 跨板块比强度看哪一列">
-          <p>
-            一次只看一类母体，<b className="text-foreground">没有合计榜</b> ——
-            两类的涨跌停档位不同（各自的说明见「字段是什么意思」的 <code>cohort</code> 条），
-            并到一列排名就是拿一个档位的尺子量另一个档位的票。要跨板块比强度，看「等效涨停」那一列。
-          </p>
-        </ExplainBox>
+        {/* 这里刻意不给"合并两类母体"这个选项，也不写死门槛数字：档位差异由 definitions.cohort 说。
+            「为什么这一屏没有合计榜」那段（原正文里的 ExplainBox）已搬进标题行那颗「这块的说明」。 */}
       </GlassCard>
 
-      <Panel title="启动前逐日量能比对" state={state}
-        note="行数、窗口根数、母体说明都由后端交出，页面不自己数。">
+      <Panel title="启动前逐日量能比对" state={state}>
         {d => {
           const all = d.rows ?? [];
           const shortRows = all.filter(r => windowShort(r) === true);
@@ -251,7 +259,9 @@ export function StartupVolumeBoard() {
                   后端原句（它是 `text-destructive` 的档位存疑声明）、表里逐行的「不满」徽标、
                   `x.popHint`；缺数／截断一族的 caveat 由折叠块自己留在屏上。 */}
               <CaliberFold caveats={(d.caveats ?? []).filter(c => c.code !== "limit_band")}
-                definitions={d.definitions} />
+                definitions={d.definitions} provenance={[d.caliber]}
+                notes={["行数、窗口根数、母体说明都由后端交出，页面不自己数。",
+                  "取数口径是后端原句（页面未改写），就在这一段下面。"]} />
 
               <div className="mt-2 overflow-x-auto">
                 <table className="w-full text-[11px]">
@@ -356,7 +366,7 @@ export function StartupVolumeBoard() {
                 <ExplainBox title="这一张表怎么点 · 单击高亮什么 · 双击去哪里">
                   <p className="text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
                 </ExplainBox>
-                {x.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{x.popHint}</p>}
+                {x.popHint && <NoticeBar kind="warning">{x.popHint}</NoticeBar>}
                 {rows.length === 0 && (
                   <p className="mt-1 text-[11px] text-muted-foreground">
                     {onlyFullWindow ? "这一场里没有满窗的票（全是往前数不够的次新/停牌票）—— 不是母体空了。"
@@ -364,12 +374,6 @@ export function StartupVolumeBoard() {
                   </p>
                 )}
               </div>
-
-              {d.caliber && (
-                <ExplainBox title="这一屏的取数口径（后端原句，页面未改写）">
-                  <p className="text-[10px] leading-relaxed text-muted-foreground">{plain(d.caliber)}</p>
-                </ExplainBox>
-              )}
             </>
           );
         }}

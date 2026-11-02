@@ -149,6 +149,30 @@ export function devCell(v: number | null | undefined, complete?: boolean | null)
   return ptsText(v);
 }
 
+/**
+ * 这一格的累计偏离有没有被后端判成踩到严重异动的对应那一条（10-31 用户点名：超过了就该标红）。
+ * 判据只认后端 `severe_how` 里的条款码（times／dev10／dev30），页面**不拿数字再比一遍 100/200**：
+ * 一比就长出第二套真相 —— 窗口根数不够时后端说"判不了"（那一格写「窗口不够」），
+ * 而裸数字照样能大于 100；阈值哪天改版，屏上的颜色会与库里的判定分叉。
+ */
+export function devClause(r: { severe_how?: string | null }, clause: "dev10" | "dev30"): boolean {
+  return String(r.severe_how ?? "").split(",").map(s => s.trim()).includes(clause);
+}
+
+/** 悬停那句话里的数字一律读接口 `thresholds`，页面不写死 100/200/−50/−70；后端没交就承认没有出处。 */
+export function devLineNote(d: { thresholds?: Record<string, number> | null },
+  clause: "dev10" | "dev30"): string {
+  const t = d.thresholds ?? {};
+  const up = clause === "dev10" ? t.dev10_up : t.dev30_up;
+  const dn = clause === "dev10" ? t.dev10_down : t.dev30_down;
+  const win = clause === "dev10" ? "10 日" : "30 日";
+  return up == null || dn == null
+    ? `${win}累计偏离那条线后端没交（thresholds 里没有 ${clause}_up／${clause}_down）`
+      + "—— 页面不写死数字，红色仍只按后端 severe_how 点的那一条上。"
+    : `${win}累计偏离的严重异动线：≥ +${up} 点，或 ≤ ${dn} 点（数字读接口 thresholds，页面不比自己数一遍）。`
+      + "这一格标红＝后端判它已踩到这一条；写「窗口不够」的格子不标色（判不了 ≠ 踩到）。";
+}
+
 export function forwardHeadline(d: AbnormalMove): { text: string; tone: "warn" | "muted" } {
   const s = d.summary ?? {};
   const n = s.forward ?? 0;

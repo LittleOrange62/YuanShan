@@ -954,6 +954,70 @@ def test_新档真库出文要说人话():
             f"{key}：单档按默认条数就超了企微上限（{len(out.encode())} 字节）"
 
 
+def test_单档装不进渠道预算时少列几条并声明_不许切半截也不许整叠消失():
+    """#260 的防线：10-30 实测 `abnormal` 2,235、`watchlist` 2,778 字节，都在企微 1900 那道墙外。
+
+    三条纪律都要有反例可打：① 总长进预算；② 少列了几条要在档内说；
+    ③ 每一叠至少留一行 —— 整叠消失会被读成"今天这一叠是空的"。
+    """
+    from duanxian import notify
+    rows = [f"  第 {i} 条，带一段足够长的中文把字节撑起来（名字 00{i}.SH）" for i in range(40)]
+    text, dropped = notify._fit(["异动筛查（今日）"], [("  偏离值榜：", rows[:20]),
+                                                    ("  前瞻：", rows[20:])], cap=600)
+    assert len(text.encode("utf-8")) <= 600, len(text.encode("utf-8"))
+    assert dropped > 0 and f"另有 {dropped} 条没列在这一档" in text, (dropped, text[-200:])
+    assert text.count("  偏离值榜：") == 1 and text.count("  前瞻：") == 1
+    for title in ("  偏离值榜：", "  前瞻："):
+        tail = text.split(title, 1)[1]
+        assert tail.strip().splitlines()[0].strip(), f"{title} 那一叠被丢空了"
+    # 预算宽裕时一个字都不动（这条防的是"总是先砍一刀"）
+    text2, d2 = notify._fit(["头"], [("", rows[:3])], cap=4000)
+    assert d2 == 0 and text2 == "\n".join(["头"] + rows[:3]), text2
+    # 默认预算＝渠道那道墙**再减掉标题**（`_clip` 管的是整条 `标题\n正文`）：
+    # 10-30 实测正文装到 1873、标题 54 字节，整条 1927 还是被 `_clip` 切了半截
+    assert notify.SCENE_BUDGET == notify.BODY_LIMITS["wecom"] - notify.SCENE_TITLE_RESERVE
+    assert notify.SCENE_BUDGET < notify.BODY_LIMITS["wecom"]
+
+
+def test_行状正文的唯一出口闸_装不进就整行少列并声明():
+    """`_fit_lines` 住在 `_scene_part` 那一处：17 档里只有两档是块状的（走 `_fit`），
+    其余 15 档各写各的，谁都没管过长 —— 10-30 实测 `limit=400` 时 13 档被发送侧 `_clip` 切成半截。
+
+    三条都要打到：① 长度进预算；② 丢的是**整行**，不许出现"说到一半"；
+    ③ 第一行（那句母体/标题）不许丢，因为它一丢整档就读不出在说什么了。
+    """
+    from duanxian import notify
+    rows = [f"  第 {i} 只：名字 6000{i}.SH｜加权分 {i}.{i}｜象限 Q1｜旧数" for i in range(120)]
+    text, dropped = notify._fit_lines("\n".join(["四维象限（今日，母体 5,514 只）"] + rows))
+    assert len(text.encode("utf-8")) <= notify.SCENE_BUDGET, len(text.encode("utf-8"))
+    assert dropped > 0 and f"另有 {dropped} 行没列在这一档" in text, (dropped, text[-160:])
+    kept = text.splitlines()
+    assert kept[0].startswith("四维象限（"), kept[0]
+    assert kept[-1].startswith("另有 "), kept[-1]
+    # 留下的每一行都得是原表里那一整行（切半截的形状是"第 42 只：名字 600"这种）
+    originals = set(rows)
+    for line in kept[1:-1]:
+        assert line in originals, line
+
+    # 预算宽裕时一个字都不动
+    short = "\n".join(["头", "  一行"])
+    assert notify._fit_lines(short) == (short, 0)
+
+    # 闸真的接在调用点上：把一档换成一份超长执行体，走 `_scene_part` 也必须进预算
+    notify.SCENE_BUILDERS["_probe"] = lambda params, day: "\n".join(["探针（母体）"] + rows)
+    try:
+        out, status = notify._scene_part("_probe", {}, "2026-10-30")
+        assert status == "ok"
+        assert len(out.encode("utf-8")) <= notify.SCENE_BUDGET, len(out.encode("utf-8"))
+        assert "另有 " in out
+        # 整条（标题 + 正文）也必须在渠道那道墙里头 —— 这才是"发得出去"的判据
+        body, truncated, wire = notify._clip("2026-10-30 · 探针", out,
+                                             notify.BODY_LIMITS["wecom"])
+        assert not truncated and wire <= notify.BODY_LIMITS["wecom"], (wire, body[-120:])
+    finally:
+        notify.SCENE_BUILDERS.pop("_probe", None)
+
+
 def test_每一档的参数真的改变发出去的正文():
     """参数不是摆设：同一档换参数必须看到差别（这条是"面板上填了、发出去没变"的唯一防线）。"""
     from duanxian import notify
@@ -970,9 +1034,18 @@ def test_每一档的参数真的改变发出去的正文():
     none = notify._blk_voldbl({"min_energy": 40, "limit": 5}, day)
     assert "是有数据的" in none and "没有数据（未回填" not in none, none[:200]
     # 象限那格的计数口径：读层那份是**带倍量门槛、不带象限条件**的每档实有几只，
-    # 所以说成"全场"就是假话（10-17 实测旧口径：门槛≥8 时"全场"从 191 只变成 5 只）
+    # 所以说成"全场"就是假话（10-17 实测旧口径：门槛≥8 时"全场"从 191 只变成 5 只）。
+    # 2026-10-30 复核：门槛≥1.1 再叠 Q1 这一组合本机筛完是 **0 只**，正文走"是有数据的、筛完 0 只"那一支
+    # —— 那一支同样不许念"全场"，而且必须把参数点名，否则"参数是摆设"就藏在这里。两支各自钉死。
+    open_q1 = notify._blk_voldbl({"min_energy": 0, "quadrants": ["Q1"], "limit": 3}, day).split("\n")[0]
+    assert "全场" not in open_q1, open_q1
     q1 = notify._blk_voldbl({"min_energy": 1.1, "quadrants": ["Q1"], "limit": 3}, day).split("\n")[0]
-    assert "加权分≥1.1 的票里" in q1 and "全场" not in q1, q1
+    assert "全场" not in q1, q1
+    if "筛完 ⇒ 0 只" in q1:
+        assert "加权分≥1.1" in q1 and "象限 Q1" in q1 and "是有数据的" in q1, q1
+    else:
+        assert "加权分≥1.1 的票里" in q1, q1
+        assert "加权分≥0 的票里" in open_q1, open_q1
 
     one = notify._blk_breakout({"signal_type": "first_break", "limit": 3}, day)
     every = notify._blk_breakout({"limit": 3}, day)

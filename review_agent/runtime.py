@@ -105,6 +105,11 @@ accepted=true 后立即结束本轮，最终聊天文字只说“分析完成”
 只解释证据直接支持的变化，计数升降不能推出盘中时点、约束松紧、资金动机或因果机制；缺少对应资料时明确不作判断。"""
 
 
+# 每条来源的总时长闸默认值（秒）。连接 10 秒、分片之间 45 秒住在 responses_bridge，
+# 这一档是"整条回答最多等多久"，界面上每条来源可以自己填 30~600。
+SOURCE_TIMEOUT_DEFAULT = 180
+
+
 def private_host(value: str) -> bool:
     """Literal loopback or private-network host; a name cannot be classified without DNS."""
     from ipaddress import ip_address
@@ -153,8 +158,17 @@ def connection(llm: dict) -> tuple[dict, str]:
     key = llm.get("apiKey", "")
     if not isinstance(key, str) or not key.strip() or len(key) > 1024 or any(c.isspace() for c in key):
         raise EvidenceError("API 密钥无效，请检查「AI 探索 · 接入设置」")
+    # 每条来源自带总时长闸（默认 180 秒）：自动切换要的是"这条这次不给答复就换"，
+    # 而各条渠道的快慢差很多（同一条链今天 39.7 秒成过、下午 120 秒不答）。
+    timeout = llm.get("timeoutSeconds", None)
+    try:
+        timeout = SOURCE_TIMEOUT_DEFAULT if timeout in (None, "") else float(timeout)
+    except (TypeError, ValueError):
+        raise EvidenceError("超时秒数无效，请填 30~600 之间的数字") from None
+    if not 30 <= timeout <= 600:
+        raise EvidenceError("超时秒数要在 30~600 之间")
     return {"provider": provider if chat else allowed.get(base, "api-compatible"),
-            "model": model, "baseURL": base}, key
+            "model": model, "baseURL": base, "timeout_seconds": int(timeout)}, key
 
 
 def toml(value) -> str:
@@ -683,9 +697,13 @@ class Runtime:
         bridge_token = ""
         if source["provider"] in CHAT_PROVIDERS:
             from .responses_bridge import close_session, open_session
+            # 这条来源自带的总时长闸既管上游，也管这一次引擎回合的总预算（只收紧不放宽）：
+            # 换来源的判据要真的发生，靠 45 秒无字节 + 到点收尾，不能靠无限等。
+            total = float(source.get("timeout_seconds") or SOURCE_TIMEOUT_DEFAULT)
+            budget = min(budget, total)
             # The engine only ever learns the loopback address and this run's
             # one-shot token; the provider credential stays in the web process.
-            base_url, bridge_token = open_session(source["baseURL"], key)
+            base_url, bridge_token = open_session(source["baseURL"], key, total)
             config["model_providers.astock_api"]["base_url"] = base_url
             key = bridge_token
         try:

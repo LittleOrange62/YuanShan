@@ -81,7 +81,7 @@ test('弹窗被拦的告警渲染在收起的说明框外面', () => {
   const box = board.slice(board.indexOf('<ExplainBox'), board.indexOf('</ExplainBox>'));
   assert.doesNotMatch(box, /role="status"/, '告警折进默认收起的说明框等于没写');
   assert.doesNotMatch(box, /popHint/);
-  assert.match(board, /\{x\.popHint && <p role="status" className="[^"]*text-warning"/);
+  assert.match(board, /\{x\.popHint && <NoticeBar kind="warning"/);
 });
 
 /** 用户 2026-10-19 夜：「把选项留出，描述内容都收缩起来」——
@@ -119,7 +119,7 @@ test('用到这一份交互的屏都真的引用了它', () => {
   for (const must of ['../src/pages/Quadrant.tsx', '../src/pages/Grouped.tsx', '../src/pages/Confluence.tsx',
                       '../src/pages/Spike.tsx', '../src/pages/Portfolio.tsx', '../src/pages/Watchlist.tsx',
                       '../src/pages/VolumeDouble.tsx', '../src/pages/VolumeBreakout.tsx',
-                      '../src/pages/FirstBoard.tsx', '../src/pages/Screen.tsx', '../src/pages/Journal.tsx',
+                      '../src/pages/Screen.tsx', '../src/pages/Journal.tsx',
                       '../src/components/quant/SystemEntryBoard.tsx',
                       '../src/components/quant/SystemEntryCohort.tsx',
                       '../src/components/quant/StartupVolumeBoard.tsx',
@@ -132,7 +132,9 @@ test('用到这一份交互的屏都真的引用了它', () => {
                       '../src/components/quant/StartupQuadrantTrackBoard.tsx',
                       '../src/components/quant/StartupSpikeDaysBoard.tsx',
                       '../src/components/quant/SteadyRankBoard.tsx',
-                      '../src/components/quant/MomentumFollowBoard.tsx'])
+                      '../src/components/quant/MomentumFollowBoard.tsx',
+                      '../src/components/review/LimitUpBoard.tsx',
+                      '../src/components/review/LimitDownBoard.tsx'])
     assert.ok(users.includes(must), `${must} 没接上（又退回自己写一份或干脆没有交互）`);
   // 每屏必须把"这一屏叫什么"交给 hook（复盘页要说清这只票是从哪一屏双击带过来的）
   for (const f of users)
@@ -149,7 +151,10 @@ test('用到这一份交互的屏都真的引用了它', () => {
   // 整张表都接：交叉高亮 + 双击都生效）⇒ 24 → 25；台账 §六 那一行必须同时存在，不许只改这里的数字。
   // 10-22 加「走完三条的个股近六个月名单」（components/quant/SystemEntryCohort，挂在交易体系榜之后，
   // 整张表都接、只有"位次轨迹"那一格刻意不接交叉高亮）⇒ 25 → 26；台账 §六 那一行同时写了。
-  assert.equal(users.length, 26, `调用点数目与台账 §六 不一致：${users.length} → ${users.join(', ')}`);
+  // 10-29 短线复盘页并表：那一屏的 `pages/FirstBoard.tsx` 自己不再铺表（名单搬进
+  // `components/review/LimitUpBoard.tsx`，同屏新增 `LimitDownBoard.tsx`）⇒ 少一处、多两处，26 → 27；
+  // 台账 §六 那一行跟着改，不许只改这里的数字。
+  assert.equal(users.length, 28, `调用点数目与台账 §六 不一致：${users.length} → ${users.join(', ')}`);
 });
 
 test('hook 自己：双击带 noopener、点击不整行吞、告警与高亮一起清', () => {

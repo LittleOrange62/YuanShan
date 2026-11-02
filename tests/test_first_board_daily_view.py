@@ -168,20 +168,23 @@ class TestRowHonesty:
 
 
 class TestRecentFourColumns:
-    """2026-10-27 新加那四列的读侧契约（`_enrich`）。
+    """2026-10-27 那四列 + 2026-10-28 新加的 XY 合计名次，读侧契约（`_enrich`）。
 
     钉的是三类会"看着正常其实是假数"的形状：字段名平铺（界面 sortKey 要等于格子里读的字段）、
     一族读不到只折它自己那句（不把整屏拖空、也不悄悄当成"这批票都没有"）、
     缺数是 None（0 与 — 在屏幕上是两句话）。
     """
 
-    def _run(self, monkeypatch, *, spans=None, full=None, quad=None, dbl=None, spike=None):
+    def _run(self, monkeypatch, *, spans=None, full=None, quad=None, xy=None, dbl=None, spike=None):
         rows = [{'code': '600000.SH'}, {'code': '301314.SZ'}]
         monkeypatch.setattr(V.BS, 'sealed_days_by_code',
                             lambda *a, **k: spans or {})
 
         def q(sql, params):
             low = ' '.join(sql.split())
+            if 'from analytics.xy_rank_daily' in low:
+                # 10-28 新加的第五族（XY 合计名次）：默认交"一天都没有"，各用例自己给行
+                return xy if xy is not None else []
             if 's.rank_in_market' in low:
                 return quad
             if 'bars_lo' in low:
@@ -205,13 +208,21 @@ class TestRecentFourColumns:
             spans={'600000': {'sealed_days': 4, 'bars': 20, 'dates': ['2026-10-09']}},
             quad=[{'code': '600000', 'day': '2026-10-20', 'quadrant': 'Q1',
                    'rank_in_market': 12, 'value': 0.4, 'is_stale': False}],
+            xy=[{'code': '600000', 'day': '2026-10-20', 'rank_x': 8, 'rank_y': 4,
+                 'rank_sum': 12, 'universe': 5570, 'stale': False}],
             dbl=[{'code': '600000', 'bars_lo': 10, 'dbl_lo': 2, 'near_lo': 1,
-                  'bars_hi': 20, 'dbl_hi': 5, 'near_hi': 3, 'last_day': '2026-10-21'}],            spike=[{'code': '600000', 'spike_tags': ['fast', 'sealed'], 'first5_time': '09:41',
+                  'bars_hi': 20, 'dbl_hi': 5, 'near_hi': 3, 'last_day': '2026-10-21'}],
+            spike=[{'code': '600000', 'spike_tags': ['fast', 'sealed'], 'first5_time': '09:41',
                     'speed15_pct': 8.2, 'above5_min': 30, 'touched': True, 'sealed': True,
                     'minute_available': True}])
         a, b = rows
         assert (a['boards_20d'], a['boards_20d_bars']) == (4, 20)
         assert a['quad'][0]['rank'] == 12 and a['quad'][0]['stale'] is False
+        # 10-28 新加的第五族 XY 合计名次：读那张表的三个字段 + 分母，一个加法都不做
+        assert a['xy'][0] == {'day': '2026-10-20', 'rank': 12, 'x': 8, 'y': 4,
+                              'universe': 5570, 'stale': False}
+        assert meta['xy_dates'] == ['2026-10-20'] and meta['xy_sessions'] == 1
+        assert meta['xy_universe'] == 5570, '分母（当日两轴都有名次的只数）要交出去，屏上那句"第几名"才有参照'
         # 平铺：界面那一列的 sortKey 必须等于格子里读的字段名，嵌一层的 dbl.10 排不了序
         assert a['dbl10'] == {'bars': 10, 'dbl': 2, 'near': 1}
         assert a['dbl20'] == {'bars': 20, 'dbl': 5, 'near': 3}
@@ -223,6 +234,7 @@ class TestRecentFourColumns:
         assert meta['dbl_windows'] == list(V.DBL_WINDOWS)
         # 这一族里没有的那只票：格子留 None（—），不拿别的票的数顶上、也不写 0
         assert b['boards_20d'] is None and b['dbl10'] is None and b['quad'] == []
+        assert b['xy'] == [], '那只票库里没有行 ⇒ 空数组（界面 —），不兜成 0、不兜成"排在最后"'
         assert b['spike_tier'] is None and b['spike_checked'] is True, '探过了没进榜＝真没进榜'
         assert warns == []
 

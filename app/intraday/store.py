@@ -155,3 +155,54 @@ def state_summary(day: dt.date) -> dict:
         "       min(captured_at) AS first_at, max(captured_at) AS last_at"
         "  FROM analytics.intraday_pool_event"
         " WHERE trade_date = %s AND spec_version = %s", (day, SPEC_VERSION), role='reader') or {}
+
+
+def broadcast_ledger(day: dt.date) -> dict[str, dict]:
+    """那一天每一路播报的真读数：打了几针、真发出去几条、几条没成、首末时间。
+
+    界面上「配置开着」与「群里真收到过」是两件事，这一格回答后者。
+    查不到（库挂、表不存在）要**抛**，让接口说"判断不了"；兜成空表就变成
+    "今天一条都没发"，那是把观测层的故障说成业务事实。
+    """
+    rows = engine.query(
+        "SELECT task, what, count(*) AS n, min(at_ts) AS first_at, max(at_ts) AS last_at,"
+        "       bool_and(ok) AS all_ok, max(err) AS last_err"
+        "  FROM analytics.intraday_broadcast"
+        " WHERE trade_date = %s AND spec_version = %s"
+        " GROUP BY task, what", (day, SPEC_VERSION), role='reader') or []
+    return fold_ledger(rows)
+
+
+def fold_ledger(rows: list[dict]) -> dict[str, dict]:
+    """把 `task × what` 的聚合行折成每路一格的读数（纯函数，测试直接喂假行）。
+
+    分类只有这一处：`sent` 算真发出去几条、`digest/heat/auction/noon` 算打了几针、
+    `skipped*` 属正常（非时段/休市）、其余一律是缺数与降级 —— 把它们并进 rounds 或 sent
+    就是"这一轮没做成"被说成"这一轮发过了"。
+    """
+    out: dict[str, dict] = {}
+    for r in rows:
+        bucket = out.setdefault(r['task'], {'rounds': 0, 'sent': 0, 'failed': 0,
+                                            'skipped': 0, 'notes': [], 'last_err': None,
+                                            'first_at': None, 'last_at': None})
+        what = r['what']
+        if what in ('digest', 'heat', 'auction', 'noon'):
+            bucket['rounds'] += int(r['n'])
+        elif what == 'sent':
+            bucket['sent'] += int(r['n'])
+            if r['all_ok'] is False:
+                bucket['failed'] += int(r['n'])
+                bucket['last_err'] = bucket['last_err'] or str(r['last_err'] or '')[:200]
+        elif str(what).startswith('skipped'):
+            bucket['skipped'] += int(r['n'])
+        else:
+            bucket['notes'].append({'what': what, 'n': int(r['n']),
+                                    'at': str(r['last_at'] or '')[:19],
+                                    'err': str(r['last_err'] or '')[:160]})
+        for edge, stamp in (('first_at', r['first_at']), ('last_at', r['last_at'])):
+            if not stamp:
+                continue
+            cur = bucket[edge]
+            if cur is None or (stamp < cur) == (edge == 'first_at'):
+                bucket[edge] = stamp
+    return out

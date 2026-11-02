@@ -225,6 +225,31 @@ TARGETS: list[tuple[str, str, str, str, str, Optional[str]]] = [
      "按「区间内缺哪几个交易日」判会天天报缺。这是**日线代理**判据（一根交易日一个数），不是分时图上的"
      "爆量/急拉；`jump_days` 为 0 是「凑满窗口真的一次没拉高」而 NULL 是「窗口不满」——两件事，"
      "都不算缺数。`outcome_*` 从 fb-2 join：非 anyfirst 档（尤其 jump40）outcome 为空是设计如此。"),
+    ("xy_rank_daily", "analytics.xy_rank_daily", "trade_date",
+     "and spec_version = 'xyr-1'", "XY 合计名次（X 轴名次 + Y 轴名次，逐场逐票）",
+     "一天约 5,400~5,572 行＝当日**两轴都有名次**的只数（不是固定 5,570，一轴缺行就少几只）。"
+     "起点 2025-08-28（`analytics.score` 的名次批次就到那儿），早于它没有、不插值。"
+     "`stale` 当前全库 0 行 true —— 旧算法迁入批（`score.is_stale=true` 那 59,756 行）的 `rank_in_market` 全是 NULL，"
+     "压根进不了这张表，所以别把「没有 stale 行」读成「旧批已核对过」。"
+     "这一列是**两个名次之和**（越小越靠前），与 `oper_score` 的合成分名次不是同一把尺。"),
+    # 国家队代理指标（10-28 新表，nt-1）：一行＝(这一把尺, 这一场) 的份额/规模/净申赎/两个占比。
+    ("national_team_etf_daily", "analytics.national_team_etf_daily", "trade_date",
+     "and spec_version = 'nt-2'", "国家队代理指标（被动沪深300 ETF 份额/规模 ÷ 沪深300市值，两把尺）",
+     "一天两行（big4 / all），行数少是设计如此。10-31 分母换尺（nt-1 → nt-2）：主尺占比的分母"
+     "改成当日日线自算（300 成分每票 成交量÷换手率 反推流通股本 × 未复权收盘再求和）⇒ 679 场全史有占比；"
+     "nt-1 那批（分母取 `stock_snapshot` 求和，只有 2026-07-22 起的 47 场）留在库里对账，不覆盖。"
+     "两个已知边界都不是缺数：① 备用尺「占总市值」的分母仍然只从快照来（总股本不在日线里）⇒ 它照旧只有 47 场；"
+     "② 份额源 T+1 才落，所以最新那一天可能只有份额没有占比。"
+     "`denom_source`/`denom_covered`/`denom_members` 三列是自证（这一天的分母哪把尺给的、少算了几只成分）；"
+     "`missing` 逐行记哪一种（`float_mv_yuan`＝那天成分日线整段没取到、`.partial`＝有票反推不出股本、"
+     "`size_yuan.avg_price_out_of_band`＝价格单位又变了，那道 10 倍错的自检）。"
+     "异动与历史分档不落这张表 —— 阈值型判据只在读侧 `duanxian/national_team.py` 按当次窗口现算。"),
+    ("index_market_value", "market_data.index_market_value", "trade_date",
+     "and spec_version = 'imv-1'", "指数级总市值/流通市值（东财 push2，只当外部对照）",
+     "push2 那个口只给「现在」那一个截面 ⇒ 这一步是「从今天起每天存一行」，历史补不回来"
+     "（与 `fund_flow_rank` 同一类，别再按「能回补」排产）。归属日靠返回体 f43 与库里 "
+     "`index_daily` 那场收盘对账（容差 0.5%），认不上就退出码 2 按设计不写。"
+     "这张表不是任何一屏的主尺：国家队那一屏的分母用本地自算，实测两边差 −0.08%。"),
     # 财务多期是**按「票·报告期·档」存**的，不是按交易日存 ⇒ 日期列给空串：这里算不出区间与缺口，
     # 新鲜度只能看 `fetched_at`（读侧 `duanxian/stock_fundamentals.py` 那句"多久没重采"就是它）。
     ("stock_financial_period", "reference_data.stock_financial_period", "", "",

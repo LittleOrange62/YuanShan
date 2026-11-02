@@ -6,6 +6,7 @@
 import { ClipboardList } from "lucide-react";
 import { pctColor } from "@/lib/colors";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { DocDrawer } from "@/components/ui/DocDrawer";
 import { cn } from "@/lib/utils";
 import type { Valuation, Financials, ValPercentile } from "@/lib/api";
 
@@ -53,13 +54,19 @@ export function EarningsSnapshot({ val, fin, pctl }: Props) {
 
   return (
     <GlassCard glow className="mb-4">
-      <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
-        <ClipboardList className="h-4 w-4 text-primary" /> 财报速览
-        {fin.period && <span className="text-xs font-normal text-muted-foreground/60">· {fin.period}</span>}
-      </h3>
-      <p className="mb-3 text-[11px] text-muted-foreground/60">
-        最新财报 + 前向一致预期 + 估值位置一眼看全。客观数据机械分档，不构成买卖建议。
-      </p>
+      {/* 用户 10-31：这块的说明（口径那句「机械分档、不构成买卖建议」）原先摊在标题下面，
+          搬进标题行最右边的抽屉；报告期那一枚时间戳是元信息，按钮排在它前面。 */}
+      <div className="mb-3 flex flex-wrap items-center gap-1.5">
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+          <ClipboardList className="h-4 w-4 text-primary" /> 财报速览
+        </h3>
+        <span className="ml-auto flex flex-wrap items-center gap-1.5">
+          <DocDrawer title="财报速览">
+            <p>最新财报 + 前向一致预期 + 估值位置一眼看全。客观数据机械分档，不构成买卖建议。</p>
+          </DocDrawer>
+          {fin.period && <span className="text-xs font-normal text-muted-foreground/60">· {fin.period}</span>}
+        </span>
+      </div>
 
       {/* 结论先行：两大头条数字 */}
       <div className="grid grid-cols-2 gap-3">

@@ -2,8 +2,8 @@ import { RefreshCw } from "lucide-react";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { useTableSort } from "@/lib/useSort";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { CaliberFold, ExplainBox, Panel, Row } from "@/components/ui/DataPanel";
-import { Caliber } from "@/components/ui/Caliber";
+import { CaliberFold, Panel, Row } from "@/components/ui/DataPanel";
+import { DrawerSection } from "@/components/ui/DocDrawer";
 import { useNonce, useProbe } from "@/lib/probe";
 import { dash } from "@/lib/datastate";
 import { num } from "@/lib/qd";
@@ -95,8 +95,7 @@ function Breakdown({ code, nonce }: { code: string; nonce: number }) {
   const scores = useProbe<Scores>("/quant/scores", nonce, { code });
   const cmpSort = useTableSort();
   return (
-    <Panel title="八项能力加权明细（每项由哪些分量、按多大权重合成）" state={scores}
-      note="每项能力 = 若干分量按注册表权重加权。权重不为 1 或有缺失时，这一项的分数不可跨票比较，页面上会标出来。">
+    <Panel title="八项能力加权明细（每项由哪些分量、按多大权重合成）" state={scores}>
       {d => (
         <>
           <Row label="代码 / 评分日" value={`${dash(d.code)} · ${dash(d.date)}`} />
@@ -105,13 +104,15 @@ function Breakdown({ code, nonce }: { code: string; nonce: number }) {
           {/* 名字的两个出处也念出来：屏上的中文名不是前端手抄的表，是注册表里那一份 */}
           <Row label="能力名出处" value={dash(d.names_source)} />
           <Row label="分量名出处" value={dash(d.component_names_source)} />
-          {/* 声明 / 字段含义 / 覆盖 / 出处收成一处默认收起的折叠块（用户 2026-10-21：
-              「把页面上的描述性内容全部收缩起来，避免过多占屏」—— 这四行原先摊在八张分量表之前，
-              读者先撞见一屏口径才看到分是怎么加出来的）。
+          {/* 一模块一颗「这块的说明」（用户 10-29 第 4 条 ＋ 11-01「做」）：
+              标题行那颗 `Panel note` 与下面这颗是同一块的说明，分两处点两次才看全 ⇒ 合并成这一颗，
+              那句话原样搬进 `notes` 第一段，一个字没改。
               **没跟着折的**：上面几行读数、每一格里的「用的是上一场的值」与「权重和不对 ⇒ 今天不可比」
               那两枚告警徽标、名次那一格后面那句为什么；缺数／失败一族的 caveat 由折叠块自己留在屏上。 */}
           <CaliberFold caveats={d.caveats} definitions={d.definitions}
-            coverage={d.coverage} provenance={[d.source]} />
+            coverage={d.coverage} provenance={[d.source]}
+            notes={["每项能力 = 若干分量按注册表权重加权。权重不为 1 或有缺失时，这一项的分数不可跨票比较，页面上会标出来。"]} />
+
           <ul className="mt-2 space-y-1.5">
             {(d.capabilities ?? []).map(c => (
               <li key={c.capability_key} className="rounded-lg border border-border p-2">
@@ -186,10 +187,7 @@ function Windows({ code, nonce }: { code: string; nonce: number }) {
   const trend = useProbe<Trend>("/quant/score-trend", nonce, { code });
   const trSort = useTableSort();
   return (
-    <Panel title={`窗口趋势（斜率 / 高点位置 / 连续上行 / 迷你走势）· ${code}`} state={trend}
-      note={'每行是一个「基准交易日 + 往前若干个有评分的交易日」的窗口（窗口长度见下面「窗口 / 门槛」那一格）。'
-        + '窗口天数不是日历天数：长假里 10 个日历日可能只剩 5 个交易日。'
-        + '斜率说方向与快慢，「高点在第几天」说这个方向是哪一种形状 —— 两个一起才读得对。'}>
+    <Panel title={`窗口趋势（斜率 / 高点位置 / 连续上行 / 迷你走势）· ${code}`} state={trend}>
       {d => {
         // 「X+Y 最高」那一列的深浅：在本屏这几行之间归一（同一列的 min~max 分 5 档）。
         // 深浅只表示大小、不表示好坏；方向（正/负）继续留给红绿，两种颜色语义不许混。
@@ -206,29 +204,63 @@ function Windows({ code, nonce }: { code: string; nonce: number }) {
               —— 前两类一折起来，屏幕就能把"只列了 40 行"念成"这票只有 40 个窗口"、
               把"7 场窗口点数不足"念成"这 59 场都算得动"（全站那条红线，见《01》§十三之二）。 */}
           <Row label="交出" value={`${dash(d.sessions_returned)} 场（${dash(d.first_session)} ~ ${dash(d.last_session)}）；表里列前 40 行`} />
-          <Caliber text={
-            "【母体】这不是横排多只票的榜单：它是「这一只票」按交易日滚动的若干个窗口。" +
-            "行数 = 交出多少场窗口，每行一个基准日。\n" +
-            "【窗口】每个窗口 = 基准日 + 往前数 10 个「有操作分的交易日」（缺分的日子不进窗口，" +
-            "所以窗口跨度是交易日数、不是自然日数）。\n" +
-            "【斜率】这 10 个点的最小二乘斜率：分为单位、每 1 个窗口日涨/跌多少分。" +
-            "它说的是「分数在往哪走」，不是股价涨跌。\n" +
-            "【r²】窗口内分数对时间的线性拟合优度（相关系数平方）。低 r² + 大斜率 = 中间有一天跳了一下，" +
-            "不代表趋势；所以相关性弱的行会自己标出来。\n" +
-            "【X+Y 最高 / 哪天最高 / 高点在第几天】这个窗口里 X+Y（四维象限那两轴）的最高值、它出现在哪一天、" +
-            "以及那天是窗口里第几个有评分日。最高值落在窗口末尾＝这轮还在往上；落在开头＝高点早过了。\n" +
-            "【连续上行】从基准日往前数，操作分连续严格上行的天数 —— 中断即归零重数。\n" +
-            "【入口档】这个窗口第一天落在哪个象限（Q1~Q4）。\n" +
-            "【形状】sparkline 只画形状、不带绝对高低，别按它排序 —— 要比大小用「斜率」或「X+Y 最高」。\n" +
-            "【截断】表只列最近 40 行（`交出` 那一格是后端给的全部场数），排序在截断之前。"
-          } />
-          <CaliberFold caveats={d.caveats} definitions={d.definitions} />
-          <ExplainBox title="这一屏看的是谁的窗口 · 窗口与门槛是多少">
-            <Row label="这是谁的窗口"
-              value={`${dash(d.security_code || code)} 一只票的滚动窗口 —— 表里每一行都是同一只票，只是基准日不同`} />
-            <Row label="窗口 / 门槛"
-              value={`${dash(d.window_days)} 个有评分日，min_point_count=${dash(d.min_point_count)}`} />
-          </ExplainBox>
+          {/* 一模块一颗（用户 10-29 第 4 条 ＋ 11-01「做」）：这一块原来三处出口
+              （标题行 `Panel note` 一颗、下面 `ExplainBox` 一颗、表尾 `ExplainBox` 一颗，另加一枚
+              「口径」悬停芯片装着几千字的母体读法）⇒ 四样东西点三处才看全。
+              现在全部并成这一颗抽屉，按「母体与逐列读法 → 这是谁的窗口 → 这张表怎么读」三节排；
+              文字一个字没改，只是不再另开按钮。
+              **留在屏上的**：上面那行「交出 …；表里列前 40 行」（截断声明）、
+              `cached_aggregates`／`thin_window`／`window_entry_quadrant_null` 那几条（缓存年龄与缺数计数，
+              由 `CaliberFold` 内部分流自己摊在屏上）、表格里每一行的「相关性弱」告警色。 */}
+          <CaliberFold caveats={d.caveats} definitions={d.definitions}
+            notes={['每行是一个「基准交易日 + 往前若干个有评分的交易日」的窗口（窗口长度见下面「窗口 / 门槛」那一节）。'
+              + '窗口天数不是日历天数：长假里 10 个日历日可能只剩 5 个交易日。'
+              + '斜率说方向与快慢，「高点在第几天」说这个方向是哪一种形状 —— 两个一起才读得对。']}
+            extra={<>
+              <DrawerSection heading="母体与逐列读法（【】逐条，后端算好的口径）">
+                <p className="whitespace-pre-line leading-relaxed">
+                  {"【母体】这不是横排多只票的榜单：它是「这一只票」按交易日滚动的若干个窗口。" +
+                    "行数 = 交出多少场窗口，每行一个基准日。\n" +
+                    "【窗口】每个窗口 = 基准日 + 往前数 10 个「有操作分的交易日」（缺分的日子不进窗口，" +
+                    "所以窗口跨度是交易日数、不是自然日数）。\n" +
+                    "【斜率】这 10 个点的最小二乘斜率：分为单位、每 1 个窗口日涨/跌多少分。" +
+                    "它说的是「分数在往哪走」，不是股价涨跌。\n" +
+                    "【r²】窗口内分数对时间的线性拟合优度（相关系数平方）。低 r² + 大斜率 = 中间有一天跳了一下，" +
+                    "不代表趋势；所以相关性弱的行会自己标出来。\n" +
+                    "【X+Y 最高 / 哪天最高 / 高点在第几天】这个窗口里 X+Y（四维象限那两轴）的最高值、它出现在哪一天、" +
+                    "以及那天是窗口里第几个有评分日。最高值落在窗口末尾＝这轮还在往上；落在开头＝高点早过了。\n" +
+                    "【连续上行】从基准日往前数，操作分连续严格上行的天数 —— 中断即归零重数。\n" +
+                    "【入口档】这个窗口第一天落在哪个象限（Q1~Q4）。\n" +
+                    "【形状】sparkline 只画形状、不带绝对高低，别按它排序 —— 要比大小用「斜率」或「X+Y 最高」。\n" +
+                    "【截断】表只列最近 40 行（`交出` 那一格是后端给的全部场数），排序在截断之前。"}
+                </p>
+              </DrawerSection>
+              <DrawerSection heading="这一屏看的是谁的窗口 · 窗口与门槛是多少">
+                <Row label="这是谁的窗口"
+                  value={`${dash(d.security_code || code)} 一只票的滚动窗口 —— 表里每一行都是同一只票，只是基准日不同`} />
+                <Row label="窗口 / 门槛"
+                  value={`${dash(d.window_days)} 个有评分日，min_point_count=${dash(d.min_point_count)}`} />
+              </DrawerSection>
+              <DrawerSection heading="这一张表怎么读：形状 · 深浅 · 高点位置">
+                <p>
+                  「形状」这一列：后端给了 <code>sparkline</code> 才画，且只表示形状不表示绝对高低；
+                  相关系数 r 的绝对值小于 0.3 时这条趋势线本身就不成立，所以这里标「弱」而不是画一条看着确定的线。
+                </p>
+                <p>
+                  「X+Y 最高」的<b className="text-foreground">深浅</b>＝这一列在<b className="text-foreground">本屏这几行之间</b>
+                  从低到高（{Number.isFinite(lo) ? num(lo, 1) : "—"} → {Number.isFinite(hi) ? num(hi, 1) : "—"}）分 5 档，
+                  <b className="text-foreground">只表示大小，不表示好坏</b>；换一批行、换一只票，深浅就不能互相对照。
+                  方向的正负仍旧归红绿（全站同一套：红＝正、绿＝负），一种颜色只有一个意思。
+                </p>
+                <p>
+                  「高点在第几天」为什么要有：斜率只说"平均每天动几分"，<b className="text-foreground">同一个平均数可以由完全相反的形状拼出来</b> ——
+                  高点落在窗口末尾＝这轮还在往上；落在开头＝高点早过了、这些天在回落。
+                  序号与那句词都由后端算好交出（阈值只住 <code>duanxian/quant.py</code> 一处），页面不自己数：
+                  {d.peak_rule ?? "（后端没交出 peak_rule，所以这里不自己写阈值）"}。
+                  数的是<b className="text-foreground">有评分日</b>，与斜率同一把尺子，不数日历日。
+                </p>
+              </DrawerSection>
+            </>} />
           <div className="mt-2 overflow-x-auto">
             <table className="w-full text-[11px]">
               <thead><tr className="text-left text-muted-foreground">
@@ -277,25 +309,6 @@ function Windows({ code, nonce }: { code: string; nonce: number }) {
               </tbody>
             </table>
           </div>
-          <ExplainBox title="这一张表怎么读：形状 · 深浅 · 高点位置">
-            <p>
-              「形状」这一列：后端给了 <code>sparkline</code> 才画，且只表示形状不表示绝对高低；
-              相关系数 r 的绝对值小于 0.3 时这条趋势线本身就不成立，所以这里标「弱」而不是画一条看着确定的线。
-            </p>
-            <p>
-              「X+Y 最高」的<b className="text-foreground">深浅</b>＝这一列在<b className="text-foreground">本屏这几行之间</b>
-              从低到高（{Number.isFinite(lo) ? num(lo, 1) : "—"} → {Number.isFinite(hi) ? num(hi, 1) : "—"}）分 5 档，
-              <b className="text-foreground">只表示大小，不表示好坏</b>；换一批行、换一只票，深浅就不能互相对照。
-              方向的正负仍旧归红绿（全站同一套：红＝正、绿＝负），一种颜色只有一个意思。
-            </p>
-            <p>
-              「高点在第几天」为什么要有：斜率只说"平均每天动几分"，<b className="text-foreground">同一个平均数可以由完全相反的形状拼出来</b> ——
-              高点落在窗口末尾＝这轮还在往上；落在开头＝高点早过了、这些天在回落。
-              序号与那句词都由后端算好交出（阈值只住 <code>duanxian/quant.py</code> 一处），页面不自己数：
-              {d.peak_rule ?? "（后端没交出 peak_rule，所以这里不自己写阈值）"}。
-              数的是<b className="text-foreground">有评分日</b>，与斜率同一把尺子，不数日历日。
-            </p>
-          </ExplainBox>
         </>
         );
       }}

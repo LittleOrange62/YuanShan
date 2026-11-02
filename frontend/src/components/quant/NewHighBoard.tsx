@@ -2,7 +2,9 @@ import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { SortHeader } from "@/components/ui/SortHeader";
-import { CaliberFold, ExplainBox, Row } from "@/components/ui/DataPanel";
+import { Caveats, Row } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
+import { splitCaveats } from "@/lib/caveatKind";
 import { Caliber } from "@/components/ui/Caliber";
 import { useTableSort } from "@/lib/useSort";
 import { STOCK_ROW_HINT, useStockRowInteraction } from "@/lib/useStockRowInteraction";
@@ -11,6 +13,7 @@ import { dash } from "@/lib/datastate";
 import { num } from "@/lib/qd";
 import { pctColor } from "@/lib/colors";
 import { cn } from "@/lib/utils";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 趋势评分页的「自选股新高」这一屏（用户 2026-10-07：「趋势评分——这里面新增一个历史新高
@@ -84,9 +87,11 @@ export function NewHighBoard() {
     { ...(groupId ? { group_id: groupId } : {}), window: win, limit: 300 });
   const d = state.kind === "ok" ? state.data : null;
   const rows = (d?.rows ?? []).map(r => ({ ...r, state_text: stateText(r) }));
+  /** 缺数／截断一族的 caveat 永远留在屏上（`splitCaveats` 一处分类）；纯口径那一份进抽屉。 */
+  const cav = splitCaveats(d?.caveats ?? null);
 
   return (
-    <GlassCard>
+    <GlassCard docTitle="自选股新高（库内，不是上市以来）">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-bold">自选股新高（库内，不是上市以来）</h2>
         <span className={cn("rounded-md px-1.5 py-0.5 text-[11px]",
@@ -94,6 +99,29 @@ export function NewHighBoard() {
           {d ? `本页创新高 ${dash(d.new_high_in_rows)} 只` : "取数中"}
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          {/* 用户 2026-10-31：「这块的说明」摆在这一块标题这一行的最右边、排在范围/窗口/取数按钮前面。
+              原来长在表下的两处（`CaliberFold` 里的慢与缓存一句 + 纯口径 caveat、`ExplainBox` 的出处与怎么点）
+              整段搬进这一颗按钮开的抽屉；「这份数实算于 N 秒前」「取出 / 截断」「库内新高不是上市以来」
+              与缺数／截断一族 caveat、弹窗被拦告警都留在屏上，绝不跟着进抽屉。 */}
+          {d && d.available !== false && (
+            <DocDrawer title="自选股新高（库内，不是上市以来）">
+              <DrawerSection heading="这一格的出处 · 判据住在哪一处 · 这一张表怎么点">
+                <p>
+                  接口：<code>GET /api/quant/new-high</code>；判据只住 <code>duanxian/quant.py::new_high()</code> 一处，
+                  这一格只转述 —— 页面不自己算新高、不自己减百分比。
+                </p>
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
+              </DrawerSection>
+              <DrawerSection heading="慢在哪 · 缓存多久（与取数中那一行是同一句话，只留一份）">
+                {SLOW_HINT}
+              </DrawerSection>
+              {cav.foldable.length > 0 && (
+                <DrawerSection heading="口径声明（后端 caveats 原句，页面未改写）">
+                  <Caveats items={cav.foldable} />
+                </DrawerSection>
+              )}
+            </DocDrawer>
+          )}
           <label className="text-[11px] text-muted-foreground" htmlFor="nh-group">范围</label>
           <select id="nh-group" value={groupId} onChange={e => { x.clearAll(); setGroupId(e.target.value); }}
             className="max-w-[15rem] rounded-lg border border-border bg-background px-2 py-1 text-[11px]">
@@ -197,26 +225,16 @@ export function NewHighBoard() {
         </div>
         {/* 弹窗被拦是**告警**，不折进下面默认收起的说明框；"怎么点"那句描述随下面这块一起收（用户 2026-10-19 夜：
             「把选项留出，描述内容都收缩起来」） */}
-        {x.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{x.popHint}</p>}
+        {x.popHint && <NoticeBar kind="warning">{x.popHint}</NoticeBar>}
         {rows.length === 0 && (
           <p className="mt-1 text-[11px] leading-relaxed text-warning">
             后端这条查询正常返回，但一行都没给 —— 这个范围与窗口里没有"有行情可比"的票
             （不是"没有新高"，是连一根 K 线都没有）。
           </p>
         )}
-        {/* 后端声明 + 那一句"慢在哪、缓存多久"的读法说明收成一处默认收起的折叠块
-            （用户 2026-10-21：「把页面上的描述性内容全部收缩起来，避免过多占屏」——
-            这句 SLOW_HINT 与取数中那一行是同一句话，重复占着表下两行）。
-            **没跟着折的**：上面「取出 / 截断」那行读数、缓存年龄那行、`rows.length === 0` 与
-            `available:false` 两句告警、`x.popHint`；缺数／截断一族的 caveat 由折叠块自己留在屏上。 */}
-        <CaliberFold caveats={d.caveats} notes={[SLOW_HINT]} />
-        <ExplainBox title="这一格的出处 · 判据住在哪一处 · 这一张表怎么点">
-          <p>
-            接口：<code>GET /api/quant/new-high</code>；判据只住 <code>duanxian/quant.py::new_high()</code> 一处，
-            这一格只转述 —— 页面不自己算新高、不自己减百分比。
-          </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
-        </ExplainBox>
+        {/* 后端声明里缺数／截断一族仍摊在屏上（收进抽屉等于没写，见 `splitCaveats` 与本页顶部纪律）；
+            纯口径那一族与慢/缓存那句已搬进标题行那颗「这块的说明」。 */}
+        {cav.visible.length > 0 && <Caveats items={cav.visible} />}
       </>)}
     </GlassCard>
   );

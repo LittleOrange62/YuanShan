@@ -1,6 +1,6 @@
 import { RefreshCw } from "lucide-react";
-import { Caliber } from "@/components/ui/Caliber";
-import { Caveats, Definitions, ExplainBox, Panel } from "@/components/ui/DataPanel";
+import { Caveats, Definitions, Panel } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { SectorLink } from "@/components/ui/SectorLink";
 import { StockBriefBox } from "@/components/stock/StockBriefBox";
@@ -21,11 +21,23 @@ import {
  * 摆在第一块的理由：下面几叠都只回答某一面，读者得先知道这一只是什么、最近一场什么价、
  * 归在哪些板块、在本机被放在哪个组里。
  * 三条实现约束：
- *  · 只读本机库、不出网 ⇒ 比下面「个股研究」那张公开源即时卡**可能晚一场**，这句话上屏不折。
+ *  · 只读本机库、不出网 ⇒ 比下面「个股研究」那张公开源即时卡**可能晚一场**，这句话在屏上说得出口
+ *    （10-28 起它住在说明抽屉第一段，不是消失；这块自己的缺数与告警仍摊在格子下面）。
  *  · 每个格子各带自己的日期：行情按 `session.trade_date`，档案按 `profile.hq_date` + 几天没刷；
  *    两者不同日就不并成"今天的信息"。
  *  · 主档没有上市日/总股本、收盘快照的每股类与 ROE 本机全是 0 ⇒ 这些格子在这里不出现，
  *    要看每股类去「财务多期与外推」那一块（缺就是缺，不拿 0 摆上屏）。
+ *
+ * 2026-10-28 用户点名：「"个股信息"中的以下内容都是说明，要做到弹窗里去。用统一的那个组件哦」
+ *   ⇒ 五段说明（口径三句 / 格子怎么读 / 为什么没有那四格 / 后端原句那段取数口径 / 字段字典）
+ *   收进全站那一只共用 `DocDrawer`（右上角那颗「说明」按钮，弹在屏幕下方、不锁滚动，
+ *   读者可以边看格子边读说明）。`Caliber` 那颗问号角标与表下那三段裸说明一起退场。
+ *   **没跟进弹窗的只有 `<Caveats>`**：缺数与告警留在块内，这条红线与 `NoticeBar` 顶部注释同一条。
+ *
+ * 2026-10-31 用户点名（全站一起改，个股组）：「这块的说明」要摆在该模块**标题这一行的最右边**，
+ *   同一行若还有「重新取数」这类刷新/时间戳元信息，按钮排在它们**前面**。
+ *   原先这颗按钮贴在 h2 左边、刷新独自 `ml-auto` 钉在右边，读起来仍是"标题旁边的一个挂件"，
+ *   不是"这一块的说明落在这块的最右"。现在右侧那一叠统一成：说明按钮在前、刷新在后。
  */
 
 const toneCls = { up: "text-primary", down: "text-success", flat: "", missing: "text-muted-foreground/60" } as const;
@@ -60,22 +72,56 @@ export function StockFacts({ code }: { code: string | null }) {
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h2 className="text-base font-bold">个股信息</h2>
-        <Caliber text={
-          "全部读本机库（不出网），所以休市也在；比下面「个股研究」那张公开源即时卡可能晚一场。\n"
-          + "每个格子各带自己的日期：行情按最近一场交易日，档案（主营/员工数/β/历史高低）按它自己的刷新日。\n"
-          + "完整口径是表下那句「取数口径（后端原句）」，页面不改写。"
-        } />
-        <button type="button" onClick={refresh} title="重新读本机库"
-          className="ml-auto flex items-center gap-1 rounded-lg bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25">
-          <RefreshCw className="h-3.5 w-3.5" /> 重新取数
-        </button>
+        {/* 用户 2026-10-28 点名：「"个股信息"中的以下内容都是说明，要做到弹窗里去。用统一的那个组件哦」
+            ⇒ 口径三句、格子怎么读、为什么没有每股收益/ROE/上市日/总股本、后端原句那段取数口径、
+              字段字典，五段全部收进全站那一只共用说明抽屉 `DocDrawer`（`ui/DocDrawer.tsx`），
+              读数那一屏留给数。
+            ⚠️ 有一条红线跟着这条纪律走：**缺数与告警（`<Caveats>`）仍摊在块内**，不跟进弹窗 ——
+              "这一格没读到"这件事收起来等于没写（见 `NoticeBar` 与 `DocDrawer` 顶部注释）。
+            10-31：这颗按钮与「重新取数」一起收进右侧那一叠，按钮在最前（标题行最右，元信息在后）。 */}
+        <span className="ml-auto flex flex-wrap items-center gap-1.5">
+          <DocDrawer title="个股信息">
+          <DrawerSection heading="这一块读什么、为什么可能晚一场">
+            <p>
+              全部读本机库（不出网），所以休市也在；比下面「个股研究」那张公开源即时卡可能晚一场。
+              每个格子各带自己的日期：行情按最近一场交易日，档案（主营／员工数／β／历史高低）按它自己的刷新日。
+              行情与档案不同日时，右上角两行分开念，不并成一句「今天的信息」。
+            </p>
+          </DrawerSection>
+          <DrawerSection heading="屏幕上这些格子怎么读">
+            <p>
+              读本机六张表，一次请求（五张给读数，第六张 analytics.stock_brief 存那份 AI 说明的正文与它的材料回执）。
+              格子缺的显示「—」，不补 0；那一格 AI 说明是模型写的正文，不参与任何判据 ——
+              它上面那句「AI 生成的正文 · 不是本机判据」仍然留在屏上，没有折进这里。
+            </p>
+          </DrawerSection>
+          <DrawerSection heading="为什么这一块不显示每股收益、ROE、上市日、总股本">
+            <p>
+              这四样本机库给不出能读的数：收盘快照里的每股收益 / 每股净资产 / ROE 三列实测 21 万余行一个非零都没有，
+              证券主档里的上市日期与总股本两列全表为空。把它们摆上屏只会让人读到 0 与「没有上市日」，
+              所以这一块一律不出现这四格 —— 每股类与 ROE 请看下面「财务多期与外推」那一块（源＝同花顺，逐期都有），
+              上市日请看下面「个股研究」那块的公开源档案。
+            </p>
+          </DrawerSection>
+          <DrawerSection heading="取数口径（后端原句，页面未改写）">
+            <p>{d?.caliber ? plain(d.caliber) : '后端这一次没交出口径原句（还没选一只或没读到数时本来就没有）。'}</p>
+          </DrawerSection>
+          <DrawerSection heading="这些字段是什么意思">
+            <p className="mb-1">
+              下面这一份是接口自己交出的字段解释（后端写了的键才列，没写的字段不编解释），列头与格子的悬停念的就是它。
+            </p>
+            <Definitions map={d?.definitions} bare />
+          </DrawerSection>
+          </DocDrawer>
+          <button type="button" onClick={refresh} title="重新读本机库"
+            className="flex items-center gap-1 rounded-lg bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25">
+            <RefreshCw className="h-3.5 w-3.5" /> 重新取数
+          </button>
+        </span>
       </div>
 
       <Panel title="这一只是什么 · 最近一场什么价" state={state}
-        note={!code ? "还没选一只，这一块不替你挑。"
-          : "读本机六张表，一次请求（五张给读数，第六张 `analytics.stock_brief` 存那份 AI 说明的正文与它的材料回执）；"
-          + "格子缺的显示「—」，不补 0；那一格 AI 说明是模型写的正文，不参与任何判据 —— "
-          + "它上面写着「AI 生成的正文 · 不是本机判据」，那句话不折进框。"}>
+        note={!code ? "还没选一只，这一块不替你挑。" : undefined}>
         {d => {
           const s = d.session ?? {};
           const p = d.profile ?? {};
@@ -156,23 +202,9 @@ export function StockFacts({ code }: { code: string | null }) {
                 </div>
               </div>
 
+              {/* 缺数与告警留在块内（红线）：口径原句、字段字典、"为什么没有这四格"都搬进说明抽屉了，
+                  这一段不搬 —— 它说的是"这一屏哪里没读到"，收起来等于没写。 */}
               <Caveats items={d.caveats ?? []} />
-              {d.caliber && (
-                <p className="mt-2 border-t border-dashed border-border pt-2 text-[10px] leading-relaxed text-muted-foreground">
-                  取数口径（后端原句，页面未改写）：{plain(d.caliber)}
-                </p>
-              )}
-              <Definitions map={d.definitions} />
-              <ExplainBox title="为什么这一块不显示每股收益、ROE、上市日、总股本">
-                <p>
-                  这四样本机库给不出能读的数：<b className="text-foreground">收盘快照</b>里的
-                  <b className="text-foreground">每股收益 / 每股净资产 / ROE</b> 三列实测 21 万余行一个非零都没有，
-                  <b className="text-foreground">证券主档</b>里的<b className="text-foreground">上市日期</b>与
-                  <b className="text-foreground">总股本</b>两列全表为空。把它们摆上屏只会让人读到 0 与"没有上市日"，
-                  所以这一块一律不出现这四格 —— 每股类与 ROE 请看下面<b className="text-foreground">「财务多期与外推」</b>
-                  那一块（源＝同花顺，逐期都有），上市日请看下面<b className="text-foreground">「个股研究」</b>那块的公开源档案。
-                </p>
-              </ExplainBox>
             </>
           );
         }}

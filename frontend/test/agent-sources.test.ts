@@ -9,8 +9,10 @@ Object.defineProperty(globalThis, 'localStorage', { value: {
   removeItem: (key: string) => { store.delete(key); },
 } });
 Object.defineProperty(globalThis, 'window', { value: { addEventListener() {}, removeEventListener() {}, dispatchEvent() {} }, configurable: true });
-const { readSources, saveAgentConnection, setActiveSource, activeSourceId, failoverEnabled, setFailoverEnabled,
-  loadAgentConnection, noteSourceResult, clearSourceMark, moveAgentSource, removeAgentSource, reportAgentOutcome, FAIL_LIMIT } =
+const { readSources, saveAgentConnection, setActiveSource, activeSourceId, beginRound, blockedReason, currentSource,
+  failoverEnabled, setFailoverEnabled, giveUpAfterCycle, setGiveUpAfterCycle, loadAgentConnection, noteSourceResult,
+  orderMode, setOrderMode, clearSourceMark, moveAgentSource, removeAgentSource, reportAgentOutcome, restartEachRun,
+  setRestartEachRun, setSourceTimeout, DEFAULT_TIMEOUT_SECONDS, FAIL_LIMIT } =
   await import('../src/lib/agent-sources.ts');
 
 const first = { provider: 'new-api', model: 'allmlmlh', baseURL: 'http://192.168.176.68:3000/v1', apiKey: 'KEY_A' };
@@ -28,7 +30,7 @@ test('the old single saved connection becomes the first entry of the list', () =
   assert.equal(rows[0].failures, 0);
   assert.equal(rows[0].testedAt, 1234);
   assert.equal(localStorage.getItem('astock-agent-connection'), null, '旧键迁移后必须移除，避免两份真相');
-  assert.deepEqual(loadAgentConnection(), { provider: first.provider, model: first.model, baseURL: first.baseURL, apiKey: 'KEY_A' });
+  assert.deepEqual(loadAgentConnection(), { ...first, timeoutSeconds: DEFAULT_TIMEOUT_SECONDS });
 });
 
 test('auto switch is on by default and can be turned off', () => {
@@ -61,17 +63,28 @@ test('a source keeps its place until it fails twice, then the next one takes ove
   assert.equal(readSources().find(row => row.id === a)!.testState, 'untested');
 });
 
-test('when every source is down the list keeps cycling instead of giving up', () => {
+test('一圈都不通时默认停住并报「无法连接」；关掉那开关才继续轮转', () => {
   reset();
   const a = saveAgentConnection(first);
   const b = saveAgentConnection(second);
   setActiveSource(a);
   for (const id of [a, b]) { noteSourceResult(id, false, 'AI 网络连接中断'); noteSourceResult(id, false, 'AI 网络连接中断'); }
   assert.equal(failures(a), 2);
-  assert.notEqual(model(), undefined);
+  assert.equal(giveUpAfterCycle(), true, '③「循环一圈仍不通就提示无法连接」默认开');
+  assert.equal(loadAgentConnection(), null, '停住就是不发请求，不再挑一条硬发');
+  const reason = blockedReason();
+  assert.match(reason, /第 1 条/, '停住那句要逐条列出来');
+  assert.match(reason, /第 2 条/);
+  assert.match(reason, /AI 网络连接中断/, '每条的失败原因原样带上，不能只说"都不通"');
+  assert.match(reason, /清除测试标记/, '要给出口：怎么把某条重新放回轮换');
+  setGiveUpAfterCycle(false);              // 关掉退回旧行为：不清标记，按顺序轮流再试
   const picked = model();
   noteSourceResult(readSources().find(row => row.model === picked)!.id, false, 'AI 网络连接中断');
   assert.notEqual(model(), picked, '都不通时按顺序换一条再试，不会永远卡在同一条上');
+  assert.equal(blockedReason(), '', '关掉③就不该留着停住状态');
+  setGiveUpAfterCycle(true);
+  beginRound();
+  assert.equal(blockedReason(), '', '新任务开始时停住状态散掉：停住只管这一次，不能永久锁死');
 });
 
 test('only source-side faults count as a failure', () => {
@@ -116,4 +129,63 @@ test('a list written by an older build keeps its rows after the failures field a
   assert.equal(rows.length, 1);
   assert.equal(rows[0].id, a);
   assert.equal(rows[0].failures, 2, '旧的 failed 标记等价于已到达失败上限');
+});
+
+test('三个开关的默认值就是用户拍的那三个：全开、顺序按列表循环', () => {
+  reset();
+  assert.equal(failoverEnabled(), true);
+  assert.equal(restartEachRun(), true, '①每次重头使用');
+  assert.equal(giveUpAfterCycle(), true, '③一圈后提示无法连接');
+  assert.equal(orderMode(), 'cycle', '顺序方式默认列表循环');
+});
+
+test('①开着时每个新任务都从第 1 条开始；关掉才粘在当前那条', () => {
+  reset();
+  const a = saveAgentConnection(first);
+  const b = saveAgentConnection(second);
+  setActiveSource(b);                       // 用户把"当前"设成了第 2 条
+  assert.equal(readSources()[1].id, b);
+  assert.equal(model(), first.model, '开着①：第 1 条健康就不该用第 2 条');
+  setRestartEachRun(false);
+  assert.equal(model(), second.model, '关掉①：从当前那条往后顺位');
+  setRestartEachRun(true);
+});
+
+test('随机只定本轮起点：同一次任务里反复读不会换条，新任务才重新抽', () => {
+  reset();
+  saveAgentConnection(first);
+  const b = saveAgentConnection(second);
+  setActiveSource(b);
+  setOrderMode('random');
+  setRestartEachRun(true);                  // ①+随机同时开：随机优先，界面已说明
+  const stubbed: number[] = [];
+  const real = Math.random;
+  Math.random = () => { stubbed.push(1); return 0.99; };   // 固定一次洗牌结果
+  try {
+    const firstPick = model();
+    assert.equal(stubbed.length, 1, '洗牌只在起轮时算一次');
+    for (let i = 0; i < 4; i++) assert.equal(model(), firstPick, '界面每次渲染都读一次，读数必须稳定');
+    beginRound();
+    Math.random = () => { stubbed.push(2); return 0.0; };  // 下一轮抽到另一头
+    assert.notEqual(model(), firstPick, '新任务重新抽起点');
+  } finally { Math.random = real; }
+  setOrderMode('cycle');
+});
+
+test('每条来源自带总时长闸：默认 180，越界的填法一律不落地', () => {
+  reset();
+  const a = saveAgentConnection(first);
+  assert.equal(loadAgentConnection()!.timeoutSeconds, DEFAULT_TIMEOUT_SECONDS);
+  assert.equal(setSourceTimeout(a, 45), true);
+  assert.equal(loadAgentConnection()!.timeoutSeconds, 45, '界面填的秒数要真的跟着请求发出去');
+  assert.equal(setSourceTimeout(a, 5), false, '低于 30 秒不接受');
+  assert.equal(setSourceTimeout(a, 900), false, '高于 600 秒不接受');
+  assert.equal(setSourceTimeout(a, Number.NaN), false, '不是数字不接受');
+  assert.equal(setSourceTimeout('不存在的id', 60), false);
+  assert.equal(loadAgentConnection()!.timeoutSeconds, 45, '被拒的填法不能改动已存值');
+  // 旧版本存的列表没有这个字段：读出来给默认值，不能整条丢掉
+  const stored = JSON.parse(localStorage.getItem('astock-agent-sources')!);
+  delete stored[0].timeoutSeconds;
+  localStorage.setItem('astock-agent-sources', JSON.stringify(stored));
+  assert.equal(readSources()[0].timeoutSeconds, DEFAULT_TIMEOUT_SECONDS);
 });

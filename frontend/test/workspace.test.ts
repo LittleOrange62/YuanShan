@@ -38,8 +38,9 @@ test('preserve approved feature groups, merged stocks and research notes', () =>
   assert.ok(!routes.includes('<Home />'), '被取消的工作台首页不该还挂在路由上');
   assert.equal(FEATURES.find(x => x.to === '/')?.title, '首页（汇总看板）');
   assert.equal(FEATURES.find(x => x.to === '/backtest')?.title, '涨停样本统计');
-  // 2026-10-26 用户裁定：「首板分析」→「日间复盘及首板」（`/first-board` 不变，上半新挂盘中事件流）。
-  assert.equal(FEATURES.find(x => x.to === '/first-board')?.title, '日间复盘及首板');
+  // 2026-10-26 用户裁定：「首板分析」→「日间复盘及首板」；2026-10-28 再裁定 →「短线复盘」
+  // （`/first-board` 不变，上半新挂盘中事件流）。这两次都是登记处改名，不是放宽判据。
+  assert.equal(FEATURES.find(x => x.to === '/first-board')?.title, '短线复盘');
   // 卡片标题与 detail 都要有：只有图标没文字的卡片在窄屏上读不出来
   for (const f of FEATURES) assert.ok(f.title.length > 0 && f.detail.length > 0, `卡片 ${f.to} 缺标题或说明`);
 });

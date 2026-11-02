@@ -5,8 +5,8 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   fin, latestDivergence, levelTone, levelTextTone, numText, periodTooltip, signedText,
-  thresholdsText, yiText,
-  extremeLine, extremeMarks, hoverLine, optionSources, xTicks,
+  thresholdsText, yiText, extremeCells, extremeCellRows, extremeRows, hoverLine, NULL_TEXT,
+  extremeLine, extremeMarks, optionSources, xTicks,
   caveatText, densityScale, divergenceScale, trendLine, trendText, turnLine, turnMarks,
   type RiskExtremeRow, type RiskPanel, type RiskPeriod, type RiskTurn,
 } from '../src/lib/riskSignal.ts';
@@ -207,6 +207,67 @@ test('极端点位只认后端交的那份：页面按 period 找位置，找不
     '崩点必须点名上一期是哪天、多宽，以及这一期掉多少');
 });
 
+test('极端点位清单摆成用户 11-01 点名的那五格：四格文字全读后端，某一格没交就在屏上说破', () => {
+  // 标准原话：「要显示：指标名、时间、数值、与阈值的比较结果、结果含义（如异动提醒）」
+  // 并且「其他类似的提醒也要按照这个标准来写」⇒ 这一屏的极端点位清单与国家队那一排同形状。
+  const div: RiskExtremeRow = {
+    period: '2026-09-21', label: '09-21', kind: 'divergence', width_pct: 81.62, share_gap: 10.09,
+    count_ratio: 4.835, arms_ratio: 2.51, amount_share_up: 71.53, limit_up_count: 102, severity: 10.09,
+    metric: '市场宽度 × 成交额占比 · 家数比钱多', alert_type: '风险提示',
+    value_text: '家数占比比钱多 +10.1pp（宽度 81.6%、涨停 102 家、涨票吃掉 71.5% 的成交）',
+    compare_text: '≥ 阈值 8pp 且宽度 ≥ 80% ⇒ 家数钱差超出 2.1pp，宽度比门槛高 1.6pp',
+    meaning_text: '上涨票的家数占比明显高于它们的成交额占比',
+  };
+  const labels = { divergence: '量价背离（家数在走强、钱没跟上）' };
+  const c = extremeCells(div, labels);
+  assert.equal(c.date, '09-21', '时间那一格＝这一行已有的 label，不新造一个字段');
+  assert.equal(c.family, labels.divergence, '两类名字读后端 kind_labels');
+  assert.equal(c.metric, div.metric);
+  assert.equal(c.valueText, div.value_text);
+  assert.equal(c.compareText, div.compare_text);
+  assert.equal(c.meaningText, '风险提示：上涨票的家数占比明显高于它们的成交额占比',
+    '类型名与含义后端各交一份，前缀在这一层拼（与 nationalTeam.alertCells 同一分工）');
+  assert.equal(c.incomplete, false);
+
+  const gapless = extremeCells({ ...div, compare_text: undefined }, labels);
+  assert.equal(gapless.compareText, '', '没交就是空串，由屏上那一格摆 —；页面不自己补一句看起来像的比较');
+  assert.equal(gapless.incomplete, true, '缺哪一样要能看出来，不然"与阈值的比较"这一列会静悄悄空着');
+  assert.equal(extremeCells(div, undefined).family, NULL_TEXT, 'kind_labels 没交就念 —，不自己写中文');
+  assert.equal(extremeCells(div, {}).family, NULL_TEXT);
+
+  // 两类合成一排（背离在前、崩点在后），清单只认这一份
+  const col = { ...div, period: '2026-10-09', label: '10-09', kind: 'collapse' as const,
+    alert_type: '风险提示', meaning_text: '上一期宽度还很宽、这一期直接掉下一大截' };
+  const d2 = { available: true, extremes: {
+    divergence: { rows: [div, { ...div, period: '2026-09-25', label: '09-25' }] },
+    collapse: { rows: [col] },
+  } } as unknown as RiskPanel;
+  assert.deepEqual(extremeRows(d2).map(r => r.period), ['2026-09-21', '2026-09-25', '2026-10-09']);
+  // 同一类那几行的「结果含义」是同一句话 ⇒ 只在第一行摆那一格，其余行由它 rowSpan 盖住
+  const merged = extremeCellRows(d2);
+  assert.deepEqual(merged.map(r => r.meaningSpan), [2, 1, 1], '两行背离共用一格，第三行自己一格');
+  assert.deepEqual(merged.map(r => r.meaningHead), [true, false, true]);
+  // 含义那一格没交（空串）时不合并：那种行各摆各的 —，缺没缺一眼分得清
+  const bare2 = { available: true, extremes: { divergence: {
+    rows: [{ ...div, meaning_text: undefined }, { ...div, period: '2026-09-25', label: '09-25' }] },
+    collapse: { rows: [] } } } as unknown as RiskPanel;
+  assert.deepEqual(extremeCellRows(bare2).map(r => r.meaningSpan), [1, 1]);
+  assert.deepEqual(extremeCellRows(bare2).map(r => r.incomplete), [true, false]);
+
+  // 组件那一侧：五列齐全、四格过 plain、缺格那句黄字在
+  for (const f of ['r.metric', 'r.valueText', 'r.compareText', 'r.meaningText']) {
+    assert.match(comp, new RegExp('plain\\(' + f + '\\)'), `那一格没过 plain：${f}`);
+  }
+  ['时间', '指标名', '数值', '与阈值的比较', '结果含义'].forEach(t =>
+    assert.ok(comp.includes(`>${t}</th>`), `列头少一格：${t}`));
+  assert.match(comp, /extremeCellRows\(d\)/, '整排走 lib 那份合并，不在组件里各摆各的两类');
+  assert.match(comp, /rowSpan=\{r\.meaningSpan\}/, '共用那一格真的合并了（六行复读同一句 70 字＝把说明区搬进表格）');
+  assert.match(lib, /extremeCells\(r, d\?\.extremes\?\.kind_labels\)/, '两类名字从后端 kind_labels 取');
+  assert.match(comp, /缺了后端该交的那五样之一/, '某一格没送到时当场说破（不是"这一期没有读数"）');
+  assert.doesNotMatch(comp.replace(/\/\*[\s\S]*?\*\//g, ''), /家数占比比钱多|≥ 阈值/,
+    '判据句不住组件：组件里出现这两句就是页面自己拼了一份后端措辞');
+});
+
 test('窗口/聚合档的按钮读后端 month_options；没交时兜底也要在屏上说清是兜底', () => {
   const a = optionSources({ ...panel, month_options: [3, 6, 12, 24, 36, 60], group_options: ['day', 'week', 'month'] } as RiskPanel);
   assert.deepEqual(a.months, [3, 6, 12, 24, 36, 60]);
@@ -347,3 +408,36 @@ test('「判不了」的那几句念后端 caveat 原句；组件真的把三条
   assert.match(comp, /caveatText\(d, "density_unjudged"\)/, '密度判不了时念后端原句');
   assert.match(comp, /TOP_AX/, '横轴刻度跟到第三条带子下面，否则日期被裁掉');
 });
+
+// 2026-10-31 用户点名这一块：「窗口 / 覆盖 / 阿姆斯行数 / 背离定义 / 趋势定义 / 图例 / pct_warmup /
+// not_signal 都放到『这块的说明』里面去」。钉的是形状，不是措辞：同一句话在屏上与抽屉里各出现一遍
+// = 两处口径迟早分叉；而那块的红线（免责句）必须留在屏上。
+test('风险提示屏上只留图与数，读法与图例全在抽屉里（10-31 用户点名「都放到这块的说明里面去」）', () => {
+  const once = (needle: string) => assert.equal(comp.split(needle).length - 1, 1,
+    `「${needle}」只许出现一遍（在 notes 或 extra 里），屏上那份必须搬走`);
+  once('库里共');
+  once('分位取近');
+  once('转折点只打在平滑后的水位线上');
+  once('阿姆斯本窗口');
+  once('极端点位·量价背离');
+  once('EXTREME_THRESHOLDS');
+  // 原先那一整行小字（图下面的 meta row）不再存在
+  assert.doesNotMatch(comp, /mt-1 flex flex-wrap items-center gap-x-3/, '图下面那行 meta 小字已搬进抽屉');
+  // 缺数／截断那一族（pct_warmup／not_signal）这一块显式收进抽屉 —— 全站红线仍是不折，
+  // 所以钉的是「这一块把两类合起来全进抽屉」，不是「全站都该进」。
+  assert.match(comp, /\[\.\.\.foldableCav, \.\.\.unhealthyCav\]/,
+    '这一块由用户点名把缺数类声明也收进抽屉（一块一例，不是全站放开；正文的 CaliberFold 撤了，分流在组件里自己做）');
+  // 10-31 定形：唯一出口是标题行最右边那颗 DocDrawer（正文里不许再卧第二颗同名按钮）
+  assert.match(comp, /className="ml-auto flex flex-wrap items-center gap-1\.5">\s*<DocDrawer/,
+    '「这块的说明」摆在标题这一行的最右边');
+  assert.doesNotMatch(comp, /<CaliberFold|<ExplainBox|<Caliber /,
+    '说明出口全站一颗：正文折框与「口径」芯片都跟着搬进标题行那颗');
+  assert.match(comp, /DrawerSection heading="图例/, '抽屉里图例自己起一个小节，与后端原句分开');
+  // 红线留在屏上
+  assert.match(comp, /不预测、不构成投资建议/, '免责句留在屏上，不进抽屉');
+  // 抽屉里的条数仍然写在按钮后面 ⇒「有东西没读到」这件事仍然看得见（DataPanel 那一处实现）
+  const dp = fs.readFileSync(path.join(HERE, '../src/components/ui/DataPanel.tsx'), 'utf8');
+  assert.match(dp, /heldUnhealthy \? `\$\{heldUnhealthy\} 条缺数与告警/, '折叠了缺数类就要在按钮后面报条数');
+  assert.match(dp, /\{extra\}/, 'CaliberFold 真的把 extra 画进抽屉正文（只加 prop 不接线＝没改）');
+});
+

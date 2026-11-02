@@ -1,6 +1,7 @@
 import { RefreshCw } from "lucide-react";
 import { Caliber } from "@/components/ui/Caliber";
-import { CaliberFold, ExplainBox, Panel } from "@/components/ui/DataPanel";
+import { CaliberFold, Panel } from "@/components/ui/DataPanel";
+import { DrawerSection } from "@/components/ui/DocDrawer";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { StockLink } from "@/components/ui/StockLink";
 import { useNonce, useProbe } from "@/lib/probe";
@@ -18,6 +19,7 @@ import {
   readingSentences, scoreBand, sparkPath, topPartsSentence,
   type SimRow, type SimilarityPayload,
 } from "@/lib/volumeSimilarity";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 近 30 根量价形状 ＋ 历史最相近样本（用户 2026-10-16：
@@ -97,8 +99,7 @@ export function VolumeSimilarityBoard({ code }: { code: string | null }) {
         </button>
       </div>
 
-      <Panel title="这一只最近的量能形状，与历史上最像它的十只" state={state}
-        note="本票排第一行（深色标出），随后十只按相近分降序；点列头排序只排这十只，第一行不动。">
+      <Panel title="这一只最近的量能形状，与历史上最像它的十只" state={state}>
         {p => {
           const t = p.target ?? null;
           const targetRow: Row = {
@@ -134,13 +135,40 @@ export function VolumeSimilarityBoard({ code }: { code: string | null }) {
                   <p key={i} className="text-[11px] leading-relaxed text-muted-foreground">{s}</p>
                 ))}
               </div>
-              {/* 声明 + 表下那两句散文（取数口径原句、字段义字典）收成一处默认收起的折叠块
-                  （用户 2026-10-21：「把页面上的描述性内容全部收缩起来，避免过多占屏」——
-                  原先口径那句摊在表前、字段义摊在表后，两处各占一段才凑得齐一张表）。
+              {/* 一模块一颗（用户 10-29 第 4 条 ＋ 11-01「做」）：这块原来四处出口 ——
+                  标题行 `Panel note` 一颗、这一颗折叠块、表尾两个 `ExplainBox` 各一颗。
+                  现在文字全部并进这一颗抽屉（那句"本票排第一行"成了 notes 第一段，
+                  「怎么点」与「相近分怎么算」成了两节），屏上只留一颗按钮。
                   **没跟着折的**：上面那格读数（样本库多少、过了硬过滤多少只）、表里逐行的「缺哪一维」
-                  那句 `text-warning`、`it.popHint`；缺数／截断一族的 caveat 由折叠块自己留在屏上。 */}
+                  那句 `text-warning`、`it.popHint`（弹窗被拦是告警）；缺数／截断一族的 caveat 由折叠块自己留在屏上。 */}
               <CaliberFold caveats={p.caveats ?? []} definitions={p.definitions}
-                notes={[p.caliber ? `取数口径（后端原句，页面未改写）：${p.caliber}` : null]} />
+                notes={[
+                  "本票排第一行（深色标出），随后十只按相近分降序；点列头排序只排这十只，第一行不动。",
+                  p.caliber ? `取数口径（后端原句，页面未改写）：${p.caliber}` : null,
+                ]}
+                extra={(
+                  <>
+                    <DrawerSection heading="这一张表怎么点 · 单击高亮什么 · 双击去哪里">
+                      <p className="text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
+                    </DrawerSection>
+                    <DrawerSection heading="相近分到底怎么算出来的（六个分量、权重、缺维怎么办）">
+                      <p>
+                        {(Object.entries(p.weights ?? {}) as [string, number][]).map(([k, w]) =>
+                          `${PART_LABEL[k] ?? k} ${Math.round(w * 100)}%`).join(" · ")}。
+                        形状比的是 12 格占比向量的余弦；强度比的是 p60/p80/p90/中位/最大各自除以自身均值后的欧氏距离；
+                        节奏比的是近 10 根均倍数 ÷ 前 20 根与波动率；量价配合比的是窗口内逐日涨跌幅之和与涨天占比
+                        （方向不同要打折）；大盘情绪比的是两端窗口末日的分差 ÷ 200；可比性只认同板块档同 ST。
+                        {plain(p.score_note ?? "")}
+                      </p>
+                      <p className="mt-1">
+                        为什么只和"进入过启动母体的窗口"比：本机没有把全市场历史上每个 30 根窗口都存下来，
+                        样本库就是那批已经涨过一次的票。所以这一屏能回答
+                        <b className="text-foreground">"历史上谁以这种量能形状启动过、之后走得怎样"</b>，
+                        不能回答<b className="text-foreground">"这种形状出现后全市场平均会怎样"</b>。
+                      </p>
+                    </DrawerSection>
+                  </>
+                )} />
 
               <div className="overflow-x-auto">
                 <table className="w-full text-[11px]">
@@ -233,28 +261,9 @@ export function VolumeSimilarityBoard({ code }: { code: string | null }) {
                 </table>
               </div>
 
-              {/* 弹窗被拦的告警是**告警**，留在框外先念；"怎么点"那句描述收进
-                  默认收起的说明框（用户 2026-10-19 夜：「把选项留出，描述内容都收缩起来」） */}
-              {it.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{it.popHint}</p>}
-              <ExplainBox title="这一张表怎么点 · 单击高亮什么 · 双击去哪里">
-                <p className="text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
-              </ExplainBox>
-              <ExplainBox title="相近分到底怎么算出来的（六个分量、权重、缺维怎么办）">
-                <p>
-                  {(Object.entries(p.weights ?? {}) as [string, number][]).map(([k, w]) =>
-                    `${PART_LABEL[k] ?? k} ${Math.round(w * 100)}%`).join(" · ")}。
-                  形状比的是 12 格占比向量的余弦；强度比的是 p60/p80/p90/中位/最大各自除以自身均值后的欧氏距离；
-                  节奏比的是近 10 根均倍数 ÷ 前 20 根与波动率；量价配合比的是窗口内逐日涨跌幅之和与涨天占比
-                  （方向不同要打折）；大盘情绪比的是两端窗口末日的分差 ÷ 200；可比性只认同板块档同 ST。
-                  {plain(p.score_note ?? "")}
-                </p>
-                <p className="mt-1">
-                  为什么只和"进入过启动母体的窗口"比：本机没有把全市场历史上每个 30 根窗口都存下来，
-                  样本库就是那批已经涨过一次的票。所以这一屏能回答
-                  <b className="text-foreground">"历史上谁以这种量能形状启动过、之后走得怎样"</b>，
-                  不能回答<b className="text-foreground">"这种形状出现后全市场平均会怎样"</b>。
-                </p>
-              </ExplainBox>
+              {/* 弹窗被拦的告警是**告警**，留在框外先念（同上一条红线）；
+                  原来跟在它后面的两个 `ExplainBox`（怎么点 / 相近分怎么算）已并入表前那一颗抽屉。 */}
+              {it.popHint && <NoticeBar kind="warning">{it.popHint}</NoticeBar>}
             </>
           );
         }}

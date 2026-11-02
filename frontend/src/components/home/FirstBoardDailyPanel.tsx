@@ -1,18 +1,19 @@
 import { Layers, RefreshCw } from "lucide-react";
 import { useState } from "react";
-import { Caliber } from "@/components/ui/Caliber";
-import { CaliberFold, Definitions, ExplainBox, QuietFold } from "@/components/ui/DataPanel";
+import { Caveats, CoverageNote, Definitions, Provenance, QuietFold } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { StockLink } from "@/components/ui/StockLink";
 import { plain } from "@/lib/agent";
+import { splitCaveats } from "@/lib/caveatKind";
 import { dash, describeState, NULL_TEXT } from "@/lib/datastate";
 import {
   LIMIT_OPTIONS, PAGE_SIZES, boardsWindowCell, boardsWindowTitle, dblCell, dblTitle, breakCountText,
   industrySide, intText, limitCountCell, limitCountTitle, maStackCell, maStackTitle, num, pctText,
   prevSealedHits, quadCell, quadTitle, ratioText, reasonCell, reasonCoverage,
-  consecCell, consecTitle, pos2yCell, pos2yTitle,
+  consecCell, consecTitle, pos2yCell, pos2yTitle, datedColLabel, sameWindow, xyCell, xyTitle,
   repeatedWords, sealText, shapeButtonLabel, shapeQuery, spikeTitle, thresholdsText, toggleShapeSel,
   truncationSentence, unjudgedShape, wanText,
   type FbdRow, type FirstBoardDaily,
@@ -22,6 +23,7 @@ import { rankText, rankTitle, trimNum } from "@/lib/ranking";
 import { STOCK_ROW_HINT, useStockRowInteraction } from "@/lib/useStockRowInteraction";
 import { useTableSort } from "@/lib/useSort";
 import { cn } from "@/lib/utils";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 首页「首板分析」（用户 2026-10-21 原话：「全市场换手率 TOP20 上面加一个首板分析，分析首板个股
@@ -48,17 +50,26 @@ import { cn } from "@/lib/utils";
 
 /** 列的一份清单：表头与格子从同一个数组走（两处各写一份就会错位，全站栽过一次）。
  *  第 3 个元素是分组键；第 4 个（`false`）表示这一格**不给排序** ——
- *  近 5 场象限交的是一段序列、倍量那一格是两个数，都没有「更大／更小」这一把单一尺，
+ *  近 5 场象限与 XY 合计名次交的都是一段序列、倍量那一格是两个数，都没有「更大／更小」这一把单一尺，
  *  硬给个 sortKey 只会静默不排序还显示已排序。
  *  10-27 用户点名：删掉「几天几板」「当日涨幅」与整组「前一交易日那一根」（与短线情绪那块重复），
- *  换成近 20 场几板、近 5 场四维象限名次、近 10/20 场倍量分布与盘中信号三列。 */
-type Col = [key: string, label: string, group: "day" | "trend" | "history", sortable?: boolean];
+ *  换成近 20 场几板、近 5 场四维象限名次、近 10/20 场倍量分布与盘中信号三列。
+ *  ⚠️ 10-28 用户点名三件事（改这三件前先看，别改回旧形状）：
+ *   ① 「近 5 场四维象限」与新增的「XY 合计名次」格子里**不写日期**（日期写在列名上，见 `datedColLabel`）；
+ *   ② 抢跑比／近 10 场倍量／近 20 场倍量／倍量加权分（＋它的名次那一列）**整族移到最后**——
+ *      用户原话「这几个是什么意思，看不懂」，放在中间会把前面几列挤走；同族第五列 `dbl_rank`
+ *      是「加权分的名次」，留在中间会读成另一件事，所以跟着一起挪；
+ *   ③ 前两列（代码／名称）**横向滚动时钉住**（`col-pin-1`／`col-pin-2`，样式在 `src/index.css`，
+ *      底色必须是实色：卡片是半透明玻璃，透明钉列会让滚过去的内容从底下透出来）。 */
+type Col = [key: string, label: string, group: "day" | "trend" | "history" | "energy", sortable?: boolean];
 const COLS: Col[] = [
   ["code", "代码", "day"],
   ["name", "名称", "day"],
   ["board", "板别", "day"],
   ["boards_20d", "近 20 场几板", "day"],
-  ["quad", "近 5 场四维象限 · 名次", "day", false],
+  // 列名上的那串日期由接口 `recent.quad_dates` 现填（页面不自己按本机日历推）
+  ["quad", "四维象限", "day", false],
+  ["xy", "XY 合计名次", "day", false],
   ["launch_turnover", "换手", "day"],
   ["first_seal_at", "首封时间", "day"],
   ["last_seal_at", "最后封板", "day"],
@@ -68,11 +79,6 @@ const COLS: Col[] = [
   ["chg5", "近 5 场", "trend"],
   ["chg10", "近 10 场", "trend"],
   ["chg15", "近 15 场", "trend"],
-  ["vol_grab_ratio", "抢跑比", "trend"],
-  ["dbl10", "近 10 场倍量", "trend", false],
-  ["dbl20", "近 20 场倍量", "trend", false],
-  ["dbl_energy", "倍量加权分", "trend"],
-  ["dbl_rank", "倍量名次（有分的那批）", "trend"],
   // 急拉档那一格显示中文档位，排序用的是后端交的 `spike_tier_rank`（1 慢拉 / 2 快拉 / 3 急拉）——
   // 显示值与排序键不是一个字段，所以这一列必须逐列点击实测（sortKey 写错不报错、也不换序）。
   ["spike_tier_rank", "急拉档", "trend"],
@@ -88,20 +94,29 @@ const COLS: Col[] = [
   // 均线排列：格子念中文档名，排序走后端交的 `ma_stack_rank`（与「急拉档」同一族写法，
   // 显示值与排序键不是一个字段 ⇒ 必须逐列点击实测）。
   ["ma_stack_rank", "均线排列", "history"],
+  // ↓ 10-28 用户点名移到最后的「倍量与抢跑」那一族（口径句子只住后端 definitions）
+  ["vol_grab_ratio", "抢跑比", "energy"],
+  ["dbl10", "近 10 场倍量", "energy", false],
+  ["dbl20", "近 20 场倍量", "energy", false],
+  ["dbl_energy", "倍量加权分", "energy"],
+  ["dbl_rank", "倍量名次（有分的那批）", "energy"],
 ];
 
-const GROUPS: { key: "day" | "trend" | "history"; label: string }[] = [
+const GROUPS: { key: "day" | "trend" | "history" | "energy"; label: string }[] = [
   { key: "day", label: "首板当日那一根" },
-  { key: "trend", label: "近期走势、量能与盘中信号" },
+  { key: "trend", label: "近期走势与盘中信号" },
   { key: "history", label: "这只票自己的历史位置" },
+  { key: "energy", label: "倍量与抢跑那一族（看不懂先翻下面折叠的口径）" },
 ];
 
-/** 不给排序的那几列各自有一句「为什么不给点」：象限是一段序列、倍量一格是两个数，
+/** 不给排序的那几列各自有一句「为什么不给点」：象限与名次那一格是一段序列、倍量那一格是两个数，
  *  拿同一句话套会念错（全站那句「点了不亮」的教训只在有 sortKey 时成立）。 */
 const NO_SORT_WHY: Record<string, string> = {
   quad: "这一格是一段序列（近 5 场逐场，由早到晚），没有「更大／更小」这一把尺，所以不给点。",
+  xy: "这一格同样是一段序列（近 5 场的 XY 合计名次，由早到晚，越小越靠前）——"
+    + "整串没有单一大小，所以不给点；要看「名次稳步前进」那种判据，走「名次稳步前进榜」那一屏。",
   dbl10: "这一格是两个数（倍量次数·准倍量次数），没有单一大小，所以不给点；"
-    + "要按倍量强度排，走同一屏「倍量加权分」「倍量名次」那两列（另一把尺，分母是前 5 场均量）。",
+    + "要按倍量强度排，走同一族里「倍量加权分」「倍量名次」那两列（另一把尺，分母是前 5 场均量）。",
   dbl20: "与近 10 场那一列同一说法，只是窗口更长（20 场）。",
 };
 
@@ -140,9 +155,45 @@ export function FirstBoardDailyPanel() {
   const sealedHits = prevSealedHits(rows);
   /** 近 20 场那一列的窗口长度读接口（写死在界面就是第二份真相源）；没交就不判"根数不足" */
   const boardsWin = num(d?.recent?.boards_window);
+  const recent = d?.recent ?? null;
   /** 四列历史位置的窗口场数、根数下限、均线周期与档名——全部读接口（抄第二份就会漂） */
   const hist = d?.history;
   const shapeFilter = d?.shape_filter ?? [];
+
+  /**
+   * 10-31 用户点名：这一块唯一的说明出口是标题行最右边那颗「这块的说明」。
+   * 原先标题旁一枚「口径」芯片、表底卧着 Definitions 折框与 CaliberFold（foldAll＝10-22 用户
+   * 点名首页这块的描述性内容全收）、卡外还有一只 ExplainBox —— 四个出口并成这一颗，
+   * 内容来源一个字没换：rule/caliber/coverage/source/caveats 全是后端交出的原句，
+   * 读法几段仍是页面原本就写好的那些。缺数类条目连同条数进抽屉（条数写在按钮后面，
+   * 「有东西没读到」这件事仍然看得见）；截断、自检、筛后计数那几句声明照旧留在屏上。
+   */
+  const { visible: unhealthyCav, foldable: foldableCav } = splitCaveats(d?.caveats);
+  const heldCav = [...foldableCav, ...unhealthyCav];
+  const defsCount = Object.entries(d?.definitions ?? {}).length;
+  const covMap = d?.coverage ? { ...d.coverage } : null;
+  const covEntries = Object.entries(covMap ?? {}).filter(([, v]) =>
+    v && typeof v === "object" && !Array.isArray(v) && ("from" in (v as object) || "to" in (v as object)));
+  const noteBits = d ? [
+    d.rule, d.caliber,
+    `这一屏读的是落库判据（spec_version ${dash(d.spec_version)}），不现抓网络：`
+    + `本场行算于 ${dash(d.calculated_at)}；表覆盖 ${dash(d.coverage?.from)} ~ ${dash(d.coverage?.to)}`
+    + ` 共 ${intText(d.coverage?.sessions)} 场。日期空着＝库里最新的一场，不是今天一定有新数。`,
+    // 题材词榜那两句取数说明（用户 10-27 点名收起）：被切掉的词数与行业那一侧的交代
+    `另有 ${intText(d?.reason_tally?.summary_meta?.dropped_single_reason)} 个只出现一次的词没列进来`
+    + `（接口给的词次合计 ${intText(d?.reason_tally?.summary_meta?.tag_total)}）。`,
+    ind.words === null ? (ind.note ?? "行业那一侧接口这场没交说法（summary_meta.industry_note 是空的）。")
+      : ind.words.length === 0 ? "行业那侧接口这场交的是空列表，页面不摆一个空的行业榜。"
+        : `行业重复：${ind.words.map(w => `${w.name} ${intText(w.count)}`).join("、")}`,
+  ].filter(Boolean) : [];
+  const drawerTally = d ? [
+    heldCav.length - unhealthyCav.length ? `${heldCav.length - unhealthyCav.length} 条口径声明` : null,
+    unhealthyCav.length ? `${unhealthyCav.length} 条缺数与告警（本场有读不到／判不了的行）` : null,
+    noteBits.length ? `${noteBits.length} 句母体与读法` : null,
+    defsCount ? `${defsCount} 个字段解释` : null,
+    covEntries.length ? `${covEntries.length} 段覆盖区间` : null,
+    d.source ? `出处 1 项` : null,
+  ].filter(Boolean).join(" · ") : "";
 
   const card = (label: string, value: string, unit: string, title: string, hi = false) => (
     <div key={label} title={title}
@@ -157,14 +208,11 @@ export function FirstBoardDailyPanel() {
   );
 
   return (
-    <GlassCard className="mt-4">
+    <GlassCard className="mt-4" docTitle={`首板分析 · ${dash(d?.date) || NULL_TEXT}`}>
       <div className="mb-1.5 flex flex-wrap items-center gap-2">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
           <Layers className="h-4 w-4" /> 首板分析 · {dash(d?.date) || NULL_TEXT}
         </h3>
-        <Caliber text={d?.rule
-          ? plain(d.rule)
-          : "母体与默认行序由后端交（rule 字段）—— 后端没交时页面不自己复述判据，免得出现第二份口径。"} />
         <label className="flex items-center gap-1 text-[11px] text-muted-foreground"
           title={plain("交易日留空＝读库里最新的一场；改了会重发一次请求。这一屏只认库里算好判据的那些场次。")}>
           交易日
@@ -194,8 +242,71 @@ export function FirstBoardDailyPanel() {
             </button>
           ))}
         </span>
+        {/* 「这块的说明」摆在标题这一行的最右边（用户 10-31），「重新取数」那颗跟在它右边。
+            抽屉体 = 原先四个出口的并集：母体与读法（后端 rule/caliber 原句与那几句拼好的话）、
+            口径声明（含 10-22 点名一起收的缺数那族，条数写在按钮后面）、字段字典、覆盖、出处，
+            以及原本卡在外的「这一块怎么读」那几段——逐字搬入，屏上不再出现第二遍。 */}
+        <span className="ml-auto flex flex-wrap items-center gap-1.5">
+          <DocDrawer title={`首板分析 · ${dash(d?.date) || NULL_TEXT}`}>
+            {!d?.rule && (
+              <p>{plain("母体与默认行序由后端交（rule 字段）—— 后端没交时页面不自己复述判据，免得出现第二份口径。")}</p>
+            )}
+            {d && noteBits.length > 0 && (
+              <DrawerSection heading="母体与读法（本屏那几句散句，后端原句）">
+                {noteBits.map((t, i) => <p key={`n${i}`}>{plain(String(t))}</p>)}
+              </DrawerSection>
+            )}
+            {heldCav.length > 0 && (
+              <DrawerSection heading="口径声明（后端 caveats 原句，页面未改写）">
+                <Caveats items={heldCav} />
+              </DrawerSection>
+            )}
+            {defsCount > 0 && (
+              <DrawerSection heading="这一列是什么（字段含义，后端 definitions）">
+                <Definitions map={d?.definitions ?? null} bare />
+              </DrawerSection>
+            )}
+            {covEntries.length > 0 && (
+              <DrawerSection heading="覆盖区间（从哪天起、共几场）">
+                <CoverageNote map={covMap} />
+              </DrawerSection>
+            )}
+            {d?.source && (
+              <DrawerSection heading="出处">
+                <Provenance bits={[d.source]} />
+              </DrawerSection>
+            )}
+            <DrawerSection heading="这一块怎么读 · 表分哪两段 · 这一张表怎么点">
+              <p>{plain("母体是「连板段的第一天」那批票（本地日线判据），与首板页那张东财实时池不是一张名单；"
+                + "两屏的只数对不上是容差与实时/收盘时点之差，谁也不许冒充谁 —— 原句在本抽屉「母体与读法」那节的 rule 与 caliber 两句里逐字摆着。")}</p>
+              <p className="mt-1">{plain("四段从左到右：① 首板当日那一根（板别、近 20 场几板、近 5 场四维象限、"
+                + "近 5 场 XY 合计名次、换手、首封与最后封板、炸板次数、封单额、涨停原因）；"
+                + "② 近期走势与盘中信号（近 5／10／15 场涨幅、急拉档、+5% 首现、15 分钟最大拉升）；"
+                + "③ 这只票自己的历史位置（近 3 月涨/跌停、近 6 月连板最高、2 年位置、均线排列）；"
+                + "④ 倍量与抢跑那一族（抢跑比、近 10／20 场倍量、倍量加权分与名次）—— "
+                + "第 ④ 段是用户 10-28 点名从中间移到最后的（原话「这几个是什么意思，看不懂」），"
+                + "口径原句各列悬停里都在，一列都没撤。"
+                + "前两列（代码／名称）横向滚动时钉在左边不动。"
+                + "10-27 起「前一交易日那一根」整组不再在这屏上摆 —— 与首页短线情绪那块是同一批数，接口仍交出，只是不重复呈现。")}</p>
+              <p className="mt-1">{plain("「四维象限」与「XY 合计名次」这两列的格子里不写日期（用户 10-28 点名），"
+                + "日期就写在列名上，逐场的名次与分值在悬停里；两列都由早到晚排，最后一场就是本场。"
+                + "XY 合计名次是 X 轴名次 + Y 轴名次相加（两个已入库名次之和，越小越靠前），"
+                + "库住在 `analytics.xy_rank_daily`（加工段第 37 步 `xyrank` 每天落），屏上一个加法都不做；"
+                + "它与「oper_score 名次」（合成分再排一次）不是同一把尺，谁也不许替谁。")}</p>
+              <p className="mt-1">{plain("近 5／10／15 场是后复权区间涨幅（与全站同一把尺）；抢跑比是启动前 5 根均量 ÷ 前 25 根均量，"
+                + "一个量能比，不是涨幅；倍量名次排的是当日「有分的那批」，不是全部股票。"
+                + "「近 10 / 近 20 场倍量」的分母是对昨日量（vr-1），与「倍量加权分」那把 ≥2×前 5 场均量不是一把尺 —— 两列各带自己的分母。")}</p>
+              <p className="mt-1">{plain("盘中那三列（急拉档、+5% 首现、15 分钟最大拉升）读的是筛过的异动榜：没进榜只说明没过入表线，不等于盘中没冲高；"
+                + "分钟线只有 2026-08-14 起，10-20 与 10-21 两天整场没入库，那几天的 — 是「没有分时读数」。"
+                + "急拉档那一格显示中文档位，排序用的是后端那个等级数。")}</p>
+              <p className="mt-1">{STOCK_ROW_HINT}</p>
+              <p className="mt-1">{plain("这一屏不打分、不预测、不给买卖建议：首板只是「已经涨停」这个事实的形状与归因读数。")}</p>
+            </DrawerSection>
+          </DocDrawer>
+          {drawerTally && <span className="text-[10px] text-muted-foreground">{drawerTally}</span>}
+        </span>
         <button type="button" onClick={() => { x.clearAll(); refresh(); }} title="重新取数"
-          className="ml-auto flex items-center gap-1 rounded-lg bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25">
+          className="flex items-center gap-1 rounded-lg bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25">
           <RefreshCw className="h-3.5 w-3.5" /> 重新取数
         </button>
       </div>
@@ -280,7 +391,20 @@ export function FirstBoardDailyPanel() {
                 + `上面每档那个数仍是本场全部首板的全场数，不是筛完剩下的数。`)}
             </p>
           )}
-          {x.popHint && <p role="status" className="mb-0.5 text-[11px] leading-relaxed text-warning">{x.popHint}</p>}
+          {x.popHint && <NoticeBar kind="warning">{x.popHint}</NoticeBar>}
+
+          {/* 两列「近 5 场」读的是两张不同的表（score 的 oper_score / xy_rank_daily 的 xyr-1），
+              补跑进度不一致时那五天会分叉 —— 同一批才敢说"同一批"，分叉了后端会另发一条 hard 告警。 */}
+          {recent && (recent.xy_dates ?? []).length > 0 && (
+            <p className="mb-0.5 text-[11px] leading-relaxed text-muted-foreground">
+              {sameWindow(recent.quad_dates, recent.xy_dates)
+                ? plain(`「四维象限」与「XY 合计名次」这两列读的是同一批场次（`
+                  + `${(recent.xy_dates ?? []).join("、")}），越小越靠前的都是名次，不是分数。`)
+                : plain(`注意：这两列各自查自己那张表的最近 ${recent.xy_sessions ?? "—"} 场，`
+                  + `现在不是同一批（XY：${(recent.xy_dates ?? []).join("、")}；象限：`
+                  + `${(recent.quad_dates ?? []).join("、") || "—"}）—— 各列只按自己列名上那串日期读。`)}
+            </p>
+          )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-[11px]">
@@ -295,30 +419,42 @@ export function FirstBoardDailyPanel() {
                   })}
                 </tr>
                 <tr className="text-left text-muted-foreground">
-                  {COLS.map(([k, label, grp, sortable = true]) => (
-                    sortable
+                  {COLS.map(([k, rawLabel, grp, sortable = true]) => {
+                    // 日期写在列名上（用户 10-28 点名）：quad／xy 这两列的名字由接口那两份日期现填，
+                    // 两批日期真同一批时才说"同一批"，否则只写自己那份日期。
+                    const label = k === "quad"
+                      ? datedColLabel(rawLabel, recent?.quad_dates, recent?.quad_sessions ?? null)
+                      : k === "xy"
+                        ? datedColLabel(rawLabel, recent?.xy_dates, recent?.xy_sessions ?? null)
+                        : rawLabel;
+                    const pin = k === "code" ? "col-pin col-pin-1"
+                      : k === "name" ? "col-pin col-pin-2" : "";
+                    return sortable
                       ? <SortHeader key={k} label={label} sortKey={k} dir={srt.dirOf(k)}
                         onSort={() => { x.clearAll(); srt.toggle(k); }}
                         title={`${colTitle(k, th)}｜${plain(grp === "day"
                           ? "首板当日那一根；点列头排序用的是接口交出的那一份数，缺数恒排最后"
-                          : "近期与盘中那一组：排序按接口交出的原值，缺数（—）恒排最后，不按 0 参与比较")}`}
-                        className={cn("whitespace-nowrap", k === "reason" && "min-w-[15rem] max-w-[24rem]")} />
-                      : <th key={k} className="whitespace-nowrap px-2 py-2 font-medium"
+                          : grp === "energy"
+                            ? "倍量与抢跑那一族（用户 10-28 点名移到最后）：分母各不相同，悬停里各带自己的口径原句"
+                            : "近期与盘中那一组：排序按接口交出的原值，缺数（—）恒排最后，不按 0 参与比较")}`}
+                        className={cn("whitespace-nowrap", k === "reason" && "min-w-[15rem] max-w-[24rem]", pin)} />
+                      : <th key={k} className={cn("whitespace-nowrap px-2 py-2 font-medium", pin)}
                         title={`${colTitle(k, th)}｜${plain(NO_SORT_WHY[k] ?? "这一格没有一把可比的大小，所以不给点")}`}>
                         {label}
-                      </th>
-                  ))}
+                      </th>;
+                  })}
                 </tr>
               </thead>
               <tbody>
                 {shown.map((r, i) => (
                   <tr key={`${r.code}-${i}`} {...x.rowProps(i, r.code, undefined,
                     plain(`这一行是 ${dash(r.name || r.code)} 的首板当日（场次 ${dash(d.date)}）；`
-                      + `左边是当日那一根，右边是近 5～20 场的走势、量能与盘中信号`))}>
-                    <td {...x.cellProps(i, "code", "whitespace-nowrap px-2 py-1 font-mono")}>
+                      + `左边钉住的是代码与名称（横滚不动），中间是当日那一根与近几场走势，`
+                      + `最右是倍量与抢跑那一族`))}>
+                    <td {...x.cellProps(i, "code", "whitespace-nowrap px-2 py-1 font-mono col-pin col-pin-1")}>
                       <StockLink code={r.code} className="font-mono hover:text-primary">{dash(r.code)}</StockLink>
                     </td>
-                    <td {...x.cellProps(i, "name", "whitespace-nowrap px-2 py-1")}>
+                    <td {...x.cellProps(i, "name", "whitespace-nowrap px-2 py-1 col-pin col-pin-2")}>
                       <StockLink code={r.code} name={r.name} className="px-2 py-1 font-medium hover:text-primary" />
                       {r.is_one_word === true && (
                         <span className="ml-1 rounded bg-warning/15 px-1 text-[10px] text-warning"
@@ -336,6 +472,12 @@ export function FirstBoardDailyPanel() {
                     <td {...x.cellProps(i, "quad", "px-2 py-1 font-mono text-[10px] whitespace-nowrap")}
                       title={quadTitle(r, th("quad"))}>
                       {quadCell(r)}
+                    </td>
+                    {/* XY 合计名次：数读 `analytics.xy_rank_daily`（加工段第 37 步），屏上一个加法都不做。
+                        越小越靠前那句方向只用后端 `ranking.DIRECTION_NOTE` 一份（在 definitions.xy 里带出）。 */}
+                    <td {...x.cellProps(i, "xy", "px-2 py-1 font-mono text-[10px] whitespace-nowrap tabular-nums")}
+                      title={xyTitle(r, th("xy"))}>
+                      {xyCell(r)}
                     </td>
                     <td {...x.cellProps(i, "launch_turnover", "whitespace-nowrap px-2 py-1 font-mono tabular-nums")}
                       title={th("launch")}>
@@ -379,28 +521,6 @@ export function FirstBoardDailyPanel() {
                       title={th("trend")}>
                       {pctText(r.chg15)}
                     </td>
-                    <td {...x.cellProps(i, "vol_grab_ratio", "whitespace-nowrap px-2 py-1 font-mono tabular-nums")}
-                      title={th("trend")}>
-                      {ratioText(r.vol_grab_ratio)}
-                    </td>
-                    <td {...x.cellProps(i, "dbl10", "whitespace-nowrap px-2 py-1 font-mono tabular-nums")}
-                      title={dblTitle(r, 10, th("dbl_windows"))}>
-                      {dblCell(r, 10)}
-                    </td>
-                    <td {...x.cellProps(i, "dbl20", "whitespace-nowrap px-2 py-1 font-mono tabular-nums")}
-                      title={dblTitle(r, 20, th("dbl_windows"))}>
-                      {dblCell(r, 20)}
-                    </td>
-                    <td {...x.cellProps(i, "dbl_energy", "whitespace-nowrap px-2 py-1 font-mono tabular-nums")}
-                      title={r.dbl_energy == null
-                        ? plain("这一格是 —：这一行没有倍量加权分（没有分就没有名次，不是 0 分）。")
-                        : th("energy")}>
-                      {trimNum(r.dbl_energy)}
-                    </td>
-                    <td {...x.cellProps(i, "dbl_rank", "whitespace-nowrap px-2 py-1 font-mono tabular-nums")}
-                      title={rankTitle(th("energy"), { scored: num(r.energy_universe) }, r.dbl_rank ?? null)}>
-                      {rankText(r.dbl_rank)}
-                    </td>
                     {/* 盘中三列：档位显示中文、排序走后端交的 `spike_tier_rank`；
                         「没进榜」与「这一族没读到」是两件事，一个写字面、一个写 —。 */}
                     <td {...x.cellProps(i, "spike_tier_rank", "whitespace-nowrap px-2 py-1")}
@@ -436,6 +556,31 @@ export function FirstBoardDailyPanel() {
                     <td {...x.cellProps(i, "ma_stack_rank", "whitespace-nowrap px-2 py-1")}
                       title={maStackTitle(r, hist, th("hist_ma"))}>
                       {maStackCell(r)}
+                    </td>
+                    {/* ↓ 「倍量与抢跑」那一族五列（用户 10-28 点名移到最后：「这几个是什么意思，看不懂」）。
+                        每列的口径原句仍各自读后端 definitions（trend／dbl_windows／energy 三份），
+                        挪的只是位置 —— 一列都不许因为"看不懂"就撤掉或换成页面自己编的说法。 */}
+                    <td {...x.cellProps(i, "vol_grab_ratio", "whitespace-nowrap px-2 py-1 font-mono tabular-nums")}
+                      title={th("trend")}>
+                      {ratioText(r.vol_grab_ratio)}
+                    </td>
+                    <td {...x.cellProps(i, "dbl10", "whitespace-nowrap px-2 py-1 font-mono tabular-nums")}
+                      title={dblTitle(r, 10, th("dbl_windows"))}>
+                      {dblCell(r, 10)}
+                    </td>
+                    <td {...x.cellProps(i, "dbl20", "whitespace-nowrap px-2 py-1 font-mono tabular-nums")}
+                      title={dblTitle(r, 20, th("dbl_windows"))}>
+                      {dblCell(r, 20)}
+                    </td>
+                    <td {...x.cellProps(i, "dbl_energy", "whitespace-nowrap px-2 py-1 font-mono tabular-nums")}
+                      title={r.dbl_energy == null
+                        ? plain("这一格是 —：这一行没有倍量加权分（没有分就没有名次，不是 0 分）。")
+                        : th("energy")}>
+                      {trimNum(r.dbl_energy)}
+                    </td>
+                    <td {...x.cellProps(i, "dbl_rank", "whitespace-nowrap px-2 py-1 font-mono tabular-nums")}
+                      title={rankTitle(th("energy"), { scored: num(r.energy_universe) }, r.dbl_rank ?? null)}>
+                      {rankText(r.dbl_rank)}
                     </td>
                   </tr>
                 ))}
@@ -481,46 +626,14 @@ export function FirstBoardDailyPanel() {
                 ))}
               </ul>
             )}
-            {/* 用户 10-27 点名这两句默认收起：整段交给下方 CaliberFold 的 notes（全站一处折叠），
-                「另有 N 个词没列进来」那个数写在折叠行上（N 句母体与读法），收起的是原句不是这件事。 */}
+            {/* 用户 10-27 点名这两句默认收起、10-31 点名搬进标题行那颗按钮：整段进了上面抽屉的
+                「母体与读法」，「另有 N 个词没列进来」的条数也在那一节里逐字写着。 */}
           </div>
 
-          <Definitions map={d.definitions} />
-          {/* 用户 10-27 点名：这些说明整段默认收起。`foldAll` 会把那几条缺数／截断声明一起收进去，
-              但条数仍写在折叠那一行上（"缺数与告警 M 条"）—— 收起的是原句，不是"有东西没读到"这件事。 */}
-          <CaliberFold foldAll caveats={d.caveats} coverage={d.coverage ? { ...d.coverage } : null}
-            provenance={[d.source]}
-            notes={[d.rule, d.caliber,
-              `这一屏读的是落库判据（spec_version ${dash(d.spec_version)}），不现抓网络：`
-              + `本场行算于 ${dash(d.calculated_at)}；表覆盖 ${dash(d.coverage?.from)} ~ ${dash(d.coverage?.to)}`
-              + ` 共 ${intText(d.coverage?.sessions)} 场。日期空着＝库里最新的一场，不是今天一定有新数。`,
-              // 题材词榜那两句取数说明（用户 10-27 点名收起）：被切掉的词数与行业那一侧的交代
-              `另有 ${intText(d?.reason_tally?.summary_meta?.dropped_single_reason)} 个只出现一次的词没列进来`
-              + `（接口给的词次合计 ${intText(d?.reason_tally?.summary_meta?.tag_total)}）。`,
-              ind.words === null ? (ind.note ?? "行业那一侧接口这场没交说法（summary_meta.industry_note 是空的）。")
-                : ind.words.length === 0 ? "行业那侧接口这场交的是空列表，页面不摆一个空的行业榜。"
-                  : `行业重复：${ind.words.map(w => `${w.name} ${intText(w.count)}`).join("、")}`,
-            ]} />
           <Disclaimer compact />
 
         </>
       )}
-
-      <ExplainBox title="这一块怎么读 · 表分哪两段 · 这一张表怎么点">
-        <p>{plain("母体是「连板段的第一天」那批票（本地日线判据），与首板页那张东财实时池不是一张名单；"
-          + "两屏的只数对不上是容差与实时/收盘时点之差，谁也不许冒充谁 —— 原句在下方折叠框的 rule 与 caliber 里逐字摆着。")}</p>
-        <p className="mt-1">{plain("左边那一段是首板当日那一根（板别、近 20 场几板、近 5 场四维象限与名次、换手、首封与最后封板、炸板次数、封单额、涨停原因）；"
-          + "右边那一段是这只票最近什么样（近 5／10／15 场涨幅、抢跑比、近 10 与 20 场的倍量分布、倍量加权分与名次、盘中三列信号）。"
-          + "10-27 起「前一交易日那一根」整组不再在这屏上摆 —— 与首页短线情绪那块是同一批数，接口仍交出，只是不重复呈现。")}</p>
-        <p className="mt-1">{plain("近 5／10／15 场是后复权区间涨幅（与全站同一把尺）；抢跑比是启动前 5 根均量 ÷ 前 25 根均量，"
-          + "一个量能比，不是涨幅；倍量名次排的是当日「有分的那批」，不是全部股票。"
-          + "「近 10 / 近 20 场倍量」的分母是对昨日量（vr-1），与「倍量加权分」那把 ≥2×前 5 场均量不是一把尺 —— 两列各带自己的分母。")}</p>
-        <p className="mt-1">{plain("盘中那三列（急拉档、+5% 首现、15 分钟最大拉升）读的是筛过的异动榜：没进榜只说明没过入表线，不等于盘中没冲高；"
-          + "分钟线只有 2026-08-14 起，10-20 与 10-21 两天整场没入库，那几天的 — 是「没有分时读数」。"
-          + "急拉档那一格显示中文档位，排序用的是后端那个等级数。")}</p>
-        <p className="mt-1">{STOCK_ROW_HINT}</p>
-        <p className="mt-1">{plain("这一屏不打分、不预测、不给买卖建议：首板只是「已经涨停」这个事实的形状与归因读数。")}</p>
-      </ExplainBox>
 
       {d && rows.length === 0 && (
         <p className="mt-1 text-[11px] leading-relaxed text-warning">
@@ -553,6 +666,8 @@ function colTitle(key: string, th: (k: string) => string): string {
       return th("boards_20d");
     case "quad":
       return th("quad");
+    case "xy":
+      return th("xy");
     case "launch_turnover":
     case "order_amount_wan":
       return th("launch");

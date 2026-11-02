@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { RefreshCw, Layers3 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { Caliber } from "@/components/ui/Caliber";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { useTableSort } from "@/lib/useSort";
-import { Definitions, ExplainBox } from "@/components/ui/DataPanel";
+import { Definitions } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection, docLabel } from "@/components/ui/DocDrawer";
 import { pctColor } from "@/lib/colors";
 import { finite, plain } from "@/lib/agent";
 import { cn } from "@/lib/utils";
@@ -94,8 +94,9 @@ function ShareChart({ series, active, onToggle, sessions, basis }: {
           </button>
         ))}
       </div>
+      {/* 11-01「屏上只留读数」：纵轴那把尺是什么并进了这一块标题行那颗抽屉；
+          留在屏上的只有「线为什么会有缺口」这一句 —— 它是缺数声明，不许折。 */}
       <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-        纵轴是{basis === "turnover" ? "当日换手率（本板块成交额 ÷ 本板块成分流通市值合计），剔的是板块盘子大小" : "份额（本板块成交额 ÷ 当日全场板块成交额），剔的是全场共同放量"}，不是金额、不是涨跌幅；
         每条线只画到最近一场，中间那天库里没数就断线，不拿邻近交易日补。
       </p>
     </div>
@@ -239,23 +240,6 @@ export function SectorRotationBoard({ data, loading, onRefresh, basis, onBasis }
             </button>
           ))}
         </div>
-        <Caliber text={[
-          "这是本地库里按场存的统计量，不是盘中即时净流入，也不是买卖信号。",
-          data.calibers?.value ?? "",
-          data.calibers?.cum ?? "",
-          data.calibers?.cum_days ?? "",
-          data.calibers?.streak ?? "",
-          data.calibers?.rank ?? "",
-          data.calibers?.amount ?? "",
-          // 这句实证只在份额那一档成立：它是拿份额序列测出来的。换手那一档没做过同一个检验，
-          // 借用过来就是替后端说一句它没说过的话（所以按 basis 分支，不做统一措辞）。
-          // 这里是 title 悬停文本，不写 markdown 星号（native tooltip 不过 plain()）。
-          turnover
-            ? "⚠️ 换手强度这一档没有做过「连续 n 场后下一场仍延续」的检验：界面只说过去几场谁在抬／在落，"
-              + "不说接下来会继续；那句实测的均值回复属于份额口径，要看切回份额那一档。"
-            : "⚠️ 均值回复：份额连续 n 场抬升后、下一场仍抬升的概率随 n 单调下降（后端 evidence 给了实测数）。"
-              + "所以这张榜只说「过去几场谁的份额在抬／在落」，不说「接下来会继续」。",
-        ].filter(Boolean).join("\n")} />
         <div className="flex items-center gap-1">
           {(data.windows ?? []).map(w => (
             <button key={w} type="button" onClick={() => setWin(w)}
@@ -265,7 +249,49 @@ export function SectorRotationBoard({ data, loading, onRefresh, basis, onBasis }
             </button>
           ))}
         </div>
-        <span className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground/60">
+        {/* 「这块的说明」摆在标题这一行的最右边（用户 10-31），as-of 那串时间戳排在它右边；
+            原先标题旁的「口径」芯片、卡底的 Definitions 折框与 ExplainBox 三个出口并成这一颗，
+            内容来源不变（后端 calibers 那一份 + 页面原本就说的那几句），屏上不出现第二遍。 */}
+        <span className="ml-auto flex flex-wrap items-center gap-2">
+          <DocDrawer title={`资金轮动 · ${turnover ? "换手口径" : "份额口径"}（本地逐日）`}
+            label={docLabel(turnover ? "换手口径·本地逐日" : "份额口径·本地逐日")}>
+            <p className="whitespace-pre-line leading-relaxed">{plain([
+              "这是本地库里按场存的统计量，不是盘中即时净流入，也不是买卖信号。",
+              // 折线纵轴那把尺（原写在图下面那 80 字里，11-01 搬进这一颗；图下只留「缺数那天断线」那句）
+              turnover
+                ? "折线纵轴是当日换手率（本板块成交额 ÷ 本板块成分流通市值合计），剔的是板块盘子大小 —— 不是金额、不是涨跌幅。"
+                : "折线纵轴是份额（本板块成交额 ÷ 当日全场板块成交额），剔的是全场共同放量 —— 不是金额、不是涨跌幅。",
+              data.calibers?.value ?? "",
+              data.calibers?.cum ?? "",
+              data.calibers?.cum_days ?? "",
+              data.calibers?.streak ?? "",
+              data.calibers?.rank ?? "",
+              data.calibers?.amount ?? "",
+              // 这句实证只在份额那一档成立：它是拿份额序列测出来的。换手那一档没做过同一个检验，
+              // 借用过来就是替后端说一句它没说过的话（所以按 basis 分支，不做统一措辞）。
+              turnover
+                ? "⚠️ 换手强度这一档没有做过「连续 n 场后下一场仍延续」的检验：界面只说过去几场谁在抬／在落，"
+                  + "不说接下来会继续；那句实测的均值回复属于份额口径，要看切回份额那一档。"
+                : "⚠️ 均值回复：份额连续 n 场抬升后、下一场仍抬升的概率随 n 单调下降（后端 evidence 给了实测数）。"
+                  + "所以这张榜只说「过去几场谁的份额在抬／在落」，不说「接下来会继续」。",
+            ].filter(Boolean).join("\n"))}</p>
+            {Object.keys(data.calibers ?? {}).length > 0 && (
+              <DrawerSection heading="这些字段是什么意思">
+                <Definitions map={data.calibers} bare />
+              </DrawerSection>
+            )}
+            {!!data.excluded_types?.length && (
+              <DrawerSection heading="排掉的是哪一批 · 两把尺子的名次为什么可比">
+                <p>
+                  被排除的是通达信的市场级统计指数（总市值 / 涨跌家数 / 主板总值…），
+                  它们的成交额逐日等于全 A，混在榜里就必然霸榜。两把尺子的分母与名次都在同一批过滤后的母体上算，
+                  所以榜上是连续的；库里那批旧行还物理留着（读侧按类型挡住，页面上看不见）。
+                </p>
+              </DrawerSection>
+            )}
+          </DocDrawer>
+        </span>
+        <span className="flex items-center gap-2 text-[11px] text-muted-foreground/60">
           行情日 {dash(data.date)} · 算于 {dash(data.calculated_at?.slice(0, 16))}
           {data.age_seconds != null ? `（${ageText(data.age_seconds)}前）` : ""}
           <button type="button" onClick={onRefresh} title="重新读取"
@@ -337,26 +363,15 @@ export function SectorRotationBoard({ data, loading, onRefresh, basis, onBasis }
             })} />
         </div>
 
-        <Definitions map={data.calibers} />
         {/* 母体少了 48 行不是 bug，也不是截断 —— 那批是市场级统计指数，不是一级板块。
-            账目由后端交出（`excluded_types`），页面不自己数。 */}
+            账目由后端交出（`excluded_types`），页面不自己数；账目那一行是读数留在屏上，
+            「为什么排掉」与「两把尺凭什么可比」已进标题行那颗按钮的抽屉（用户 10-31）。 */}
         {!!data.excluded_types?.length && (
-          <>
-            {/* 账目（几行、排掉几行、各类型几个）是读数，留在屏上；为什么排掉、
-                两把尺子凭什么可比 —— 那是说明，收进通用说明框（用户 10-14）。 */}
-            <p className="px-3 pb-2 text-[10px] leading-relaxed text-muted-foreground">
-              这一场库里 {(st?.total ?? 0) + excludedCount} 行，
-              按母体口径（{data.sector_types?.join("、") || "行业、概念"}）排除了 {excludedCount} 行：
-              {data.excluded_types.map(e => ` ${e.sector_type} ${e.sectors} 个`).join("、")}。
-            </p>
-            <ExplainBox title="排掉的是哪一批 · 两把尺子的名次为什么可比">
-              <p>
-                被排除的是通达信的市场级统计指数（总市值 / 涨跌家数 / 主板总值…），
-                它们的成交额逐日等于全 A，混在榜里就必然霸榜。两把尺子的分母与名次都在同一批过滤后的母体上算，
-                所以榜上是连续的；库里那批旧行还物理留着（读侧按类型挡住，页面上看不见）。
-              </p>
-            </ExplainBox>
-          </>
+          <p className="px-3 pb-2 text-[10px] leading-relaxed text-muted-foreground">
+            这一场库里 {(st?.total ?? 0) + excludedCount} 行，
+            按母体口径（{data.sector_types?.join("、") || "行业、概念"}）排除了 {excludedCount} 行：
+            {data.excluded_types.map(e => ` ${e.sector_type} ${e.sectors} 个`).join("、")}。
+          </p>
         )}
         {!!data.name_is_code && (
           <p className="px-3 pb-2 text-[10px] leading-relaxed text-muted-foreground">

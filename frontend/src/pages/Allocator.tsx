@@ -1,9 +1,11 @@
 import { RefreshCw, GitBranch } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Caliber } from "@/components/ui/Caliber";
-import { Definitions, ExplainBox, Panel, Row } from "@/components/ui/DataPanel";
+import { Definitions, Panel, Row } from "@/components/ui/DataPanel";
+import { DocDrawer } from "@/components/ui/DocDrawer";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { useTableSort } from "@/lib/useSort";
 import { useNonce, useProbe } from "@/lib/probe";
@@ -57,6 +59,9 @@ interface AllocData {
   spec_version?: string | null; universe?: number | null; generated_at?: string | null;
   sessions?: { sessions?: number | null; from?: string | null; to?: string | null } | null;
   rows?: AllocRow[] | null; crowding?: AllocRow[] | null; scatter?: AllocRow[] | null;
+  /** 当日两条分界线（= 判象限时用的中位数）。缺这两列的场次交 null，图上就不画线。 */
+  medians?: { toll?: number | null; imagine?: number | null;
+              available?: boolean | null; reason?: string | null } | null;
   stages?: { stage?: string | null; n?: number | null; avg_temp?: number | null }[] | null;
   quadrants?: { quadrant?: string | null; n?: number | null; avg_toll?: number | null; avg_imagine?: number | null }[] | null;
   heat_vs_return?: { basis?: string | null; rows?: ReturnRow[] | null } | null;
@@ -118,18 +123,31 @@ export function Allocator() {
         </Panel>
 
         <Panel title="① 收费站榜（位置分）" state={st}
+          note={"一屏一行一个板块：位置分从高到低（点列头可改排），后面几列是它的构成与两张邻居榜的读数。"
+            + "每一项具体怎么算、权重各是多少不在这里重抄 —— 列头悬停与页面最下方那颗按钮念的都是后端 `calibers` 那一份原文，"
+            + "两处各写一遍迟早分叉。分数是形状代理，不能读成「制度上绕不过去」的证明，也不给买卖动作。"}
           slowHint="读当日全量榜单，不重新判据。">
           {d => <TollTable rows={d.rows ?? []} calibers={cal} />}
         </Panel>
 
         <Panel title="② 拥挤度温度榜（钱正在往哪里灌）" state={st}
-          note="温度只说「有多挤」，不给动作。100 的意思是「所有人终于达成共识」，不是「该卖了」。">
+          note={`${calTitle(cal, "crowding")} 这一栏按温度从高到低排，点列头可改；两张榜的行是同一天同一母体，只是排序的尺不一样。`}>
           {d => <CrowdingTable rows={d.crowding ?? []} calibers={cal} />}
         </Panel>
 
-        <Panel title="③ 位置 × 想象力 四象限" state={st}>
+        {/* 用户 10-31 定下「每一块的这块的说明摆在标题行最右边」：这一块原来的出口长在正文里
+            （`<Scatter>` 那只 ExplainBox），现在整句搬进 `Panel note` —— 出口只剩标题行这一颗。
+            10-29 那条「一个模块一颗这块的说明」仍然成立：这里绝不能再长出第二颗同名按钮。
+            分界线那句原文与缺数 NoticeBar 仍在屏上，不进抽屉。 */}
+        <Panel title="③ 位置 × 想象力 四象限" state={st}
+          note={"橙点 = 温度 ≥80（已经挤到共识区）；蓝点 = 落在「收费站」那一格。点上的说明靠浏览器原生的悬停提示，"
+            + "这一屏不引图表库：900 多个点，能看清分布就够，花哨的交互反而会把注意力从分布上带走。"}>
           {d => <>
-            <Scatter points={d.scatter ?? []} />
+            <Scatter points={d.scatter ?? []} medians={d.medians} />
+            {(d.scatter?.length && !d.medians?.available) ? <NoticeBar kind="missing">
+              这一场取不到当日中位数：{d.medians?.reason ?? '接口没交 `medians` 这一项。'}
+              所以图上没有分界线 —— 点还是按入库的象限归属上色，线只是不画，不拿 50 顶上。
+            </NoticeBar> : null}
             <div className="mt-2 grid gap-1 sm:grid-cols-2">
               {(d.quadrants ?? []).map(q => (
                 <p key={String(q.quadrant)} className="rounded-lg border border-border px-2 py-1.5 text-[11px] leading-relaxed">
@@ -143,6 +161,8 @@ export function Allocator() {
             </div>
             <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
               分界线是<b className="text-foreground">当日中位数</b>（不是写死的 50）—— 写死的话分布一动，整个象限全体搬家。
+              图上那两条线画的就是接口交来的这两个数（本次：位置 {num(d.medians?.toll)}、想象力 {num(d.medians?.imagine)}），
+              与入库的象限归属同一把尺。取不到就一条线都不画，不拿 50 顶上。
               <Caliber text={cal.quadrant ?? ""} />
             </p>
           </>}
@@ -212,9 +232,18 @@ export function Allocator() {
           }}
         </Panel>
 
-        <GlassCard>
-          <Definitions map={d0?.calibers ?? undefined} />
-        </GlassCard>
+        {/* 全站字段字典这一颗：标题行最右边（用户 10-31），正文里不再卧第二只折框。
+            内容来源仍是后端 `calibers` 那一份，一行不重抄；没有口径可摆时整块不渲染（不长空按钮）。 */}
+        {Object.keys(d0?.calibers ?? {}).length > 0 && (
+          <GlassCard docTitle="这些字段是什么意思">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <h2 className="text-sm font-bold">这些字段是什么意思</h2>
+              <span className="ml-auto"><DocDrawer title="这些字段是什么意思">
+                <Definitions map={d0?.calibers ?? undefined} bare />
+              </DocDrawer></span>
+            </div>
+          </GlassCard>
+        )}
       </div>
 
       <Disclaimer compact />
@@ -227,6 +256,15 @@ const STAGE_LABEL: Record<string, string> = {
   s4_consensus: "S4 共识·估值疯狂", s5_overhang: "S5 过剩·股价先掉头",
 };
 
+/**
+ * 列头悬停念的口径句子**只从后端 `calibers` 那一份拿**（10-29 用户第 4 条那轮清掉的旧形状：
+ * 这里原来手抄过一句「股息率 35 + 稳定性 25 + 份额中位 20 + 市值占比 20」——
+ * 后端把权重一改，列头就念旧数，而且屏上会有两处不同口径）。
+ * 后端没交这个键时明说没有，不退回手抄那一份。
+ */
+const calTitle = (calibers: Record<string, string>, key: string) =>
+  calibers[key] ? plain(calibers[key]) : `后端没交「${key}」这一项的口径原句（calibers 里没这个键），页面不手写第二份`;
+
 function TollTable({ rows, calibers }: { rows: AllocRow[]; calibers: Record<string, string> }) {
   const sort = useTableSort();
   return (
@@ -235,16 +273,16 @@ function TollTable({ rows, calibers }: { rows: AllocRow[]; calibers: Record<stri
         <thead><tr className="text-left text-[11px] text-muted-foreground">
           <SortHeader label="板块" sortKey="sector_name" dir={sort.dirOf("sector_name")} onSort={sort.toggle} />
           <SortHeader label="位置分" sortKey="toll_score" dir={sort.dirOf("toll_score")} onSort={sort.toggle}
-            title="四项分位加权：股息率 35 + 稳定性 25 + 份额中位 20 + 市值占比 20。权重是可商量的先验，不是规律" />
+            title={calTitle(calibers, "toll")} />
           <SortHeader label="股息率" sortKey="div_yield_med" dir={sort.dirOf("div_yield_med")} onSort={sort.toggle}
-            title="成员的中位数；括号里是覆盖度——有几成成员算得出这个数" />
+            title={`${calTitle(calibers, "div_yield")}｜括号里那格是覆盖度：有几成成员算得出这个数`} />
           <SortHeader label="稳定性" sortKey="amount_stability" dir={sort.dirOf("amount_stability")} onSort={sort.toggle}
-            title="1 − 日成交额变异系数（近 250 场）。越接近 1 = 不管行情怎样钱都路经这里" />
+            title={calTitle(calibers, "stability")} />
           <SortHeader label="份额中位" sortKey="share_med250" dir={sort.dirOf("share_med250")} onSort={sort.toggle}
-            title="相对口径：分母是全部板块成交额之和，板块之间有重叠，不能读成占全市场的百分比" />
+            title={calTitle(calibers, "share")} />
           <SortHeader label="市值占比" sortKey="mv_share" dir={sort.dirOf("mv_share")} onSort={sort.toggle} />
           <SortHeader label="温度" sortKey="crowding_temp" dir={sort.dirOf("crowding_temp")} onSort={sort.toggle}
-            title="只说有多挤，不给动作" />
+            title={calTitle(calibers, "crowding")} />
           <SortHeader label="象限" sortKey="quadrant_label" dir={sort.dirOf("quadrant_label")} onSort={sort.toggle} />
           <SortHeader label="阶段" sortKey="stage_label" dir={sort.dirOf("stage_label")} onSort={sort.toggle} />
         </tr></thead>
@@ -289,11 +327,11 @@ function CrowdingTable({ rows, calibers }: { rows: AllocRow[]; calibers: Record<
           <SortHeader label="板块" sortKey="sector_name" dir={sort.dirOf("sector_name")} onSort={sort.toggle} />
           <SortHeader label="温度" sortKey="crowding_temp" dir={sort.dirOf("crowding_temp")} onSort={sort.toggle} />
           <SortHeader label="份额分位" sortKey="share_pctile" dir={sort.dirOf("share_pctile")} onSort={sort.toggle}
-            title="自身近 250 场的分位，不是名次" />
+            title={calTitle(calibers, "share_pctile")} />
           <SortHeader label="涌入速度" sortKey="share_slope20" dir={sort.dirOf("share_slope20")} onSort={sort.toggle}
-            title="当日份额 ÷ 前 20 场（跳过最近 5 场）的中位 − 1" />
+            title={calTitle(calibers, "inflow")} />
           <SortHeader label="成员Δ(年)" sortKey="member_delta" dir={sort.dirOf("member_delta")} onSort={sort.toggle}
-            title="板块成分数量与约一年前的差：产业政策落地时「所有人同时上项目」在本地唯一看得见的形状" />
+            title={calTitle(calibers, "member_delta")} />
           <SortHeader label="融资/流通市值" sortKey="margin_crowd" dir={sort.dirOf("margin_crowd")} onSort={sort.toggle}
             title="本地两融只有 2026-06 起；更早的场次这一项是空的" />
           <SortHeader label="60 场动量" sortKey="mom60" dir={sort.dirOf("mom60")} onSort={sort.toggle} />
@@ -325,8 +363,17 @@ function CrowdingTable({ rows, calibers }: { rows: AllocRow[]; calibers: Record<
   );
 }
 
-/** 象限散点：一屏 900 多个点，所以只画点不画标签；悬停靠原生 title，不引新库。 */
-function Scatter({ points }: { points: AllocRow[] }) {
+/** 象限散点：一屏 900 多个点，所以只画点不画标签；悬停靠原生 title，不引新库。
+ *
+ *  两条分界线**只能画后端交的那两个数**（`medians`）。从前这里写死 `x(50)`/`y(50)` 还标着
+ *  「当日中位」—— 而判据用的是当日中位数（10-30 实测那一场是位置 51.57／想象力 45.68），
+ *  于是屏幕上的线与点所属的格子是两套尺：位置 42.81 的点在图上落在 50 线左下，
+ *  而它入库的象限是「故事区」。缺数就一条线都不画，也不拿 50 顶上。 */
+function Scatter({ points, medians }: {
+  points: AllocRow[];
+  medians?: { toll?: number | null; imagine?: number | null;
+              available?: boolean | null; reason?: string | null } | null;
+}) {
   const xs = points.map(p => finite(p.imagine_score)).filter((n): n is number => n !== null);
   const ys = points.map(p => finite(p.toll_score)).filter((n): n is number => n !== null);
   if (xs.length < 10 || ys.length < 10) {
@@ -335,15 +382,31 @@ function Scatter({ points }: { points: AllocRow[] }) {
   const W = 640, H = 320, PAD = 26;
   const x = (v: number) => PAD + (v / 100) * (W - 2 * PAD);
   const y = (v: number) => H - PAD - (v / 100) * (H - 2 * PAD);
+  const mx = finite(medians?.imagine), my = finite(medians?.toll);
+  const hasLines = !!medians?.available && mx !== null && my !== null;
   return (
     <div className="overflow-x-auto">
       <svg viewBox={`0 0 ${W} ${H}`} className="h-72 w-full" role="img"
-        aria-label={`位置（纵轴）对想象力（横轴）的散点，共 ${points.length} 个板块`}>
-        <line x1={x(50)} y1={PAD / 2} x2={x(50)} y2={H - PAD / 2} className="stroke-border" strokeDasharray="4 3" />
-        <line x1={PAD / 2} y1={y(50)} x2={W - PAD / 2} y2={y(50)} className="stroke-border" strokeDasharray="4 3" />
+        aria-label={`位置（纵轴）对想象力（横轴）的散点，共 ${points.length} 个板块`
+          + (hasLines ? `，分界线在位置 ${num(my)}、想象力 ${num(mx)}` : "，这一场没有分界线可画")}>
+        {hasLines && (
+          <>
+            <line x1={x(mx as number)} y1={PAD / 2} x2={x(mx as number)} y2={H - PAD / 2}
+              className="stroke-border" strokeDasharray="4 3" />
+            <line x1={PAD / 2} y1={y(my as number)} x2={W - PAD / 2} y2={y(my as number)}
+              className="stroke-border" strokeDasharray="4 3" />
+          </>
+        )}
         <text x={PAD} y={12} className="fill-current text-[9px] text-muted-foreground">位置分（纵）· 收费站在上</text>
         <text x={W - 150} y={H - 6} className="fill-current text-[9px] text-muted-foreground">想象力分（横）→</text>
-        <text x={PAD + 2} y={y(50) - 4} className="fill-current text-[9px] text-muted-foreground">当日中位</text>
+        {hasLines && (
+          <text x={PAD + 2} y={y(my as number) - 4} className="fill-current text-[9px] text-muted-foreground">
+            当日中位 位置 {num(my)}</text>
+        )}
+        {hasLines && (
+          <text x={x(mx as number) + 3} y={H - PAD - 2} className="fill-current text-[9px] text-muted-foreground">
+            中位 想象力 {num(mx)}</text>
+        )}
         {points.map((p, i) => {
           const px = finite(p.imagine_score), py = finite(p.toll_score);
           if (px === null || py === null) return null;
@@ -354,14 +417,8 @@ function Scatter({ points }: { points: AllocRow[] }) {
           </circle>;
         })}
       </svg>
-      {/* 这张图怎么读收进通用说明框（用户 2026-10-14），句子逐字留着；
+      {/* 这张图怎么读那句已经搬进标题行的 `Panel note`（用户 10-31：一模块一颗，出口在标题行）；
           轴标签与「当日中位」那三行写在 svg 里，仍然摊在屏上。 */}
-      <ExplainBox title="这张散点图怎么读 · 为什么这一屏不引图表库">
-        <p>
-          橙点 = 温度 ≥80（已经挤到共识区）；蓝点 = 落在"收费站"那一格。点上的说明靠浏览器原生的悬停提示，
-          这一屏不引图表库：900 多个点，能看清分布就够，花哨的交互反而会把注意力从分布上带走。
-        </p>
-      </ExplainBox>
     </div>
   );
 }

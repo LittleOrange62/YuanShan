@@ -97,8 +97,11 @@ test('名次实现全站只有一份：三个屏都调它，组件里不许自�
     assert.doesNotMatch(code, /rank_in_day\s*\?\?\s*0/, `${name} 把没有名次说成了第 0 名`);
   }
   // 配置卡也不自造那句话，且它念的是接口 `rank_rule`
+  // （10-31：原文搬进标题行那颗「这块的说明」开的抽屉，「后端没交 rank_rule」那句缺数声明仍留在屏上）
   assert.doesNotMatch(panel, /同分同名|按位置顺延|不占号/, "配置卡里自己写了一句名次规则");
-  assert.match(panel, /cfg\?\.rank_rule \?\?/);
+  assert.match(panel, /cfg\?\.rank_rule/, '配置卡读接口 rank_rule');
+  assert.match(panel, /plain\(cfg\.rank_rule\)/);
+  assert.match(panel, /后端没交 rank_rule/);
 
   // 第三处调用（2026-10-19）：个股量化档案里那块「倍量形态」的名次必须与倍量榜同一条规则，
   // 所以它也只准转述接口那一份 —— 同一个名字在两个屏上必须是一个数（后端 SQL 也已改成同分同名）。

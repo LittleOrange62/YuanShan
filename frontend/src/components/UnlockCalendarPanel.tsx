@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type UnlockCalendar } from "@/lib/api";
 import { useNonce, useProbe } from "@/lib/probe";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { DocDrawer } from "@/components/ui/DocDrawer";
 import { StockLink } from "@/components/ui/StockLink";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { useTableSort } from "@/lib/useSort";
@@ -63,8 +64,12 @@ export function UnlockCalendarPanel() {
       </select>
       <label className="flex items-center gap-1 text-sm"><input type="checkbox" checked={onlyWatch} onChange={event => { setOnlyWatch(event.target.checked); setPage(1); }} />只看自选</label>
       {error && <button type="button" onClick={() => setReload(n => n + 1)} className="text-sm text-primary">重试</button>}
+      {/* 用户 10-31：来源与口径那句是这一块的说明，搬进标题行最右边的抽屉；
+          「仅覆盖前 500 条」那句截断声明与取数失败提示留在读数旁边，不进抽屉。 */}
+      <span className="ml-auto"><DocDrawer title="限售解禁日历">
+        <p>来源：东方财富公开解禁计划；解禁不等于实际减持，以公司公告为准。按日历日统计，自选取库里那份（分组自选页维护的），跨浏览器一致。</p>
+      </DocDrawer></span>
     </div>
-    <p className="mb-3 text-xs text-muted-foreground">来源：东方财富公开解禁计划；解禁不等于实际减持，以公司公告为准。按日历日统计，自选取库里那份（分组自选页维护的），跨浏览器一致。</p>
     {error ? <p role="alert" className="text-sm text-warning">{error}</p> : !data ? <p role="status" className="text-sm text-muted-foreground">正在读取解禁日历…</p> : <>
       <p className="mb-2 text-xs text-muted-foreground">{data.start} 至 {data.end} · {events.length} 条{data.truncated ? "（仅覆盖前 500 条，无法据此排除其他事件）" : ""}</p>
       {events.length === 0 ? <p className="text-sm text-muted-foreground">{onlyWatch && watch.kind !== "ok" ? "自选名单这一会儿没读到，所以没法按自选筛 —— 先取消勾选看全部，或到分组自选页重取。" : onlyWatch && watchCodes.size === 0 ? "库里还没有自选 —— 到「分组自选」页加，或从同花顺同步。" : data.truncated ? "已返回的部分记录中未匹配事件。" : "数据源在该范围内未返回匹配的解禁记录。"}</p> :

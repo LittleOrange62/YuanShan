@@ -3,7 +3,8 @@ import { RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { CacheLine, CaveatText, Contract, ExplainBox, Panel, Provenance, Row } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
+import { CacheLine, CaveatText, Contract, Panel, Provenance, Row } from "@/components/ui/DataPanel";
 import { useNonce, useProbe } from "@/lib/probe";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { useTableSort } from "@/lib/useSort";
@@ -75,7 +76,7 @@ export function DataProcess() {
 
       <div className="space-y-4">
         <Panel title="派生表逐张" state={cov} slowHint="这一屏要扫全库逐表统计，实测冷跑过 53.6 秒（命中缓存时不到 0.1 秒）。没有进度可依，所以只说在跑；跑完会把「算于几分钟前」一起交出来。"
-          note="只列派生层（analytics.* / qd.* / reference_data.*）。原始行情表的覆盖在覆盖体检那一屏。">
+          note="只列派生层（analytics.* / qd.* / reference_data.*）。原始行情表的覆盖在覆盖体检那一屏。这一张表的列怎么读：行数标「估」的是 pg_class.reltuples 估算值，只看量级；「停在」这一列才是加工新不新鲜 —— 它数的是数据日期与交易日历差几个交易日，last_touched（什么时候写入的）不参与判据。">
           {d => {
             const all = d.tables ?? [];
             const tables = all.filter(t => DERIVED.test(String(t.table ?? "")));
@@ -143,35 +144,33 @@ export function DataProcess() {
                     </tbody>
                   </table>
                 </div>
-                {/* 列口径折进通用说明框（用户 10-14：说明占太多屏幕空间）。
-                    「算不出（不是零缺口）」「快照表（无日期列）」那两格仍在表格单元格里，没跟着折。 */}
-                <ExplainBox title="这一张表的列怎么读">
-                  <p>
-                    行数标「估」的是 <code>pg_class.reltuples</code> 估算值，只看量级。
-                    <b className="text-foreground">「停在」这一列才是加工新不新鲜</b>：它数的是数据日期与交易日历差几个交易日，
-                    <code>last_touched</code>（什么时候写入的）不参与判据。
-                  </p>
-                </ExplainBox>
+                {/* 列口径（「这一张表的列怎么读」）已并进标题行那颗「这块的说明」的抽屉（用户 10-31）。
+                    「算不出（不是零缺口）」「快照表（无日期列）」那两格仍在表格单元格里，没跟着搬。 */}
               </>
             );
           }}
         </Panel>
 
         <GlassCard>
-          <h2 className="text-sm font-bold">提交与重算：这一屏刻意没有的按钮</h2>
-          {/* 只折「为什么不摆按钮」这一段分工说明；h2 与下面的 Contract 留在屏上 ——
+          {/* 用户 10-31：只折「为什么不摆按钮」这一段分工说明，整块搬进标题行最右边的抽屉；
+              h2、下面的 Contract 与那行跳转链接留在屏上 ——
               这一屏没有重跑入口、缺哪个端点，必须一眼看得见。 */}
-          <ExplainBox title="这一屏为什么不摆重跑按钮 · 重跑入口在哪一屏">
-            <p className="mt-1">
-              FT 的 <code>/data</code> 上有「提交某天的 d1~d7」这种操作入口。这一屏<b className="text-foreground">仍然不摆重跑按钮</b>，
-              但理由已经不是"没有端点"：链子接上了（<code>ingest/jobs/e1_fill_all.py</code> 里 <code>signal</code> 那一步就是本页那些派生表；步序会随链增减，这里不抄序号），
-              触发端点也在（<code>POST /api/jobs/&lt;key&gt;/run</code>，实测对没有执行体的作业回 403 并写明「有真执行体才给按钮」）。
-              真正的原因是<b className="text-foreground">这一屏读的是覆盖统计，不持有 job_key 与执行体的对应关系</b> ——
-              在这里摆按钮就只能猜哪个键跑哪张表，猜错就是拿"看起来按下去了"骗人。
-              重跑入口在 <Link className="text-primary underline" to="/jobs">任务调度</Link>：那一屏按接口给的
-              <code>available</code> 决定摆不摆，摆了就真能跑。
-            </p>
-          </ExplainBox>
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <h2 className="text-sm font-bold">提交与重算：这一屏刻意没有的按钮</h2>
+            <span className="ml-auto"><DocDrawer title="提交与重算：这一屏刻意没有的按钮">
+              <DrawerSection heading="这一屏为什么不摆重跑按钮 · 重跑入口在哪一屏">
+                <p>
+                  FT 的 <code>/data</code> 上有「提交某天的 d1~d7」这种操作入口。这一屏<b className="text-foreground">仍然不摆重跑按钮</b>，
+                  但理由已经不是「没有端点」：链子接上了（<code>ingest/jobs/e1_fill_all.py</code> 里 <code>signal</code> 那一步就是本页那些派生表；步序会随链增减，这里不抄序号），
+                  触发端点也在（<code>POST /api/jobs/&lt;key&gt;/run</code>，实测对没有执行体的作业回 403 并写明「有真执行体才给按钮」）。
+                  真正的原因是<b className="text-foreground">这一屏读的是覆盖统计，不持有 job_key 与执行体的对应关系</b> ——
+                  在这里摆按钮就只能猜哪个键跑哪张表，猜错就是拿「看起来按下去了」骗人。
+                  重跑入口在 <Link className="text-primary underline" to="/jobs">任务调度</Link>：那一屏按接口给的
+                  <code>available</code> 决定摆不摆，摆了就真能跑。
+                </p>
+              </DrawerSection>
+            </DocDrawer></span>
+          </div>
           <div className="mt-2">
             <Contract path="POST /api/data-process/run" source="按派生层依赖顺序重算（indicator → score → detail → trend → heat → ignition）" fields={[
               ["body: date + stages[]", "哪天、哪几层。不给默认全跑（全跑是分钟级到十分钟级的事，不能误触）"],

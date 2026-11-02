@@ -91,6 +91,14 @@ BODY_LIMITS = {"wecom": 1900,           # 2048 硬上限，留 148 字节余量�
                "dingtalk": 4000,
                "mail": 20000}           # 邮件没有这个量级的限制，等于不截
 MAX_BODY_BYTES = 3500        # 兜底：渠道未知/没配渠道时按这一格
+#: 每一档**默认参数**的字节预算：按这批渠道里最小的那道墙（企微 1900）来装。
+#: 装不下就在档内少列几条并声明，而不是等发送时 `_clip` 切半截 —— 手机上收到半截的一档名单
+#: 读起来和"今天就只有这几只"没区别，那是假读数（10-30 实测 `abnormal` 2,235、`watchlist` 2,778）。
+#: ⚠️ 那道 1900 的墙管的是**整条消息**（`标题\n正文` 一起算，`_clip` 的口径），所以这里必须
+#: 先给标题留出 100 字节（日期 10 + 档名最多 24 + 计划名前缀与分隔符）—— 不留就是
+#: 正文装到 1873、加上标题 1927，`_clip` 照样切、而且切得比谁都少只剩几个字（10-30 实测三档）。
+SCENE_TITLE_RESERVE = 100
+SCENE_BUDGET = BODY_LIMITS["wecom"] - SCENE_TITLE_RESERVE
 SENT_FILE = "notify/sent.json"
 HISTORY_LIMIT = 40
 
@@ -291,8 +299,11 @@ def _blk_watchlist(params: dict, day: str) -> str:
              + "："]
     if not rows:
         lines.append("  这个分组里目前没有票。")
-    elif not kept:
+        return "\n".join(lines)
+    if not kept:
         lines.append(f"  没有一只涨幅到 {pct_min}%（不是取数失败，是真没有）。")
+        return "\n".join(lines)
+    body = []
     for r in kept[:limit]:
         tail = []
         if r.get("oper") not in (None, ""):
@@ -301,11 +312,14 @@ def _blk_watchlist(params: dict, day: str) -> str:
             tail.append(f"象限 {r['quadrant']}")
         if r.get("cost") not in (None, "", 0):
             tail.append(f"成本 {r['cost']}")
-        lines.append(f"  {r.get('name') or r.get('security_code')}（{r.get('security_code')}）"
-                     f"现价 {r.get('close') if r.get('close') is not None else '—'} "
-                     f"{_pct(r.get('pct_change'))}"
-                     + ("｜" + "｜".join(map(str, tail)) if tail else ""))
-    return "\n".join(lines)
+        body.append(f"  {r.get('name') or r.get('security_code')}（{r.get('security_code')}）"
+                    f"现价 {r.get('close') if r.get('close') is not None else '—'} "
+                    f"{_pct(r.get('pct_change'))}"
+                    + ("｜" + "｜".join(map(str, tail)) if tail else ""))
+    # 30 只的分组一行一行写下去就是 2,700+ 字节（10-30 实测），所以按预算装、装不下就少列几条
+    # （少列几条那句声明由 `_fit` 统一出，标题里的「共 N 只」已经把"本来有几只"交代过了）
+    text, _dropped = _fit(lines, [("", body)])
+    return text
 
 
 def _blk_dossier(params: dict, day: str) -> str:
@@ -573,6 +587,74 @@ def _blk_quadrant(params: dict, day: str) -> str:
     return "\n".join(lines)
 
 
+def _fit(header: list[str], blocks: list[tuple[str, list[str]]],
+         cap: int | None = None) -> tuple[str, int]:
+    """把一叠「小标题 + 若干行」装进字节预算，从**最后一叠的尾巴**开始丢，丢了就在档内声明。
+
+    为什么要在**组文**这一步就装进上限，而不是等发送时 `_clip` 切：
+    切出来的是手机上半截的一档内容（一行票说到一半），而这一档默认参数本来就该写完
+    —— 10-30 实测 `abnormal` 2,235 字节、`watchlist` 2,778 字节都在 1,900 那道墙外头。
+
+    三条纪律：
+    ① 每一叠至少留一行 —— 整叠消失会被读成"今天这一叠是空的"，而它只是被挤掉了；
+    ② 声明那句自己占的字节先算进去（切完再加注又超回去，是 `_clip` 记过的同一个坑）；
+    ③ 一叠都留不下时不再丢，交出去让发送侧兜底，同时把"这一档今天装不进"报给调用方。
+    """
+    limit = int(cap or SCENE_BUDGET)
+
+    def render(kept: list[list[str]], dropped: int) -> str:
+        lines = list(header)
+        for (title, _rows), rows in zip(blocks, kept):
+            if title:
+                lines.append(title)
+            lines.extend(rows)
+        if dropped:
+            lines.append(f"  另有 {dropped} 条没列在这一档（完整名单看网站）。")
+        return "\n".join(lines)
+
+    kept = [list(rows) for _t, rows in blocks]
+    dropped = 0
+    while len(render(kept, dropped).encode("utf-8")) > limit:
+        for i in reversed(range(len(kept))):
+            if len(kept[i]) > 1:
+                kept[i].pop()
+                dropped += 1
+                break
+        else:
+            break          # 每叠只剩一行还超：再丢就没有这一叠了，交给发送侧的 `_clip`
+    return render(kept, dropped), dropped
+
+
+#: 那一档正文的**唯一出口闸**（`_scene_part`）用的行状版：从尾巴整行整行地丢，并声明丢了几行。
+#:
+#: 为什么要收在出口而不是让 17 个 `_blk_*` 各自判一次：极端参数（`limit=400`）下大多数档
+#: 能写到 3,000~4,000 字节，各自判＝17 份口径、17 处会漏。10-30 实测除 `abnormal`/`watchlist`
+#: 之外全部还在被发送侧 `_clip` 切半截 —— 手机上就是"这档说到一半没了"。
+#: `_fit` 管块状的（每叠至少留一行），这里管行状的；两者都只在**装不进**时才加声明那句。
+def _fit_lines(text: str, cap: int | None = None) -> tuple[str, int]:
+    limit = int(cap or SCENE_BUDGET)
+    if len(text.encode("utf-8")) <= limit:
+        return text, 0
+    lines = text.split("\n")
+    kept_end, dropped = len(lines), 0
+
+    def render() -> str:
+        out = lines[:kept_end]
+        if dropped:
+            out = out + [f"另有 {dropped} 行没列在这一档（完整名单看网站）。"]
+        return "\n".join(out)
+
+    while kept_end > 1 and len(render().encode("utf-8")) > limit:
+        kept_end -= 1
+        dropped += 1
+    fitted = render()
+    if len(fitted.encode("utf-8")) > limit:
+        # 连第一行（那句标题/母体）都装不进：不硬凑半截，原样交出去让发送侧兜底，
+        # 但这种档必须自己知道——声明加不上，`_clip` 会补它那一句截断说明。
+        return text, 0
+    return fitted, dropped
+
+
 def _blk_abnormal(params: dict, day: str) -> str:
     from duanxian import abnormal_view as av
     limit = _lim(params, "abnormal")
@@ -582,10 +664,10 @@ def _blk_abnormal(params: dict, day: str) -> str:
     if not res.get("available"):
         return _avail(res, "异动筛查")
     s = res.get("summary") or {}
-    lines = [f"异动筛查（{res.get('date') or day}，母体 {s.get('universe')} 只："
-             f"严重异动 {s.get('severe')} 只（下跌方向 {s.get('severe_down')} 只）、"
-             f"明日可能触及严重阈值 {s.get('forward')} 只"
-             + (f"、{s.get('severe_unknown')} 只判不准" if s.get("severe_unknown") else "") + "）"]
+    header = [f"异动筛查（{res.get('date') or day}，母体 {s.get('universe')} 只："
+              f"严重异动 {s.get('severe')} 只（下跌方向 {s.get('severe_down')} 只）、"
+              f"明日可能触及严重阈值 {s.get('forward')} 只"
+              + (f"、{s.get('severe_unknown')} 只判不准" if s.get("severe_unknown") else "") + "）"]
 
     def cell(row) -> str:
         return (f"  {row.get('name') or row.get('security_code')}（{row.get('security_code')}）"
@@ -594,30 +676,28 @@ def _blk_abnormal(params: dict, day: str) -> str:
                 + (f"｜{row.get('severe_how')}" if row.get("severe_how") else ""))
 
     hot = ((res.get("hot") or {}).get("rows") or [])[:limit]
-    lines.append(f"  偏离值榜（前 {len(hot)} 只）：")
-    for r in hot:
-        lines.append(cell(r))
-    if not hot:
-        lines.append("    （这一场没有进入偏离值榜的票）")
     fwd = ((res.get("forward") or {}).get("rows") or [])[:limit]
-    lines.append(f"  前瞻：再涨就到严重异动阈值的（{len(fwd)} 只）：")
-    for r in fwd:
-        lines.append(f"    {r.get('name') or r.get('security_code')}（{r.get('security_code')}）"
-                     f"明日涨停价 {r.get('limit_price_next')}｜还差 {r.get('need_dev_to_100')}% 到 100%"
-                     f"｜今日 {_pct(r.get('pct_change'))}")
-    if not fwd:
-        lines.append("    （没有一只处在触价边缘）")
     rec = res.get("recent_severe") or {}
     rrows = (rec.get("rows") or [])[:limit]
-    lines.append(f"  近 {rec.get('sessions')} 场累计严重异动 "
-                 + (f"{rec.get('total')} 只" if rec.get("total") is not None else "总数没读到")
-                 + f"，这里列最近 {len(rrows)} 条"
-                 + ("（还没列完）" if rec.get("truncated") or rec.get("total_unread") else "") + "：")
-    for r in rrows:
-        lines.append(f"    {r.get('trade_date')}｜{r.get('name') or r.get('security_code')}"
-                     f"｜{'上涨' if r.get('severe_dir') == 'up' else '下跌'}"
-                     f"｜10 日偏离 {r.get('dev_10')}%")
-    return "\n".join(lines)
+    blocks = [
+        (f"  偏离值榜（前 {len(hot)} 只）："
+         + ("（这一场没有进入偏离值榜的票）" if not hot else ""),
+         [cell(r) for r in hot]),
+        (f"  前瞻：再涨就到严重异动阈值的（{len(fwd)} 只）："
+         + ("（没有一只处在触价边缘）" if not fwd else ""),
+         [f"    {r.get('name') or r.get('security_code')}（{r.get('security_code')}）"
+          f"明日涨停价 {r.get('limit_price_next')}｜还差 {r.get('need_dev_to_100')}% 到 100%"
+          f"｜今日 {_pct(r.get('pct_change'))}" for r in fwd]),
+        (f"  近 {rec.get('sessions')} 场累计严重异动 "
+         + (f"{rec.get('total')} 只" if rec.get("total") is not None else "总数没读到")
+         + f"，这里列最近 {len(rrows)} 条"
+         + ("（还没列完）" if rec.get("truncated") or rec.get("total_unread") else "") + "：",
+         [f"    {r.get('trade_date')}｜{r.get('name') or r.get('security_code')}"
+          f"｜{'上涨' if r.get('severe_dir') == 'up' else '下跌'}"
+          f"｜10 日偏离 {r.get('dev_10')}%" for r in rrows]),
+    ]
+    text, _dropped = _fit(header, blocks)
+    return text
 
 
 def _blk_spike(params: dict, day: str) -> str:
@@ -790,9 +870,10 @@ def _scene_part(key: str, params: dict, day: str) -> tuple[str, str]:
     if builder is None:
         return f"{label}：本程没有这一档的执行体（配置里有未知项）", "unknown"
     try:
-        return builder(params, day), "ok"
+        text = builder(params, day)
     except Exception as exc:  # noqa: BLE001  取数坏了要说出来，但不许带崩整条消息
         return f"{label}：这一档取失败（{type(exc).__name__}: {str(exc)[:90]}）", f"error:{type(exc).__name__}"
+    return _fit_lines(text)[0], "ok"
 
 
 def _clip(title: str, body: str, cap: int, *,

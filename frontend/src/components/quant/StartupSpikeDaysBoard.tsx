@@ -17,6 +17,7 @@ import {
   queryParams, shortTitle, spikeHeadline, versionWarning, windowShort,
   type SsdColumn, type SsdOption, type SsdPayload, type SsdRow,
 } from "@/lib/spikeDays";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 倍量形态页 →「启动前 30 场爆量与突然拉高：落在量增的天还是量减的天」。
@@ -96,7 +97,6 @@ export function StartupSpikeDaysBoard() {
 
   return (
     <Panel title={`启动前 ${p.window} 场爆量与突然拉高：落在量增的天还是量减的天`}
-      note="母体＝启动事件（默认全部首板，不筛结果）；判据是日线代理（一天一个数）：倍量＝当日量 ÷ 上一根日线量（`vr-1` 那把尺，≥2.0 算倍量、1.8~2.0 算准倍量、≤0.5 算缩量），突拉＝当日后复权收益过那条线。天数、占比、中位数都由库里算好交出，这一屏只读 /api/quant/startup-spike-days，不新算判据，也不看分钟线。"
       slowHint="逐票逐日的倍量与突拉都在库里现数：第一发约 2~5 秒（近 6 个月、启动日前 30 场）"
       state={state} contract={
         <div className="text-[11px] leading-relaxed text-muted-foreground">
@@ -287,7 +287,7 @@ export function StartupSpikeDaysBoard() {
           {/* 「这一张表怎么点」那句是描述，已收进本块下面那个默认收起的说明框
               （用户 2026-10-21：「把页面上的描述性内容全部收缩起来，避免过多占屏」）；
               这里只剩弹窗被拦那句**告警**，它不折 */}
-          {!!popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{popHint}</p>}
+          {!!popHint && <NoticeBar kind="warning">{popHint}</NoticeBar>}
           {truncated && (
             <p className="mt-1 text-[11px] leading-relaxed text-warning">
               明细已触上限：这一轮接口交的就是 <code>limit={intText(d.params?.limit)}</code> 行，
@@ -336,8 +336,9 @@ export function StartupSpikeDaysBoard() {
           <Caveats items={caveatItems(d.caveats)} />
           <Caliber text={`这一块的取数口径（接口原句，页面未改写）：${d.caliber ?? "接口没交 caliber —— 这一屏没有出处可念"}`} />
           <Definitions map={d.definitions} />
-          <ExplainBox title="这一块与上面三屏的分工 · 两种爆量的分别 · 这一张表怎么点">
-            <p>上面「启动前量能画像」读的是量的形状（倍量天数、离 MA60 多远），「首板形状预示」读的是形状与段长的关系，
+          <ExplainBox title="这一块读的是哪些天 · 与上面三屏的分工 · 两种爆量的分别">
+            <p>母体＝启动事件（默认全部首板，不筛结果）；判据是日线代理（一天一个数）：倍量＝当日量 ÷ 上一根日线量（`vr-1` 那把尺，≥2.0 算倍量、1.8~2.0 算准倍量、≤0.5 算缩量），突拉＝当日后复权收益过那条线。天数、占比、中位数都由库里算好交出，这一屏只读 /api/quant/startup-spike-days，不新算判据，也不看分钟线。</p>
+            <p className="mt-1">上面「启动前量能画像」读的是量的形状（倍量天数、离 MA60 多远），「首板形状预示」读的是形状与段长的关系，
               「启动前象限轨迹」读的是名次的走向；这一块读的是<b>量与价在同一天的联合</b>：
               倍量那天到底收涨还是收跌，突然拉高那种日子摊在倍量、准倍量还是缩量上。</p>
             <p className="mt-1">「爆量」在这两个屏上是两套判据，不共用一个数：这一屏是<b>日线代理</b>

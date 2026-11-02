@@ -30,11 +30,42 @@ BREAK_DAYS = 2
 #: 这里只给浮点残余留一个极小的量（不分板块，板块档位已经由 `limit_up` 那列决定）
 SEAL_EPS = 0.001
 
+#: 两个方向共用同一条查询形状：档位列与比较符号按方向取，**别处不许再手写第二遍**。
+#: `up` 是收盘还封在涨停价上；`down` 是收盘还封在跌停价上（符号反过来，容差同一份）。
+#: 容差一律 `%s::numeric`：numeric 与 Python float 直接相加会整式升成 float8，
+#: 边界那一分会不会翻只取决于装箱顺序（触板那档实测栽过一次：92 对 94）。
+SEAL_SIDES = {
+    'up': ('limit_up', 'sd.close::numeric >= sd.{col}::numeric - %s::numeric'),
+    'down': ('limit_down', 'sd.close::numeric <= sd.{col}::numeric + %s::numeric'),
+}
+
 RULE_NOTE = (
     "「几天几板」= 从今天往前数这一轮：连续 %d 个交易日没封住涨停才算断，只空 1 天仍算同一轮；"
     "窗口回溯 %d 个交易日。封住 = 收盘价 ≥ 当日涨停价（档位取 stock_daily 的 limit_up/limit_basis，"
     "触板又炸掉的那天不算板）。所以「5天4板」是 4 次封板跨 5 个交易日、中间空了一天，"
     "而连板数只有 1 —— 这一列与「连板」不是一回事。" % (BREAK_DAYS, WINDOW_SESSIONS))
+
+#: 跌停那一侧的同一把尺（措辞跟着列名改，规则一条没变：同一个窗口、同一个断点、同一个容差）
+DOWN_RULE_NOTE = (
+    "「几天几跌停」= 从今天往前数这一轮：连续 %d 个交易日没封住跌停才算断，只空 1 天仍算同一轮；"
+    "窗口回溯 %d 个交易日。封住 = 收盘价 ≤ 当日跌停价（档位取 stock_daily 的 limit_down/limit_basis，"
+    "盘中触及又打开的那天不算）。与「连续跌停」那一列不是一回事：那一列按涨停池同款的半分容差判，"
+    "中间断一天就归 1，这一列仍算在同一轮里。" % (BREAK_DAYS, WINDOW_SESSIONS))
+
+
+def rule_note(direction: str = 'up') -> str:
+    """这一侧的口径文字（列头悬停显示的那一段，只在这一份里）。"""
+    return DOWN_RULE_NOTE if direction == 'down' else RULE_NOTE
+
+
+def _side(direction: str):
+    """方向 → (档位列名, 比较式模板)。不认识的方向**当场抛错**，不静默按涨停算 ——
+    静默回落会让跌停那一屏读出涨停的数，而两块的列名都还在屏幕上。"""
+    try:
+        col, expr = SEAL_SIDES[direction]
+    except KeyError:
+        raise ValueError(f"不支持的方向：{direction}（可选 {'、'.join(SEAL_SIDES)}）") from None
+    return col, expr.format(col=col)
 
 
 def span_from_sealed(sealed) -> tuple[int, int, list] | None:
@@ -74,23 +105,26 @@ def _full_codes(codes) -> list[str]:
     return sorted(set(out))
 
 
-def boards_by_code(codes, target_date: str) -> dict:
-    """批量算「几天几板」：`{6 位代码: {days, boards, label, sealed_dates, rows, sealed_today}}`。
+def boards_by_code(codes, target_date: str, direction: str = 'up') -> dict:
+    """批量算「几天几板」（跌停侧同一把尺，列名换叫「几天几跌停」）：
+    `{6 位代码: {days, boards, label, sealed_dates, rows, sealed_today}}`。
 
     读不到库或那天没有日线时交回空 dict —— 调用方必须把这看成"没读到"，
     不是"这批票都没有板"（两者在界面上要说的话完全不同）。
+    格子里那一串中文跟着方向换字（跌停那一侧不许念成"2 天 2 板"，屏幕上两个词会被读成两回事）。
     """
     pool = _full_codes(codes)
-    by, ok = _sealed_series(pool, target_date, WINDOW_SESSIONS)
+    by, ok = _sealed_series(pool, target_date, WINDOW_SESSIONS, direction)
     if not ok:
         return {}
+    unit = '跌停' if direction == 'down' else '板'
     out = {}
     for code in pool:
         seq = by.get(code) or []
         got = span_from_sealed(seq)
         rows_today = [x for x in seq if str(x[0])[:10] == str(target_date)[:10]]
         out[code] = {'days': got and got[0], 'boards': got and got[1],
-                     'label': ('%d天%d板' % got[:2]) if got else None,
+                     'label': ('%d天%d%s' % (got[0], got[1], unit)) if got else None,
                      'sealed_dates': [str(d)[:10] for d in (got[2] if got else [])],
                      'rows': len(seq), 'sealed_today': bool(rows_today and rows_today[0][1]),
                      'has_today_row': bool(rows_today)}
@@ -101,15 +135,21 @@ def boards_by_code(codes, target_date: str) -> dict:
 COUNT_WINDOW_SESSIONS = 20
 
 
-def _sealed_series(codes, target_date: str, sessions: int):
+def _sealed_series(codes, target_date: str, sessions: int, direction: str = 'up',
+                   eps: float | None = None):
     """把这批票在 `sessions` 个交易日里「每天封没封住」取回来：`({6 位码: [(日期, 封住)]}, 读到了吗)`。
 
     两个读数共用这一份取数（回溯 30 场的几天几板、近 20 场的有过几板）——
     封住的判据与容差只在这一条 SQL 里出现，别处不许再写第二遍。
+    `direction` 取 `up`／`down`：涨停与跌停共用这一条查询，只换档位列与比较符号。
+    `eps` 只在"这一把尺要跟着别的读数走"时才传（跌停那一屏的「连续跌停」用的半分容差
+    与它自己数出来的跌停家数是同一个尺，不能又换成 `SEAL_EPS`）；不传就是本模块那把 0.001。
     库不通／没数据 ⇒ `({}, False)`：调用方要说"没读到"，不能按"这批票都没封过"处理。
     """
     from . import pg
 
+    col, cmp_expr = _side(direction)
+    tol = SEAL_EPS if eps is None else eps
     pool = list(codes or [])
     if not pool or not pg.enabled():
         return {}, False
@@ -125,17 +165,17 @@ def _sealed_series(codes, target_date: str, sessions: int):
     if not full:
         return {}, False
     df = pg.fetch_df(
-        """
+        f"""
         with win as (select distinct trade_date from market_data.stock_daily
                       where trade_date <= %s::date order by trade_date desc limit %s),
              s as (select left(sd.security_code, 6) as code, sd.trade_date,
-                          (sd.close::numeric >= sd.limit_up::numeric - %s) as sealed
+                          ({cmp_expr}) as sealed
                      from market_data.stock_daily sd
                      join win w on w.trade_date = sd.trade_date
                     where sd.security_code = any(%s::text[])
-                      and sd.limit_up is not null)
+                      and sd.{col} is not null)
         select code, trade_date, sealed from s order by code, trade_date
-        """, (str(target_date), sessions, SEAL_EPS, full))
+        """, (str(target_date), sessions, tol, full))
     if df is None:
         return {}, False
     by: dict = {}
@@ -162,4 +202,41 @@ def sealed_days_by_code(codes, target_date: str,
         seq = by.get(code) or []
         dates = [str(d)[:10] for d, sealed in seq if sealed]
         out[code] = {'sealed_days': len(dates), 'bars': len(seq), 'dates': dates}
+    return out
+
+
+#: 「连续跌停」档位用的窗口：连板档位最多四档，30 场的底足够；与几天几板同一份回溯场次
+STREAK_WINDOW_SESSIONS = WINDOW_SESSIONS
+
+
+def streak_from_sealed(sealed) -> int:
+    """纯判据：从今天（序列最后一天）往前**紧挨着**数，连续封住多少场。今天没封住 ⇒ 0。
+
+    与 `span_from_sealed` 的区别：那一把允许中间空一天仍算同一轮（给出「5天4板」那种形态），
+    这一把只看紧挨着的场次 —— 屏幕上「连板／连续跌停」那一列是这一把，档位筛选也按它。
+    """
+    n = 0
+    for _d, ok in reversed(list(sealed or [])):
+        if not ok:
+            break
+        n += 1
+    return n
+
+
+def streak_by_code(codes, target_date: str, sessions: int = STREAK_WINDOW_SESSIONS,
+                   direction: str = 'down', eps: float | None = None) -> dict:
+    """批量数「从今天往回连续封住多少场」：`{6 位码: {streak, bars, sealed_dates}}`。
+
+    `bars` 是窗口里真有几根日线：上市不满窗口的票，"6 根里连续 3 场"与"30 场里连续 3 场"
+    不是一回事，所以这个数要跟着交出去。读不到库 ⇒ 空 dict（没读到 ≠ 一只都没连）。
+    """
+    pool = _full_codes(codes)
+    by, ok = _sealed_series(pool, target_date, sessions, direction, eps)
+    if not ok:
+        return {}
+    out = {}
+    for code in pool:
+        seq = by.get(code) or []
+        out[code] = {'streak': streak_from_sealed(seq), 'bars': len(seq),
+                     'sealed_dates': [str(d)[:10] for d, sealed in seq if sealed]}
     return out

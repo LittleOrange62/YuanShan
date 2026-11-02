@@ -43,9 +43,13 @@ from __future__ import annotations
 
 import datetime as dt
 import math
+import time
 from typing import Any
 
 from . import pg
+# 均线与 zigzag 的唯一实现在 `duanxian/trend.py`（2026-10-31 搬过去，与「国家队代理指标」共用一份）。
+# 这里继续以本模块的名字暴露它们：调用点与 `tests/test_risk_signal.py` 的打法都不变。
+from .trend import moving_average, zigzag_turns  # noqa: F401
 
 # ------------------------------------------------------------ 唯一的阈值出处（界面读 thresholds）
 
@@ -66,7 +70,8 @@ LEVEL_LABELS = {
 #: 图上要标出的「极端点位」判据（用户 2026-10-21 点名：9-21 那种背离日与 24 年 10 月初那种崩点
 #: 要能一眼看到）。两类是两件事，各自一条判据、各自成列，不混成一个分数：
 #: ① `divergence` 量价背离 —— 上涨票的**家数占比**明显高于它的**成交额占比**（钱没跟家数走）；
-#: ② `collapse` 宽度崩塌 —— 一期之内宽度掉下一大截，且上一期本来很高（"权重一松手"那种）。
+#: ② `collapse` 宽度崩塌 —— 一期之内宽度掉下一大截，且上一期本来很高（普涨断了；
+#:    ⚠️ 判据的输入只有「上涨家数占比」两期之差，**不含权重股／大市值的行为**，措辞里别写原因）。
 #: ⚠️ 这两条**都抓不到**旧的「宽度分位 − 阿姆斯分位」那一档：9-21 那天阿姆斯本身也在自己的历史高位，
 #:    分位差只有 15（旧尺子判「无明显背离」），而当天家数占比 81.6% 对成交额占比 71.5% 是 +10.1pp。
 #:    三把尺各答各的问题，屏上分开摆，谁也不许顶替谁。
@@ -74,7 +79,7 @@ EXTREME_THRESHOLDS = {
     'share_gap_pp': 8.0,        # ① 家数占比 − 成交额占比 ≥ 这么多个百分点（10-21 实测全史 p90 = 7.3）
     'width_min_pct': 80.0,      # ① 且宽度 ≥80%：用户说的"80% 的票在涨、看着非常强"就是这一档
     'collapse_drop_pp': 25.0,   # ② 一期之内宽度掉这么多 pp（10-09 那一场是 −88.9）
-    'prev_width_min_pct': 80.0,  # ② 且上一期宽度 ≥80%（"权重一松手"要先是真的强）
+    'prev_width_min_pct': 80.0,  # ② 且上一期宽度 ≥80%（先要真的是普涨，掉下来才算"断"）
     'max_marks': 6,             # 每类各标最严重的几个（两类合起来最多 12 个标记，图才不会糊）
 }
 
@@ -82,6 +87,55 @@ EXTREME_KIND_LABELS = {
     'divergence': '量价背离（家数在走强、钱没跟上）',
     'collapse': '宽度崩塌（上一期还很宽，这一期直接掉下去）',
 }
+#: 极端点位清单那一排的**五格**（用户 2026-11-01 点名：提示类要摆「指标名、时间、数值、
+#: 与阈值的比较结果、结果含义（如异动提醒）」，并且"其他类似的提醒也要按照这个标准来写"）。
+#: 类型名与那句含义只住这一处：页面只决定"哪一格摆哪一列"，不自己判"这算不算风险提示"。
+EXTREME_METRIC = {
+    'divergence': '市场宽度 × 成交额占比 · 家数比钱多',
+    'collapse': '市场宽度 · 一期之内的落差',
+}
+EXTREME_ALERT = {
+    'divergence': ('风险提示',
+                   '涨的票一大片，钱却集中在少数票上（上涨家数占比明显高于这些票的成交额占比）'
+                   '—— 也就是「普涨偏薄」。说的是当天那个形状，不是退潮倒计时；'
+                   '这类点之后几场怎么走，见同一屏那句全史实测'),
+    'collapse': ('风险提示',
+                 '普涨断了：上一场还有八成以上的票在涨，这一场跌的票反过来多于涨的，'
+                 '一期之内至少掉 25 个百分点。它标的是热度切换的那一天（当天确实掉得狠），不是卖出信号；'
+                 '这类点之后几场怎么走，见同一屏那句全史实测'),
+}
+
+
+def _extreme_cells(r: dict, th: dict) -> dict:
+    """一条极端点位的五格里除时间外的四格（时间＝这一行的 `label`）。
+
+    数值与阈值都用这一行自己的读数，`compare_text` 里把"高出多少"算给读者看 ——
+    只说"越过了 8pp"等于把判据藏起来，读的人不知道该按多重。
+    """
+    kind = str(r.get('kind'))
+    type_name, meaning = EXTREME_ALERT.get(kind, ('风险提示', '图上标的极端点位'))
+    if kind == 'collapse':
+        drop, need_prev = float(r['drop_pp']), float(th['prev_width_min_pct'])
+        value_text = (f'一期之内宽度掉 {drop:.1f}pp'
+                      f'（{r.get("prev_label")} {float(r["prev_width_pct"]):.1f}% → '
+                      f'{r["label"]} {float(r["width_pct"]):.1f}%）')
+        compare_text = (f'掉幅 ≥ 阈值 {float(th["collapse_drop_pp"]):.0f}pp 且上一期宽度 ≥ {need_prev:.0f}%'
+                        f' ⇒ 掉幅超出 {drop - float(th["collapse_drop_pp"]):.1f}pp，'
+                        f'上一期宽度比门槛高 {float(r["prev_width_pct"]) - need_prev:.1f}pp')
+    else:
+        gap, width = float(r['share_gap']), float(r['width_pct'])
+        lu = r.get('limit_up_count')
+        value_text = (f'家数占比比钱多 {gap:+.1f}pp（宽度 {width:.1f}%'
+                      + (f'、涨停 {float(lu):.0f} 家' if lu is not None else '')
+                      + f'、涨票吃掉 {float(r["amount_share_up"]):.1f}% 的成交）')
+        compare_text = (f'≥ 阈值 {float(th["share_gap_pp"]):.0f}pp 且宽度 ≥ {float(th["width_min_pct"]):.0f}%'
+                        f' ⇒ 家数钱差超出 {gap - float(th["share_gap_pp"]):.1f}pp，'
+                        f'宽度比门槛高 {width - float(th["width_min_pct"]):.1f}pp')
+    return {'metric': EXTREME_METRIC.get(kind, kind), 'alert_type': type_name,
+            'value_text': value_text, 'compare_text': compare_text,
+            # 与 `national_team._part_cells` 同一分工：类型名单交一份、含义单交一句裸文本，
+            # 「风险提示：……」那个前缀由展示层拼，两处各拼一套迟早分叉。
+            'meaning_text': meaning}
 
 #: ---------------- 趋势与转折点（用户 2026-10-26 点名「这个图看不出趋势和转折点」）
 #: 先量后画的结论，三件都写在 `DEFINITIONS['trend_basis']` 里随接口交出：
@@ -155,7 +209,10 @@ DEFINITIONS = {
                  '每类按严重程度取前 `max_marks` 个（默认 6），但最近 ' + str(PCT_WINDOW) + ' 期内的命中一律保留 —— '
                  '这块屏是天天读的，昨天刚命中的点不该被去年更大的那一次挤掉。'
                  '命中多少、被上限挤掉多少都交回、屏上一念 —— 不然 24 个月那一档几十个命中只看到几个，'
-                 '会被读成「就这么点危险」。缺成交额占比的期数另记 `skipped_no_gap`（判不了 ≠ 没命中）。'),
+                 '会被读成「就这么点危险」。缺成交额占比的期数另记 `skipped_no_gap`（判不了 ≠ 没命中）。'
+                 '每一条命中同时交出用户 11-01 点名的五格里除时间外那四格'
+                 '（`metric`／`value_text`／`compare_text`／`alert_type`+`meaning_text`，由 `_extreme_cells()` 拼，'
+                 '指标名与判据句只住 `EXTREME_METRIC`/`EXTREME_ALERT` 这一处）—— 页面只决定哪一格摆哪一列。'),
     'trend': ('趋势与转折点标在「平滑后的宽度线」上，不标在背离条上（参数只住本文件：'
               f'均线 {TREND_SMOOTH} 期、zigzag 幅度 ≥{TREND_ZIGZAG_PP:g}pp）。'
               'zigzag 的口径是「只记幅度够大的反转」：从上一个极值起，反向走够 '
@@ -221,6 +278,117 @@ def _rows(sql: str, params=()) -> list[dict]:
         {k: _num(v) for k, v in row.items()} for row in df.to_dict('records')]
 
 
+# ---------------------------------------------------- 两类极端点位的「之后怎么发展」（现算）
+#: 用户 2026-11-02：描述要直接了当 —— 这些节点代表什么、市场解读是什么、接下来怎么走。
+#: ⚠️ 第三问的答案只能来自实测，而且**每次现算**：库里每天多一场，手抄的中位数就会漂
+#:    （这一屏上就抓过一次：文字写着「全史 1,193 期」，同库实测已 1,270 场）。
+FOLLOW_STEPS = (1, 2, 3, 5)
+FOLLOW_TTL_SECONDS = 600
+_follow_cache: tuple[float, dict] | None = None
+
+
+def _median(vals: list[float]) -> float | None:
+    vals = sorted(v for v in vals if v is not None)
+    if not vals:
+        return None
+    mid = len(vals) // 2
+    return vals[mid] if len(vals) % 2 else round((vals[mid - 1] + vals[mid]) / 2, 2)
+
+
+def follow_through(force: bool = False) -> dict:
+    """全史重算两类极端点位的命中数与「之后第 k 场的宽度中位数」，与全史基线并排交出。
+
+    读的是 `analytics.market_breadth` 全表（不看界面那一档 months），因为 3 个月窗口里
+    只有个位数命中，算出来的"之后怎么走"没有样本底，宁可说"没样本"也不交假数。
+    """
+    global _follow_cache
+    now = time.monotonic()
+    if not force and _follow_cache and now - _follow_cache[0] < FOLLOW_TTL_SECONDS:
+        return dict(_follow_cache[1], cached=True)
+    try:
+        rows = _rows('select trade_date::text as trade_date, up_ratio, limit_up_count, '
+                     'up_amount, down_amount from analytics.market_breadth '
+                     'where up_ratio is not null and up_amount is not null '
+                     'and down_amount is not null order by trade_date')
+    except Exception as exc:                      # 探测失败不许兜成"没数"，要交原文（异常会骗人）
+        return {'available': False,
+                'reason': f'读 `analytics.market_breadth` 全史失败，这一屏的"之后怎么发展"实测'
+                          f'现在算不出：{type(exc).__name__}: {exc}'}
+    n = len(rows)
+    if n < 200:
+        return {'available': False,
+                'reason': f'`analytics.market_breadth` 只有 {n} 行 —— 不足 200 场，'
+                          '命中数与本档中位数都没有样本底，这里不交一份看着像真的的中位数。'}
+
+    def gap_of(r: dict) -> float | None:
+        up_amt, dn_amt = r.get('up_amount'), r.get('down_amount')
+        if up_amt is None or dn_amt is None or (up_amt + dn_amt) <= 0:
+            return None
+        return round(float(r['up_ratio']) - up_amt / (up_amt + dn_amt) * 100.0, 2)
+
+    widths = [float(r['up_ratio']) for r in rows]
+    th = EXTREME_THRESHOLDS
+    col_idx = [i for i in range(1, n)
+               if widths[i - 1] >= th['prev_width_min_pct']
+               and widths[i - 1] - widths[i] >= th['collapse_drop_pp']]
+    div_idx = [i for i in range(n)
+               if (g := gap_of(rows[i])) is not None
+               and g >= th['share_gap_pp'] and widths[i] >= th['width_min_pct']]
+
+    def fwd(hits: list[int]) -> dict:
+        out = {}
+        for k in FOLLOW_STEPS:
+            vals = [widths[i + k] for i in hits if i + k < n]
+            out[f'after_{k}'] = {'median_width': _median(vals), 'samples': len(vals)} if vals else None
+        return out
+
+    base_width = _median(widths)
+    res = {
+        'available': True,
+        'cached': False,
+        'sessions': n,
+        'from': rows[0]['trade_date'], 'to': rows[-1]['trade_date'],
+        'steps': list(FOLLOW_STEPS),
+        'baseline': {'median_width': base_width,
+                     'below40_rate': round(100.0 * sum(1 for w in widths if w < 40.0) / n, 1),
+                     'median_limit_up': _median([r['limit_up_count'] for r in rows
+                                                 if r.get('limit_up_count') is not None])},
+        'collapse': {'hits': len(col_idx), 'hit_rate': round(100.0 * len(col_idx) / n, 1),
+                     'median_drop_pp': round(_median([widths[i - 1] - widths[i] for i in col_idx]) or 0.0, 1),
+                     'last_dates': [rows[i]['trade_date'] for i in col_idx[-3:]],
+                     **fwd(col_idx)},
+        'divergence': {'hits': len(div_idx), 'hit_rate': round(100.0 * len(div_idx) / n, 1),
+                       'last_dates': [rows[i]['trade_date'] for i in div_idx[-3:]],
+                       **fwd(div_idx)},
+    }
+    res['text'] = _follow_text(res)
+    _follow_cache = (time.monotonic(), res)
+    return dict(res)
+
+
+def _fmt_step(block: dict, label: str, base: float) -> str:
+    seq = [block.get(f'after_{k}') for k in FOLLOW_STEPS]
+    nums = '、'.join(f'{s["median_width"]:.1f}%' if s and s['median_width'] is not None else '—'
+                     for s in seq)
+    return (f'{label}之后第 {"／".join(str(k) for k in FOLLOW_STEPS)} 场的宽度中位依次是 '
+            f'{nums}，而全史随便一场是 {base:.1f}%')
+
+
+def _follow_text(d: dict) -> str:
+    """把现算的分布拼成一句人话（措辞只住这一处，界面不再自己组织一遍）。"""
+    base = float(d['baseline']['median_width'])
+    c, v = d['collapse'], d['divergence']
+    steps = '／'.join(str(k) for k in FOLLOW_STEPS)
+    return (
+        f'这两个点之后怎么发展：{_fmt_step(c, "宽度崩塌", base)}'
+        f'；{_fmt_step(v, "量价背离", base)}。'
+        f'两条都与那条基线分不开（崩塌当天确实掉得狠：掉幅中位 {c["median_drop_pp"]:.0f}pp，'
+        f'但第二天起就回到正常摆动区间）—— '
+        f'所以这一屏交得出「{c["hits"]} 次崩塌、{v["hits"]} 次背离，各是哪天」（图上那两个标记），'
+        f'交不出「明天往哪走」；把它读成方向，是本判据没做的事。'
+        f'（现算自 `analytics.market_breadth` 全史 {d["sessions"]} 场，{d["from"]} ~ {d["to"]}）')
+
+
 # ------------------------------------------------------------ 纯判据（不碰库，单测直接打这些）
 
 def _valid(v: Any) -> bool:
@@ -264,67 +432,6 @@ def divergence_band(div: Any) -> tuple[str | None, str | None]:
     else:
         key = 'none'
     return key, LEVEL_LABELS[key]
-
-
-def moving_average(values: list, k: int) -> list:
-    """逐期的近 `k` 期均值（含当期）；窗口内有效值不满 `k` ⇒ None（不拿几期硬凑）。
-
-    与 `trailing_pctiles` 同一口径：缺数就是判不了，不用现有几期顶替。
-    """
-    out = []
-    for i in range(len(values)):
-        win = [float(x) for x in values[max(0, i - (k - 1)): i + 1] if _valid(x)]
-        out.append(round(sum(win) / len(win), 2) if len(win) >= k else None)
-    return out
-
-
-def zigzag_turns(values: list, th: float) -> list[dict]:
-    """只记幅度 ≥ `th` 的反转（zigzag），返回 [{'i', 'value', 'kind': 'peak'|'trough'}]。
-
-    末端那个还没被反向走够 `th` 确认的极值**不交** —— 交了就等于把最后一根抖动当成拐点。
-    窗口第一期同样不交：它没有左侧，只是窗口边界，交出去会被读成「这里拐过」。
-
-    ⚠️ 方向未定时 `hi`/`lo` 必须分开追：第一版共用一个极值变量，方向没定下来之前
-    那个变量会跟着每一个点跑，结果阈值一大就整段返回空
-    （2026-10-26 实测：MA10 宽度在 12 个月窗口上 th=5pp 报 34 个转折点、th=10pp 报 0 个 ——
-    而那段极差有 31pp，0 个显然是假的）。`tests/test_risk_signal.py` 里钉了这一条。
-    """
-    pts = [(i, float(x)) for i, x in enumerate(values) if _valid(x)]
-    if len(pts) < 3 or not _valid(th) or float(th) <= 0:
-        return []
-    th = float(th)
-    out: list[dict] = []
-    direction = 0                                  # 0=未定 1=向上找顶 -1=向下找底
-    hi_i, hi_v = pts[0]
-    lo_i, lo_v = pts[0]
-    ex_i, ex_v = pts[0]
-    for i, x in pts[1:]:
-        if direction == 0:
-            if x > hi_v:
-                hi_i, hi_v = i, x
-            if x < lo_v:
-                lo_i, lo_v = i, x
-            if hi_v - x >= th:
-                out.append({'i': hi_i, 'value': round(hi_v, 2), 'kind': 'peak'})
-                direction, ex_i, ex_v = -1, i, x
-            elif x - lo_v >= th:
-                out.append({'i': lo_i, 'value': round(lo_v, 2), 'kind': 'trough'})
-                direction, ex_i, ex_v = 1, i, x
-        elif direction == 1:
-            if x > ex_v:
-                ex_i, ex_v = i, x
-            elif ex_v - x >= th:
-                out.append({'i': ex_i, 'value': round(ex_v, 2), 'kind': 'peak'})
-                direction, ex_i, ex_v = -1, i, x
-        else:
-            if x < ex_v:
-                ex_i, ex_v = i, x
-            elif x - ex_v >= th:
-                out.append({'i': ex_i, 'value': round(ex_v, 2), 'kind': 'trough'})
-                direction, ex_i, ex_v = 1, i, x
-    # 窗口第一期不是转折点：它没有左侧，只是窗口边界（不删就会被读成"这里拐过"）
-    first_i = pts[0][0]
-    return [t for t in out if t['i'] != first_i]
 
 
 def hit_density(values: list, th: float, k: int) -> list:
@@ -547,18 +654,20 @@ def find_extremes(periods: list[dict]) -> dict:
             skipped_no_arms += 1
         elif (float(p['share_gap']) >= th['share_gap_pp']
               and float(p['up_ratio']) >= th['width_min_pct']):
-            div.append({
+            div_row = {
                 'period': p['period'], 'label': p['label'], 'kind': 'divergence',
                 'width_pct': p['up_ratio'], 'amount_share_up': p['amount_share_up'],
                 'share_gap': p['share_gap'], 'count_ratio': p['count_ratio'],
                 'arms_ratio': p.get('arms_ratio'), 'limit_up_count': p.get('limit_up_count'),
                 'severity': round(float(p['share_gap']), 2),
-            })
+            }
+            div_row.update(_extreme_cells(div_row, th))
+            div.append(div_row)
         if prev is not None and _valid(prev.get('up_ratio')):
             drop = round(float(prev['up_ratio']) - float(p['up_ratio']), 2)
             if (drop >= th['collapse_drop_pp']
                     and float(prev['up_ratio']) >= th['prev_width_min_pct']):
-                col.append({
+                col_row = {
                     'period': p['period'], 'label': p['label'], 'kind': 'collapse',
                     'width_pct': p['up_ratio'], 'prev_period': prev['period'],
                     'prev_label': prev['label'], 'prev_width_pct': prev['up_ratio'],
@@ -566,7 +675,9 @@ def find_extremes(periods: list[dict]) -> dict:
                     'share_gap': p.get('share_gap'), 'prev_share_gap': prev.get('share_gap'),
                     'limit_up_count': p.get('limit_up_count'),
                     'severity': drop,
-                })
+                }
+                col_row.update(_extreme_cells(col_row, th))
+                col.append(col_row)
         prev = p
 
     cap = th['max_marks']
@@ -819,6 +930,8 @@ def panel(months: Any = 3, group: Any = 'day', date: Any = '') -> dict:
         'series': series,
         'latest': latest,
         'extremes': extremes,
+        # 「这两个点之后怎么发展」＝每次现算的全史分布（界面只转述 `follow.text`，不自己抄中位数）
+        'follow': follow_through(),
         'trend': trend,
         'generated_at': dt.datetime.now(dt.timezone.utc).astimezone().isoformat(timespec='seconds'),
         'caveats': caveats,

@@ -14,11 +14,13 @@ import { VolumeEnergyPanel } from "@/components/VolumeEnergyPanel";
 import { LoopSwitchboard } from "@/components/LoopSwitchboard";
 import { NotifyPanel } from "@/components/NotifyPanel";
 import { WxPushPanel } from "@/components/WxPushPanel";
+import { IntradayBroadcastPanel } from "@/components/IntradayBroadcastPanel";
 import { SectionNav } from "@/components/SectionNav";
 import { TdxWatchPanel } from "@/components/TdxWatchPanel";
 import { LanAccessPanel } from "@/components/LanAccessPanel";
 import { PromptSlotsPanel } from "@/components/PromptSlotsPanel";
 import { Contract, Measured, Panel, Provenance, Row } from "@/components/ui/DataPanel";
+import { DocDrawer } from "@/components/ui/DocDrawer";
 import { probe, useNonce, useProbe } from "@/lib/probe";
 import { ageText, dash, hasData } from "@/lib/datastate";
 import { verdictOf, type ProbeVerdict } from "@/lib/probeVerdict";
@@ -74,10 +76,13 @@ const CAPABILITIES: { path: string; label: string; where: string; slow?: boolean
   { path: "/quant/intraday-spike", label: "异动筛查（盘中瞬间冲高／摸到涨停的逐事件榜 + 与同期基线并排的复盘分布）", where: "/spike", slow: true },
   { path: "/quant/trend-stocks?lookback=5", label: "趋势股（近 5／10 个交易日每天收盘严格高于当日 5 日线 × 当天没涨停，主板／创业板／科创板分组；判据落库在 analytics.trend_stock_daily）", where: "/trend-stocks", slow: true },
   { path: "/market/abnormal-move?recent=10&hot_limit=20", label: "异动提醒（明日涨停会不会踩到严重异动／热门股 10 日累计偏离前 20／近期已踩到含次日涨幅与停牌；判据落库在 analytics.abnormal_move_daily）", where: "/（首页短线情绪下面）", slow: true },
-  { path: "/market/emotion", label: "短线情绪（连板梯队／最高连板／炸板率／封板率／晋级率／涨跌停家数，全站共享缓存 5 分钟）", where: "/（首页短线情绪那一格）" },
+  { path: "/market/emotion", label: "短线情绪（连板梯队／最高连板／炸板率／封板率／晋级率／涨跌停家数，全站共享缓存 5 分钟）", where: "/（首页三口径对照那一格）" },
+  { path: "/market/limit-move?date=&tiers=", label: "涨停分析（同一份 _emotion，多两个入参：指定交易日 + 连板档位多选 1/2/3/4p）", where: "/first-board" },
+  { path: "/market/limit-down?date=&tiers=", label: "跌停分析（母体是本地日线 stock_daily，按当日跌停档位判；档位键与涨停同一套）", where: "/first-board" },
   { path: "/quant/risk-signal?months=3&group=day", label: "风险提示（市场宽度 × 阿姆斯＝涨额÷跌额 双折线＋区间背离；只读 analytics.market_breadth，20 期分位与档位阈值只住 duanxian/risk_signal.py；那一族列没回填时 arms.available=false 并给补跑命令）", where: "/（首页盘面数据里，异动提醒上面）" },
   { path: "/qd/sector-follow", label: "板块前三甲与相似板块（quantdash 口径轨：领涨那一名 + 后面两名 × 前五场名次 × 错开两场的轨迹匹配；母体与排名尺子和写侧 qd_sector 同一条，读侧现算约两秒、进程内缓存一小时）", where: "/（首页轮动矩阵与持续性那一块）", slow: true },
-  { path: "/quant/first-board-daily", label: "首板分析（当日首板个股 + 涨停原因 + 前一天的走势与形态档 + 近期 5/10/15 场复权涨幅；母体只住 analytics.first_board_shape 的 fb-2 一把尺，判据落 analytics.first_board_daily；原因与封板时间来自同花顺涨停揭秘池，ST/北交所不收＝源站没这只，与「本场整池没取到」是两件事）", where: "/（首页换手率 TOP20 上面）", slow: true },
+  { path: "/quant/first-board-daily", label: "首板分析（当日首板个股 + 涨停原因 + 前一天的走势与形态档 + 近期 5/10/15 场复权涨幅；母体只住 analytics.first_board_shape 的 fb-2 一把尺，判据落 analytics.first_board_daily；原因与封板时间来自同花顺涨停揭秘池，ST/北交所不收＝源站没这只，与「本场整池没取到」是两件事）", where: "/first-board（短线复盘，首板分析那一块）", slow: true },
+  { path: "/market/first-board-deep?date=&limit=", label: "首板四层过滤深析（题材／盘口／资金三层逐票读数 + 第④层那张场次卡；母体与「涨停分析」同一把尺 lup-1，外部阈值与本机 120 场分位并排交，席位明细那一族本机没有＝明说不做；一开屏现算概念近 20 场常态约 5 秒）", where: "/first-board（短线复盘最下方）", slow: true },
   { path: "/intraday/timeline", label: "盘中涨跌停事件流（东财涨跌停池每 5 分钟一针的逐条事件差：新封／回封／开板又回封／炸板 + 跌停那一轨四条，附每一针的整池家数；判据只住 app/intraday/pool_events.py，落库 analytics.intraday_pool_event，取数带 spec_version；这张表从 2026-10-26 才开线，更早的日子 available=false 并说明「库里还没有事件行」，不是那天没有涨跌停）", where: "/first-board（上半部分）" },
   { path: "/quant/stock-dossier?code=000001.SZ", label: "个股量化档案（象限/八分量/倍量/启动/板块热度/埋伏/突破/交叉，按这一只票拼起来；10-15 起住在个股深度复盘）", where: "/stock-review", slow: true },
   { path: "/stock/indicators?code=600519.SH", label: "35 项技术指标读数（库里实算，逐项带单位与小数位；10-15 起个股研究与趋势评分共用这一份渲染）", where: "/stock-review" },
@@ -105,6 +110,7 @@ const CAPABILITIES: { path: string; label: string; where: string; slow?: boolean
   { path: "/pipeline", label: "链路四环进度", where: "/pipeline" },
   { path: "/tdx/watch", label: "通达信看护（探测 + 待人工清单）", where: "/system" },
   { path: "/wxpush", label: "个人微信推送（在这台机器桌面上按键盘的那条通道：步骤、发送前的检查逐条实情、内容档；步数与闸数由接口现算，本行不抄）", where: "/system" },
+  { path: "/intraday/broadcast", label: "盘中播报四条（时点／渠道／开关，与机器上真注册的计划任务、当天库里的留痕并排给；保存＝按新配置覆盖式重注册，关掉的那一路注销。要起一次 PowerShell 查任务状态，所以标 slow）", where: "/system", slow: true },
   { path: "/tdx/status", label: "通达信客户端与文件日期", where: "/tdx" },
 ];
 
@@ -287,14 +293,34 @@ export function System() {
             紧挨着放是为了让"无人值守该用哪条"这件事在同一屏里就能比出来。 */}
         <WxPushPanel />
 
+        {/* 盘中播报四条（用户 11-02 点名要把时点与渠道交进界面）：它和上面两块都不同 ——
+            执行体是 Windows 计划任务里那些「到点起一个短进程」，不是本进程的循环。
+            紧挨着两条推送面放，是为了在同一屏里比清楚这三条链各是谁在跑。 */}
+        <IntradayBroadcastPanel />
+
         {/* 收盘链依赖的那个客户端本身"在不在跑"，原先整机没有一个可见处：
             它挂了不会报错，只会让上游的数一天一天不动。这一格只读、带最近探测时间。 */}
         <TdxWatchPanel nonce={nonce} />
 
         <GlassCard>
-          <h2 className="flex items-center gap-1.5 text-sm font-bold">
-            <Stethoscope className="h-4 w-4 text-primary" /> 能力接入自检
-          </h2>
+          {/* 用户 10-31：「这块的说明」摆标题行最右边。原先摊在卡底的 Measured 那段（两半各答一件事）
+              看着像"数下面的一段话"，整段搬进标题行的抽屉；那颗自检按钮旁的操作指引那句留在屏上 ——
+              它带着「正在逐个探测…」的实时状态，收进抽屉等于把进行中的事藏起来。 */}
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <h2 className="flex items-center gap-1.5 text-sm font-bold">
+              <Stethoscope className="h-4 w-4 text-primary" /> 能力接入自检
+            </h2>
+            <span className="ml-auto"><DocDrawer title="能力接入自检">
+              <Measured>
+                两半各答一件事：上面这 {doctorCount ?? "若干"} 项体检回答<b className="text-foreground">环境好不好</b>（它是缓存结果，
+                <code>age_seconds</code> 一到 TTL 才重算，所以页面把「算于多久前」摆在第一行），
+                下面的自检回答<b className="text-foreground">接口在不在</b>（现问现答、不缓存）。
+                两半都<b className="text-foreground">不回答「数据对不对」</b> —— 那是质量闸那一屏的事
+                （<Link className="text-primary underline" to="/quality">/quality</Link>：那一屏自己会报「本场审了几条 / 登记了几条」，
+                条数由接口现算，本屏不替它抄一份 —— 那才是这类问题真正的落点）。
+              </Measured>
+            </DocDrawer></span>
+          </div>
           <p className="mb-2 mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
             点一下，从浏览器这一侧真发 {CAPABILITIES.length} 个 GET。<b className="text-foreground">不缓存结果</b>：
             这一屏的价值就是「现在的状态」，缓存把它变成昨天。
@@ -337,19 +363,19 @@ export function System() {
               })}
             </ul>
           )}
-
-          <Measured>
-            两半各答一件事：上面这 {doctorCount ?? "若干"} 项体检回答<b className="text-foreground">环境好不好</b>（它是缓存结果，
-            <code>age_seconds</code> 一到 TTL 才重算，所以页面把"算于多久前"摆在第一行），
-            下面的自检回答<b className="text-foreground">接口在不在</b>（现问现答、不缓存）。
-            两半都<b className="text-foreground">不回答"数据对不对"</b> —— 那是质量闸那一屏的事
-            （<Link className="text-primary underline" to="/quality">/quality</Link>：那一屏自己会报"本场审了几条 / 登记了几条"，
-            条数由接口现算，本屏不替它抄一份 —— 那才是这类问题真正的落点）。
-          </Measured>
         </GlassCard>
 
         <GlassCard>
-          <h2 className="text-sm font-bold">运维入口</h2>
+          {/* 同上（用户 10-31）：「三条刻意没做入口的」那段是这一块的口径边界，搬进标题行的抽屉；
+              入口链接那一行留在屏上（那是功能本身）。 */}
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <h2 className="text-sm font-bold">运维入口</h2>
+            <span className="ml-auto"><DocDrawer title="运维入口">
+              <p>三条刻意没做入口的（理由写在 <code>docs/FinanceTool页面映射.md</code>，用户要否就改那一处）：
+                自由 SQL 查询台（给只读成品项目开自由 SQL 等于自己放大权限）、
+                端口访问控制（属部署层）、动态拼页器（React 固定路由下等价于改代码）。</p>
+            </DocDrawer></span>
+          </div>
           <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
             <Link className="text-primary underline" to="/jobs">任务调度（含调度器与任务大全）</Link>
             <Link className="text-primary underline" to="/datasource">数据获取</Link>
@@ -359,11 +385,6 @@ export function System() {
             <Link className="text-primary underline" to="/tdx">通达信控制</Link>
             <Link className="text-primary underline" to="/pipeline">链路总览</Link>
             <Link className="text-primary underline" to="/settings?tab=access">AI 探索 · 接入设置</Link>
-          </p>
-          <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-            三条刻意没做入口的（理由写在 <code>docs/FinanceTool页面映射.md</code>，用户要否就改那一处）：
-            自由 SQL 查询台（给只读成品项目开自由 SQL 等于自己放大权限）、
-            端口访问控制（属部署层）、动态拼页器（React 固定路由下等价于改代码）。
           </p>
         </GlassCard>
       </div>

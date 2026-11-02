@@ -20,13 +20,16 @@ test('说明框用的是原生 details，且默认不带 open', () => {
   assert.match(box, /\$\{count\} 条/, '条数要说出来，人才知道框里有多少东西');
 });
 
-test('面板的口径说明走说明框（一处改，每屏都跟着收）', () => {
-  assert.match(panel, /\{note && !quiet && <ExplainBox title="这一屏的口径说明">/,
-    'Panel 的 note 必须经 ExplainBox —— 各屏的 note 都在这一处上屏（10-22 起：空态那一支除外，见下面那条）');
+test('面板的口径说明走说明出口（一处改，每屏都跟着收）', () => {
+  // 2026-10-31 用户点名：那颗按钮要长在标题行最右边，`Panel` 的 note 因此从「正文开头那口 ExplainBox」
+  // 换成「标题行右侧那口 DocDrawer」——判据没变（note 绝不平摊在屏上、全站一处出口），只是钉子搬了家。
+  assert.match(panel, /\{note && !quiet && \(\s*<span className="ml-auto"><DocDrawer title=\{title\}>\{plain\(note\)\}<\/DocDrawer>/,
+    'Panel 的 note 必须经共用的说明抽屉 —— 各屏的 note 都在这一处上屏（10-22 起：空态那一支除外，见下面那条）');
+  assert.doesNotMatch(panel, /\{note && !quiet && <p/, 'note 不许退回平摊在屏上（那就是用户点名的"占一行说明文字"）');
   assert.match(panel, /<QuietFold title=\{title\} text=\{plain\(text\)\} note=\{note \? plain\(note\) : undefined\}/,
     '空态那一支里 note 也没丢：它作为 `note` 交给 QuietFold，摆在 summary 之下（bare，不再套一层 details）');
-  assert.match(panel, /<ExplainBox title="这些字段是什么意思" count=\{entries.length\}>/,
-    'Definitions 也走同一块，不再自己写一份 details');
+  assert.match(panel, /<ExplainBox title="这些字段是什么意思" count=\{entries.length\} block=\{block\}>/,
+    'Definitions 也走同一块，不再自己写一份 details（2026-10-29 起多一个 block 口：卡片外面才有标题的那几块要交块名）');
 });
 
 test('右侧 AI 栏那两句逐屏摊着的描述也收进了框（但 caution 留在 summary 上）', () => {
@@ -81,9 +84,16 @@ test('CaliberFold 那一处折叠：收的是描述，不收告警，而且要�
   // 唯一允许的 text-warning 是 summary 上那句「另有 N 条没折，在上方」的指路牌（点开之前就一直看得见）
   const warnBits = fold.split('text-warning').length - 1;
   assert.equal(warnBits, 1, `text-warning 只该出现一次（summary 那句指路牌），实际 ${warnBits} 次`);
-  const summary = fold.slice(fold.indexOf('<summary'), fold.indexOf('</summary>'));
-  assert.match(summary, /text-warning/, '指路牌要在 summary 里，不在折叠体里');
-  assert.match(summary, /另有 \{visible\.length\} 条/, '要说清"还有几条没收进来"，否则收起会被读成"这里什么都没有了"');
+  // 10-28 加了抽屉那一版之后，指路牌抽成一个 `guide`（就地折叠与抽屉两个壳共用同一句，
+  // 所以屏幕上只可能有一句）。这条钉子管的还是那件事：**点开之前就必须看得见，
+  // 而且不许待在折叠体里** —— 位置随壳走，判据不松。
+  assert.match(fold, /const guide = /, '指路牌那一句要在，并且只写一份');
+  assert.match(fold, /另有 \{visible\.length\} 条/, '要说清"还有几条没收进来"，否则收起会被读成"这里什么都没有了"');
+  const foldBody = fold.slice(fold.indexOf('const body = ('), fold.indexOf('const tallyBits'));
+  assert.ok(foldBody.length > 60, '折叠体那一段没取到（CaliberFold 的结构变了，这条要跟着改位置，不是删掉）');
+  assert.doesNotMatch(foldBody, /\{guide\}|text-warning/, '指路牌不许落到折叠体里：收起来就读不见了');
+  assert.match(fold.slice(fold.indexOf('return (')), /\{guide\}/,
+    '两个壳都要在摘要行／说明按钮旁边把它摆出来（点开之前就看得见）');
   // 用户点名的那一屏确实改走这一处（三块：选股象限 / 名次稳定榜 / 名次稳步前进榜）
   for (const f of ['../src/pages/Quadrant.tsx',
     '../src/components/quant/RankStabilityBoard.tsx',
@@ -100,14 +110,27 @@ test('分组卡片一行一个组', () => {
   assert.doesNotMatch(grouped, /第一行第一个|按行从左到右/, '一行一个组之后，这话就是错的');
 });
 
-test('分组自选那一屏把摊开的说明收进了框，但没把截断与告警收掉', () => {
-  assert.match(grouped, /<ExplainBox title="字段义 · 操作分与象限怎么来的 · 单位"/);
-  assert.match(grouped, /<ExplainBox title="这一张表怎么点 · 双击去哪里"/);
-  // 截断那一句（先排序再截 150 行）必须在框外：JSX 的先后就是渲染的先后，
-  // 它排在下面那个 ExplainBox 之前，又紧跟在 </table> 之后 —— 落在框里就等于"榜尾没在这里"被藏了。
-  const trunc = grouped.indexOf('再截前 150 行');
-  const box = grouped.indexOf('<ExplainBox title="这一张表怎么点');
-  assert.ok(trunc > 0 && trunc < box, '截断声明不许落在折叠框里');
+test('分组自选那一屏：说明并到标题行那一颗按钮，截断与告警仍摊在表下（用户 10-31 一模块一颗）', () => {
+  // 10-31 第 1、2 条（个股组）：这一块原来一张卡里四颗同名「这块的说明」（Panel note + 正文两只
+  // ExplainBox + CaliberFold），说明散在正文里像"数下面的一段话"。现在自选明细自己写标题行：
+  // 唯一一颗按钮在 h2 那一行最右，四段说明并进它的抽屉（`DrawerSection` 分节，句子原样搬）。
+  // 判前先剥注释 —— 注释里写着 ExplainBox/CaliberFold 是历史说明，不是调用点。
+  const code = grouped.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.doesNotMatch(code, /<ExplainBox\b|<CaliberFold\b/,
+    '正文里不许再长第二、第三颗说明按钮（自选明细的抽屉在标题行）');
+  assert.match(code, /<DocDrawer title=\{open == null \? "自选明细（全部组）" : "自选明细（所选组）"\}/,
+    '抽屉标题跟着屏上那一行 h2 走，两处不许分叉');
+  for (const h of ['日均与区间 · 操作分怎么读', '字段义 · 操作分与象限怎么来的 · 单位',
+    '这一张表怎么点 · 双击去哪里', '出处']) {
+    assert.ok(code.includes(`heading="${h}"`), `标题行那颗抽屉里少了这一段：${h}`);
+  }
+  // 截断那一句（先排序再截 40 行）与弹窗被拦的告警仍在屏上：JSX 的先后就是渲染的先后，
+  // 它们在 `</table>` 之后 —— 而整口抽屉在 `<Panel` 之前，落进抽屉就等于把上限与告警藏了。
+  const trunc = code.indexOf('再截前 40 行');
+  const drawer = code.indexOf('</DocDrawer>');
+  assert.ok(trunc > 0 && drawer > 0 && trunc > drawer, '截断声明不许落在说明抽屉里');
+  assert.match(code, /<NoticeBar kind="truncated">/, '上限那一句仍走三型出口');
+  assert.match(code, /<NoticeBar kind="warning">\{popHint\}<\/NoticeBar>/, '弹窗被拦的告警仍摊在表下');
 });
 
 test('全站不许出现"折叠框里藏着 caveat／告警"的写法', () => {
@@ -128,18 +151,25 @@ test('全站不许出现"折叠框里藏着 caveat／告警"的写法', () => {
 
 /** 2026-10-19 夜用户点名「把选项留出，描述内容都收缩起来」后补的自查闸：
  *  这几块把裸渲染的"怎么点"描述收进了默认收起的说明框，而截断声明与 caveat 留在框外。
- *  默认收起本身由上面第一条闸钉（ExplainBox＝原生 details 不带 open）。 */
-test('10-19 夜「描述收缩」自查（自选股历史新高）：怎么点折进框，缓存年龄/截断/告警留在外面', () => {
+ *  2026-10-31 用户再裁定：那颗按钮要摆在这一块标题行的最右边 —— 这一屏的 `ExplainBox`
+ *  与 `CaliberFold` 的抽屉体一起搬进标题行那颗 `DocDrawer`，三类诚实性文字仍留在屏上。 */
+test('10-19 夜「描述收缩」自查（自选股新高）· 10-31 搬到标题行：说明按钮在标题行，缓存年龄/截断/告警留在抽屉外', () => {
   const nh = readFileSync(new URL('../src/components/quant/NewHighBoard.tsx', import.meta.url), 'utf8');
-  const boxStart = nh.indexOf('<ExplainBox title="这一格的出处');
-  const boxEnd = nh.indexOf('</ExplainBox>', boxStart);
-  assert.ok(boxStart > 0 && boxEnd > boxStart, '新高榜要有默认收起的说明框');
+  const boxStart = nh.indexOf('<DocDrawer title="自选股新高（库内，不是上市以来）"');
+  const boxEnd = nh.indexOf('</DocDrawer>', boxStart);
+  assert.ok(boxStart > 0 && boxEnd > boxStart, '新高榜的说明要在标题行那颗按钮里（10-31 起不再是正文里的 ExplainBox）');
+  assert.ok(boxStart > nh.indexOf('<h2 className="text-sm font-bold">自选股新高'),
+    '说明按钮就在标题这一行、紧跟 h2');
+  assert.ok(boxEnd < nh.indexOf('<label className="text-[11px] text-muted-foreground" htmlFor="nh-group">'),
+    '抽屉整段排在范围/窗口控件之前 —— 它是标题行最右边那一簇');
   const box = nh.slice(boxStart, boxEnd);
-  assert.match(box, /\{STOCK_ROW_HINT\}/, '"怎么点"那句折进框里');
-  assert.doesNotMatch(box, /popHint|text-warning|text-destructive|<Caveats/);
-  const before = nh.slice(0, boxStart);
-  assert.match(before, /取出 \/ 截断/, '「取前 N 行、没列出来的是更远不是没算」那行截断声明渲染在框之前');
-  assert.match(before, /这份数实算于/, '缓存年龄声明不许折');
-  assert.match(before, /库内新高/, '「不是上市以来新高」这句防误读的话不许折');
-  assert.ok(nh.indexOf('x.popHint') < boxStart, '弹窗被拦的告警留在说明框外面');
+  assert.match(box, /\{STOCK_ROW_HINT\}/, '"怎么点"那句在抽屉里');
+  assert.doesNotMatch(box, /popHint|text-warning|text-destructive/, '告警不进抽屉');
+  assert.match(box, /<Caveats items=\{cav\.foldable\}/, '只有纯口径一族的 caveat 允许进抽屉（分类只住 splitCaveats）');
+  const after = nh.slice(boxEnd);
+  assert.match(after, /取出 \/ 截断/, '「取前 N 行、没列出来的是更远不是没算」那行截断声明渲染在抽屉之外');
+  assert.match(after, /这份数实算于/, '缓存年龄声明不许折');
+  assert.match(after, /库内新高/, '「不是上市以来新高」这句防误读的话不许折');
+  assert.match(after, /<Caveats items=\{cav\.visible\}/, '缺数／截断一族仍摊在屏上');
+  assert.ok(after.indexOf('x.popHint') > 0, '弹窗被拦的告警留在说明抽屉外面');
 });

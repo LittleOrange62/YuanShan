@@ -109,6 +109,12 @@ DEFINITIONS = {
             '（Q1 强势／Q2／Q3／Q4，算法与四维象限那屏同一份），名次是它在全市场的排位。'
             '五段从左到右是由早到晚，最后一场就是本场。标了〈旧基准〉的那一段是旧系统迁进来的行，'
             '象限可用、名次不参与对比。这一场没有 score 行就整段是 —（没算到），不是「排名第 0」。',
+    'xy': '「XY 合计名次」＝X 轴名次（`stock_quality` 的全场排位）＋ Y 轴名次（`env_resonance` 的全场排位），'
+          '两个已入库的名次相加，不是对合计再排一次名 ⇒ 越小越靠前，'
+          '量级上限约 2 × 当日两轴都有名次的只数（屏上分母随接口交，母体有上限时不说「全场」）。'
+          '它与 `oper_score`（合成分 0.40X+0.60Y 再排一次）不是同一把尺：同一只票同一天实测 100 对 25，'
+          '谁也不许替谁、更不许相减。少一轴的那只票那天整行不落 ⇒ 那一格是 —（读不到），不是 0、不是「没上榜」。'
+          '五段从左到右由早到晚，落库口径见 `app/compute/xy_rank.py`（加工段第 37 步 `xyrank`）。',
     'dbl_windows': '「近 10 场 / 近 20 场倍量」的分母是「对昨日量」的倍数'
                    f'（`analytics.volume_ratio_daily`，判据版 {0}，加工段每日算）：'
                    '倍数 ≥ {1} 记一次倍量，{2}~{1} 记一次准倍量。'
@@ -256,7 +262,7 @@ def _enrich(out: list[dict], d: str, warns: list[str]) -> dict:
     codes = [str(r['code'])[:6] for r in out]      # 行上交的是全码（301314.SZ），四类读数都按 6 位码建键
     for r in out:
         r.update({'boards_20d': None, 'boards_20d_bars': None, 'boards_20d_dates': [],
-                  'quad': [], 'quad_stale': False,
+                  'quad': [], 'quad_stale': False, 'xy': [],
                   'dbl10': None, 'dbl20': None, 'dbl_unit': None, 'dbl_last_day': None,
                   'spike_tier': None, 'spike_tier_rank': None,
                   'spike_first5_at': None, 'spike_speed15_pct': None,
@@ -303,6 +309,7 @@ def _enrich(out: list[dict], d: str, warns: list[str]) -> dict:
         by: dict = {}
         for r in quad:
             by.setdefault(str(r['code'])[:6], []).append(r)
+        meta['quad_dates'] = sorted({str(x['day'])[:10] for x in quad})
         for r in out:
             seq = by.get(str(r['code'])[:6]) or []
             r['quad'] = [{'day': str(x['day'])[:10], 'quadrant': x.get('quadrant'),
@@ -312,6 +319,51 @@ def _enrich(out: list[dict], d: str, warns: list[str]) -> dict:
             r['quad_stale'] = any(x['stale'] for x in r['quad'])
             if not seq:
                 r['quad'] = []
+
+    # ②b 近 5 场 XY 合计名次（X 轴名次 + Y 轴名次）。**读库，不在这儿加**：
+    #     10-28 用户点名「名次应该也在数据加工的时候入库了呀」⇒ 落库成 `analytics.xy_rank_daily`
+    #     （加工段第 37 步 `xyrank`，紧跟 `scores`），屏上那一串 `21-20-19-18-5` 直接读它。
+    #     读侧再算一遍就是第二份真相源 —— 与「名次稳步前进榜」各加各的那种分叉以前犯过。
+    from app.compute import xy_rank as XY
+    meta['xy_spec'] = XY.SPEC
+    meta['xy_keys'] = {'x': XY.X_KEY, 'y': XY.Y_KEY}
+    xy = _safe_query("""
+        with days as (select trade_date from (select distinct trade_date
+                        from analytics.xy_rank_daily
+                       where spec_version = %(spec)s and trade_date <= %(d)s::date
+                       order by trade_date desc limit %(n)s) x)
+        select left(x.security_code, 6) as code, x.trade_date::text as day, x.rank_x, x.rank_y,
+               x.rank_sum, x.universe, x.stale
+          from analytics.xy_rank_daily x
+          join days g using (trade_date)
+         where x.spec_version = %(spec)s
+         order by 1, 2""",
+        {'spec': XY.SPEC, 'd': d, 'n': QUAD_SESSIONS})
+    if xy is None:
+        warns.append('近 5 场 XY 合计名次没读到（`analytics.xy_rank_daily` 那一族）—— '
+                     '这一列是 —，不等于"这些票都没名次"')
+    else:
+        byx: dict = {}
+        for r in xy:
+            byx.setdefault(str(r['code'])[:6], []).append(r)
+        days_xy = sorted({str(r['day'])[:10] for r in xy})
+        meta['xy_dates'] = days_xy
+        meta['xy_sessions'] = len(days_xy)
+        if days_xy:
+            last = days_xy[-1]
+            univ = [int(r['universe']) for r in xy if str(r['day'])[:10] == last]
+            meta['xy_universe'] = max(univ) if univ else None
+        for r in out:
+            seq = byx.get(str(r['code'])[:6]) or []
+            r['xy'] = [{'day': str(x['day'])[:10],
+                        'rank': _num(x.get('rank_sum')),
+                        'x': _num(x.get('rank_x')), 'y': _num(x.get('rank_y')),
+                        'universe': _num(x.get('universe')),
+                        'stale': bool(x.get('stale'))} for x in seq]
+        # 两把尺的窗口必须是同五天，否则屏上那一句"同一批场次"就是假话（各查各的最近 N 场，
+        # 加工段补跑过谁没补跑过谁，这里当场露馅）
+        days_quad = sorted({x['day'] for r in out for x in (r.get('quad') or [])})
+        meta['xy_window_matches_quad'] = (bool(days_xy) and days_xy == days_quad) if days_quad else None
 
     # ③ 近 10 / 近 20 场的倍量分布（对昨日量，vr-1）
     from app.compute import volume_ratio as VR
@@ -603,9 +655,9 @@ def panel(date: str = '', limit: int = DEFAULT_LIMIT, shapes: str = '') -> dict:
                         f'源站没收这只 {a.get("reason_row_absent", "—")} 只、'
                         f'那场整池没取到 {a.get("reason_no_records", "—")} 只（后者才是本机漏采）。'},
                {'code': 'recent_sources',
-                'text': '「近 20 场几板 / 近 5 场四维象限 / 近 10 与 20 场倍量」读的是本地库里另外三张表'
+                'text': '「近 20 场几板 / 近 5 场四维象限 / 近 5 场 XY 合计名次 / 近 10 与 20 场倍量」读的是本地库里另外四张表'
                         '（stock_daily 的封住判据、analytics.score 的 oper_score、'
-                        'analytics.volume_ratio_daily 的 vr-1），不是本表算的；'
+                        'analytics.xy_rank_daily 的 xyr-1、analytics.volume_ratio_daily 的 vr-1），不是本表算的；'
                         '「盘中」那三列读 analytics.intraday_spike（spk-1），'
                         '分钟线只有 2026-08-14 起、10-20 与 10-21 两天整场没入库 —— '
                         '那几天的 — 是「没有分时读数」，而没进异动榜是「没过入表线」，两种都要分开念。'},
@@ -622,6 +674,27 @@ def panel(date: str = '', limit: int = DEFAULT_LIMIT, shapes: str = '') -> dict:
         caveats.append({'code': 'shape_filter', 'hard': True,
                         'text': f'现在只列形态属于 {use} 的首板（在库里筛，先于取数上限）；'
                                 f'上面每档那个数仍是本场全部首板的全场数。'})
+    # XY 合计名次那一列的三种"读不到"要分开念（都是 hard：缺数与告警全站不折）
+    if not recent.get('xy_sessions'):
+        caveats.append({'code': 'xy_empty', 'hard': True,
+                        'text': '「XY 合计名次」这一列整列是 —：`analytics.xy_rank_daily`（xyr-1）里'
+                                f'{d} 及之前一场都没有 —— '
+                                '那是加工段第 37 步 `xyrank` 没跑过（补：`python -m app.compute.xy_rank '
+                                '--date <YYYYMMDD> --recent 5`），不是「这些票都没名次」。'})
+    elif recent.get('xy_window_matches_quad') is False:
+        caveats.append({'code': 'xy_window_split', 'hard': True,
+                        'text': f'「近 5 场四维象限」与「近 5 场 XY 合计名次」读到的不是同一批场次'
+                                f'（象限：{"、".join(str(x) for x in (recent.get("quad_dates") or [])) or "—"}；'
+                                f'XY：{"、".join(recent.get("xy_dates") or [])}）—— '
+                                '两张表的加工步补跑进度不一致，屏上那一句"同一批场次"这时不许说；'
+                                '各列仍按自己的日期念，列名上写的日期就是它自己那份。'})
+    else:
+        no_xy = sum(1 for r in out if not r.get('xy'))
+        if no_xy:
+            caveats.append({'code': 'xy_partial', 'hard': True,
+                            'text': f'本场 {no_xy} 只没有 XY 合计名次（那一格 —）：'
+                                    'X 轴与 Y 轴**少任一轴当天没名次**就不落行（没有和可算），'
+                                    '这不等于"那只票没上榜"，也不拿 0 顶上。'})
     # 「几天几板」那一列 2026-10-27 用户点名撤掉了（换成「近 20 场几板」），那句
     # 「本场 N 只算不出几天几板」的告警就没有了屏幕上的指对象，随列一起撤；
     # `boards_disagree` / `boards_null` 仍照旧交（表里那两列还在算，首板页与对账要用），

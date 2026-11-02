@@ -5,14 +5,13 @@ import { pctColor } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Disclaimer } from "@/components/ui/Disclaimer";
-import { Caliber } from "@/components/ui/Caliber";
-import { agentFetch, agentPost, safeArray, type PositionsReport, type PositionRow } from "@/lib/agent";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
+import { agentFetch, agentPost, plain, safeArray, type PositionsReport, type PositionRow } from "@/lib/agent";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { useTableSort } from "@/lib/useSort";
 import { StockLink } from "@/components/ui/StockLink";
 import { useNonce, useProbe } from "@/lib/probe";
 import { postJson } from "@/lib/jsonPost";
-import { ExplainBox } from "@/components/ui/DataPanel";
 import { StockSearch } from "@/components/ui/StockSearch";
 import { STOCK_ROW_HINT, useStockRowInteraction } from "@/lib/useStockRowInteraction";
 
@@ -306,18 +305,13 @@ export function Portfolio({ embedded = false }: { embedded?: boolean }) {
       {!embedded && <PageHeader title="持仓股" subtitle="由交易日志的成交明细聚合而来 · 数据只存本机" />}
 
       <div className="glass rounded-2xl p-5">
+        {/* 用户 2026-10-31 第 1、2 条（全站一起改，个股组）：这一块原来有两枚 `Caliber` 问号角标
+            （悬停才念）加表下摊着的「怎么点」「去哪改数量」两段，全是散在正文与悬停里的说明。
+            现在合成标题行最右的**一颗**「这块的说明」，「刷新」这类元信息排在按钮后面；
+            句子一律原样搬进抽屉，屏上不出现第二遍。⚠️ 缺数/告警没跟进抽屉：
+            「行情不可用」那一格、合计「不完整」、范围没读到、弹窗被拦、自选落后同步——全部仍摊在屏上。 */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <h3 className="text-sm font-bold">当前持仓</h3>
-          <Caliber text={
-            "持仓不是单独的一本账，而是**交易日志的一个视图**：\n" +
-            "把日志里所有成交明细折算下来，还剩多少就是持仓多少。\n\n" +
-            "· 成本按剩余股数的加权均价算（与券商的移动加权口径一致）。\n" +
-            "· 同一只票在多笔交易里都有剩余时合并成一行。\n" +
-            "· 建仓 / 加仓 / 平仓都去交易日志改那笔的成交明细，这里会跟着变。\n\n" +
-            "⚠️ 行情取不到时那一行显示「行情不可用」，不会显示成 0 —— " +
-            "显示 0 会让市值变 0、盈亏变 −100%，看着像持仓归零，那是假的。" +
-            "有这种行时，上面的合计也会标成「不完整」。"
-          } />
           <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
             显示范围
             <select aria-label="持仓显示范围" value={scope || "all"} disabled={!scope}
@@ -342,18 +336,6 @@ export function Portfolio({ embedded = false }: { embedded?: boolean }) {
               </optgroup>
               {!scope && <option value="">读取中…</option>}
             </select>
-            <Caliber text={
-              "「只看自选股 / 只看自选分组」筛的是**库里的自选名单**（同花顺同步过来那份，在「分组自选」页维护），" +
-              "不是本机浏览器存的那份。\n" +
-              "「只看某一只」的候选**先列当前持仓里真有的那些**；持仓为空（这台机器此刻就是 0 只）时" +
-              "旁边那一格自己输 6 位代码 —— 只列持仓的话这一档永远是空的，等于没加。\n" +
-              "筛的是持仓这一张表：分组里有的票、但你日志里没有仓，不会出现 —— 这一屏始终是持仓的视图。\n" +
-              "这几档是**互斥的一档**（下拉单选），不是可叠加的筛子 —— 而且不必叠：选了「某一只」已经细到一行，" +
-              "分组那一档只是换一种把持仓切开的看法。\n" +
-              "选过一次就存进 PG（ys.ui_pref 的 positions.scope），下次打开、换浏览器都是这一档；" +
-              "写不进去会当场说明「这次没记住」。\n" +
-              "⚠️ 选了范围时上面那行合计是**表内行相加**（范围内），不是后端那份全部持仓的合计。"
-            } />
           </label>
           {/* 手输那一格单独成一个 span、不塞进上面那个 <label>：label 里同时包着下拉和输入框，
               「显示范围」这四个字就成了两个控件的名字（点标签文字会跳到后注册的那个上）。
@@ -373,10 +355,50 @@ export function Portfolio({ embedded = false }: { embedded?: boolean }) {
                 看这一只
               </button>} />
           </span>
-          <button onClick={load}
-            className="ml-auto flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[12px] transition-colors hover:bg-muted/50">
-            <RefreshCw className="h-3.5 w-3.5" /> 刷新
-          </button>
+          {/* 标题行最右那一叠（用户 10-31）：说明按钮在前、「刷新」排在它后面。
+              抽屉里全部是这一屏原来就说过的句子（两枚 `Caliber` 的悬停原文、表下「怎么点」
+              与「去哪改数量」那两段），只剥成对粗体星号（`plain`），一个字不新写。 */}
+          <span className="ml-auto flex flex-wrap items-center gap-1.5">
+            <DocDrawer title="当前持仓">
+              <DrawerSection heading="持仓是什么 · 每一格怎么读">
+                {/* 原来悬停在问号角标上才念的那段，换行还靠 `whitespace-pre-wrap` 保住 */}
+                <p className="whitespace-pre-wrap">{plain(
+                  "持仓不是单独的一本账，而是**交易日志的一个视图**：\n" +
+                  "把日志里所有成交明细折算下来，还剩多少就是持仓多少。\n\n" +
+                  "· 成本按剩余股数的加权均价算（与券商的移动加权口径一致）。\n" +
+                  "· 同一只票在多笔交易里都有剩余时合并成一行。\n" +
+                  "· 建仓 / 加仓 / 平仓都去交易日志改那笔的成交明细，这里会跟着变。\n\n" +
+                  "⚠️ 行情取不到时那一行显示「行情不可用」，不会显示成 0 —— " +
+                  "显示 0 会让市值变 0、盈亏变 −100%，看着像持仓归零，那是假的。" +
+                  "有这种行时，上面的合计也会标成「不完整」。"
+                )}</p>
+              </DrawerSection>
+              <DrawerSection heading="显示范围这几档在筛什么">
+                <p className="whitespace-pre-wrap">{plain(
+                  "「只看自选股 / 只看自选分组」筛的是**库里的自选名单**（同花顺同步过来那份，在「分组自选」页维护），" +
+                  "不是本机浏览器存的那份。\n" +
+                  "「只看某一只」的候选**先列当前持仓里真有的那些**；持仓为空（这台机器此刻就是 0 只）时" +
+                  "旁边那一格自己输 6 位代码 —— 只列持仓的话这一档永远是空的，等于没加。\n" +
+                  "筛的是持仓这一张表：分组里有的票、但你日志里没有仓，不会出现 —— 这一屏始终是持仓的视图。\n" +
+                  "这几档是**互斥的一档**（下拉单选），不是可叠加的筛子 —— 而且不必叠：选了「某一只」已经细到一行，" +
+                  "分组那一档只是换一种把持仓切开的看法。\n" +
+                  "选过一次就存进 PG（ys.ui_pref 的 positions.scope），下次打开、换浏览器都是这一档；" +
+                  "写不进去会当场说明「这次没记住」。\n" +
+                  "⚠️ 选了范围时上面那行合计是**表内行相加**（范围内），不是后端那份全部持仓的合计。"
+                )}</p>
+              </DrawerSection>
+              <DrawerSection heading="这一张表怎么点 · 双击去哪里">
+                <p>{STOCK_ROW_HINT}双击打开的那一页里有这一只的档案 · 趋势量化 · 窗口趋势 · 个股研究 · 多空辩论，代码由地址带过去，这一屏持仓留在原地对照。</p>
+              </DrawerSection>
+              <DrawerSection heading="要建仓、加仓或平仓去哪里改">
+                <p>要建仓、加仓或平仓，去<Link to="/journal" className="text-primary hover:underline">交易日志</Link>改那笔交易的成交明细 —— 一份账本，两边永远对得上，不用同一笔录两次。</p>
+              </DrawerSection>
+            </DocDrawer>
+            <button onClick={load}
+              className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[12px] transition-colors hover:bg-muted/50">
+              <RefreshCw className="h-3.5 w-3.5" /> 刷新
+            </button>
+          </span>
         </div>
 
         {scopeErr && <p role="alert" className="mb-3 text-[12px] text-warning">{scopeErr}</p>}
@@ -519,29 +541,26 @@ export function Portfolio({ embedded = false }: { embedded?: boolean }) {
           </div>
         )}
 
-        {/* 怎么点这一张表：通用一句（实现全站一份），本屏特有的补充另起半句；
-            弹窗被拦是告警，单独念、不折进任何默认收起的说明框 */}
-        <p className="mt-3 border-t border-border pt-2 text-[11px] leading-relaxed text-muted-foreground">
-          {STOCK_ROW_HINT}双击打开的那一页里有这一只的档案 · 趋势量化 · 窗口趋势 · 个股研究 · 多空辩论，代码由地址带过去，这一屏持仓留在原地对照。
-        </p>
+        {/* 怎么点这一张表与「去哪改数量」那两段已搬进标题行的抽屉（同一句不在屏上出现第二遍）；
+            弹窗被拦是告警，仍然单独念在屏上、不折进任何默认收起的说明框 */}
         {reviewHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{reviewHint}</p>}
-        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-          要建仓、加仓或平仓，去
-          <Link to="/journal" className="mx-1 text-primary hover:underline">交易日志</Link>
-          改那笔交易的成交明细 —— 一份账本，两边永远对得上，不用同一笔录两次。
-        </p>
       </div>
 
       <div className="glass rounded-2xl p-5">
-        <h3 className="text-sm font-bold">从旧持仓导入</h3>
-        {/* 说明收进通用说明框（用户 10-14：这一块的来龙去脉不是每天要读的，按钮才是）。
-            下面那句「旧记录没有成交明细、日期怎么补」是会读错的账，不跟着折 —— 藏进框等于没写。 */}
-        <ExplainBox title="旧持仓是怎么来的 · 文件怎么选">
-          <p>
-            早先版本的持仓和交易日志是两套账。Mac 客户端不会自动读取其他产品目录；可选择原来的 portfolio.json 文件。
-            点一下把里面的当前持仓导进日志，之后只维护一份。
-          </p>
-        </ExplainBox>
+        {/* 用户 2026-10-31 第 1 条：这颗按钮从正文的 ExplainBox 折框搬到这一块标题行的最右。
+            下面那句「旧记录没有成交明细、日期怎么补」是会读错的账（缺数类），**不跟着折** ——
+            藏进抽屉等于没写，它留在屏上。 */}
+        <div className="mb-1 flex flex-wrap items-center gap-1.5">
+          <h3 className="text-sm font-bold">从旧持仓导入</h3>
+          <span className="ml-auto">
+            <DocDrawer title="从旧持仓导入">
+              <p>
+                早先版本的持仓和交易日志是两套账。Mac 客户端不会自动读取其他产品目录；可选择原来的 portfolio.json 文件。
+                点一下把里面的当前持仓导进日志，之后只维护一份。
+              </p>
+            </DocDrawer>
+          </span>
+        </div>
         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
           ⚠️ 旧记录没有成交明细，建仓日期取原记录的日期或今天，会在备注里注明；
           重复点不会重复导入。

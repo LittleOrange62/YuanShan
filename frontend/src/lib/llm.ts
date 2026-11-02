@@ -1,6 +1,6 @@
 import { randomId } from "@/lib/random-id";
 // Every product AI entry reads the same explicitly tested connection.
-import { agentRequest, AgentRequestError, loadAgentConnection } from './agent-api';
+import { agentRequest, AgentRequestError, beginRound, blockedReason, loadAgentConnection } from './agent-api';
 import { readMode } from './workspace/state';
 import { ApiError } from './api';
 import { toast } from 'sonner';
@@ -22,8 +22,11 @@ async function delay(signal?: AbortSignal) {
   });
 }
 export async function chatStream(messages: ChatMsg[], context: string, handlers: ChatHandlers = {}, signal?: AbortSignal): Promise<ChatResult> {
+  // 新任务先重起一轮：①「每次重头使用」和"一圈内不重复撞同一条"都以这一轮为单位。
+  beginRound();
   const llm = loadAgentConnection();
-  if (!llm) throw new ApiError('尚未接入 AI，请先到「AI 探索 · 接入设置」完成测试保存', 400);
+  // 一圈走完都不通时 `blockedReason()` 是那句带每条原因的说明；它比"尚未接入"更该给人看。
+  if (!llm) throw new ApiError(blockedReason() || '尚未接入 AI，请先到「AI 探索 · 接入设置」完成测试保存', 400);
   if (signal?.aborted) throw aborted();
   const latest = messages[messages.length - 1];
   if (!latest || latest.role !== 'user' || latest.content.length > 4000 || context.length > 8000) {

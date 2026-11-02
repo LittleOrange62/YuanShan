@@ -80,8 +80,12 @@ test('the four columns fixed on 09-27 are wired to the field the cell actually p
   }
   assert.doesNotMatch(vd, /sortKey="sector"|sortKey="dbl_prev"|sortKey="avg_amt"/, '旧的空转键名不许复活');
 
-  const fb = fs.readFileSync(new URL('pages/FirstBoard.tsx', SRC), 'utf8');
-  assert.match(fb, /label="炸板" sortKey="break_count"/, '炸板那一列的字段是 break_count，不是 broken_times');
+  // 10-29 并表：原「首板样本」那张池子表没了，「炸板」那一列在涨停分析里长成
+  // 「开板次数（样本日）」，读的是库里自算的 `open_times`（源站那份另给一列括号值）。
+  const fb = fs.readFileSync(new URL('components/review/LimitUpBoard.tsx', SRC), 'utf8');
+  assert.match(fb, /label="开板次数（样本日）" sortKey="open_times"/,
+    '开板次数那一列的字段是 open_times（自算），池子里那个 break_count 已经不在这一屏');
+  assert.doesNotMatch(fb, /sortKey="break_count"/, 'break_count 是池子表的字段，接不到库表上（点了不会换序）');
 
   const qd = fs.readFileSync(new URL('pages/Quadrant.tsx', SRC), 'utf8');
   assert.match(qd, /sortKey="x_quality"/); assert.match(qd, /sortKey="y_env"/);
@@ -154,19 +158,21 @@ test('r² and 形状 sort on what the cell shows, not on a field that is not the
   assert.match(old, /TrendQuantForPage/);
 });
 
-test('连板榜：默认序点亮在「连板」上，而「封板强度」接的是真字段、说明来自后端', () => {
-  const mp = fs.readFileSync(new URL('../src/components/home/MarketPanorama.tsx', import.meta.url), 'utf8');
+test('涨停分析那张表：默认序点亮在「连板」上，而「封板强度」接的是真字段、说明来自后端', () => {
+  // 10-29 并表：这张表从首页「短线情绪」那块搬进短线复盘页，改名涨停分析，
+  // 并把原「首板样本」的三列（样本日收盘／样本日涨幅／开板次数）并了进来。
+  const mp = fs.readFileSync(new URL('components/review/LimitUpBoard.tsx', SRC), 'utf8');
   // ① 默认序是后端给的（连板降序 → 同连板按首封先后）。列头必须把主键点亮，
   //    否则页面在标题里写"默认按连板"而列头一个箭头都没有，读者不知道现在吃的是后端行序。
-  assert.match(mp, /const lbSort = useTableSort\(\{ key: "boards", dir: "desc" \}\)/);
+  assert.match(mp, /const sort = useTableSort\(\{ key: "boards", dir: "desc" \}\)/);
   assert.match(mp, /同连板按首封先后/, '默认序要说清"同连板按首封先后（早→晚）"');
 
   // ② 那张表的列头顺序与格子顺序必须一致（错列不会被类型检查抓到，09-27 踩过）
   const from = mp.indexOf('<SortHeader label="名称" sortKey="name"');
-  assert.ok(from > 0, '没定位到连板榜那张表');
+  assert.ok(from > 0, '没定位到涨停分析那张表');
   const block = mp.slice(from, mp.indexOf('</tbody>', from));
-  const headOrder = ['名称', '连板', '几天几板', '首板日大盘情绪', '首封', '封板强度', '现价（实时）', '今日涨跌（实时）',
-    '样本日成交额', '流通市值', '涨停原因', '概念'];
+  const headOrder = ['名称', '连板', '几天几板', '首板日大盘情绪', '节点', '首封', '开板次数（样本日）', '封板强度',
+    '样本日收盘', '样本日涨幅', '现价（实时）', '今日涨跌（实时）', '样本日成交额', '流通市值', '涨停原因', '概念'];
   for (let i = 0; i < headOrder.length - 1; i++) {
     assert.ok(block.indexOf(headOrder[i]) < block.indexOf(headOrder[i + 1]),
       `表头顺序应当是 ${headOrder.join(' → ')}，${headOrder[i]} 却排在 ${headOrder[i + 1]} 后面`);
@@ -177,7 +183,7 @@ test('连板榜：默认序点亮在「连板」上，而「封板强度」接�
   assert.match(block, /s\.seal_score/, '列头键与格子里印的值必须是同一个字段');
   assert.match(block, /title=\{s\.seal_note \|\| ""\}/, '每一格要答"这一行为是这个分"');
   // ④ 算法说明**只在后端那一份**（`duanxian/seal_strength.py` 现拼），页面显示它给的文字
-  assert.match(block, /emotion\.seal_spec/, '悬停内容必须来自后端 spec，不许在前端另写一套分档');
+  assert.match(block, /data\.seal_spec/, '悬停内容必须来自后端 spec，不许在前端另写一套分档');
   assert.doesNotMatch(mp, /封单资金\s*÷\s*流通市值（权重/, '前端不许抄一份权重表');
   // ⑤ 缺数是 —，不是 0
   assert.match(block, /三项都没给：算不出强度，不当成 0 分/);
@@ -185,7 +191,7 @@ test('连板榜：默认序点亮在「连板」上，而「封板强度」接�
   // ⑥「几天几板」：键是真字段，口径文字来自后端（页面只补一句它与「连板」的区别）
   assert.match(block, /label="几天几板" sortKey="board_ct"/);
   assert.match(block, /s\.days_boards/, '列头键与格子里显示的值必须同源（days_boards 就是那个字符串）');
-  assert.match(block, /emotion\.days_boards_rule/, '悬停内容取自后端那份口径文字');
+  assert.match(block, /data\.days_boards_rule/, '悬停内容取自后端那份口径文字');
   assert.match(block, /数不出 ≠ 没有板|不是 0 板/, '数不出来要说清楚，不显示 0 板');
   assert.doesNotMatch(mp, /连续 2 个交易日没封/, '"几天算断"这个参数只在后端写一次');
 
@@ -193,10 +199,19 @@ test('连板榜：默认序点亮在「连板」上，而「封板强度」接�
   assert.match(block, /label="首板日大盘情绪" sortKey="first_board_breadth_score"/);
   assert.match(block, /s\.first_board_breadth_score/, '列头键与格子里那个分值必须是同一个字段');
   assert.match(block, /s\.first_board_breadth\b/, '档位文字直接取后端那一个词，前端不重算分档');
-  assert.match(block, /emotion\.first_board_rule/, '口径文字取自后端那一份（判据只住 duanxian/pg_sources.py）');
+  assert.match(block, /data\.first_board_rule/, '口径文字取自后端那一份（判据只住 duanxian/pg_sources.py）');
   assert.match(block, /s\.first_board_note/, '每一格要答"这一行的首板日是哪天、那天各档是多少"');
   assert.match(block, /没有行|无从定位/, '空着要分两种原因说，都不等于"那天没情绪"');
   assert.doesNotMatch(block, /冰点 −2 \/ 偏弱 −1/, '分档编码只在后端一份，前端只上色');
+
+  // ⑧ 并表新增那三列：键名用库表那一份，池子字段不许复活（点了不换序、又不报错）
+  assert.match(block, /label="样本日收盘" sortKey="price"/);
+  assert.match(block, /label="样本日涨幅" sortKey="pct"/);
+  assert.match(block, /s\.price/, '样本日收盘那格读的就是 price');
+  // 实时那两列不给排序（另一路行情，榜行里没有那个字段），而且缺数不许拿样本日收盘顶上
+  assert.match(mp, /给排序就会拿样本日收盘价冒充实时值/, '两把尺混在一格这件事要写在列头上');
+  assert.match(mp, /实时行情未取到，这一格充不上样本日收盘价（那是另一天的数）/,
+    '实时那一格缺数就显示 —，不许拿样本日收盘价顶上（那是另一天的钱）');
 });
 
 test('换手率榜的表头顺序与格子顺序一致（错列不会被任何类型检查抓到）', () => {

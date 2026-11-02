@@ -9,6 +9,7 @@ import { useNonce, useProbe } from "@/lib/probe";
 import { STOCK_ROW_HINT, useStockRowInteraction } from "@/lib/useStockRowInteraction";
 import { useTableSort } from "@/lib/useSort";
 import { cn } from "@/lib/utils";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 
 /**
  * 交易体系榜（用户 2026-10-14 口述的三条件组合，摆在「选股汇总」下面）。
@@ -279,8 +280,7 @@ export function SystemEntryBoard() {
   );
 
   return (
-    <Panel title="交易体系榜（三条同时成立才算）" state={hits} controls={controls}
-      note="用户 2026-10-14 口述的一套打法：有涨停 = 有主力在玩；向上跳空三天不回补 = 真金白银抢筹、顺便把你的成本抬高；缩量回调后一根阳线 = 货出不去、这才是上车点。三条是组合，不是任一单形态 —— 所以这一屏本来就是窄的。">
+    <Panel title="交易体系榜（三条同时成立才算）" state={hits} controls={controls}>
       {d => {
         const all = d.rows ?? [];
         const list = rowSort.apply(all);
@@ -313,6 +313,7 @@ export function SystemEntryBoard() {
                 「已达取数上限」那两句 `text-warning`、`cell.popHint`；
                 缺数／截断一族的 caveat 由折叠块自己留在屏上。 */}
             <CaliberFold caveats={d.caveats} definitions={foldDefs}
+              notes={["用户 2026-10-14 口述的一套打法：有涨停 = 有主力在玩；向上跳空三天不回补 = 真金白银抢筹、顺便把你的成本抬高；缩量回调后一根阳线 = 货出不去、这才是上车点。三条是组合，不是任一单形态 —— 所以这一屏本来就是窄的。"]}
               provenance={[d.spec_version ? `判据版本 ${d.spec_version}` : null,
                            d.as_of ? `数出自 ${String(d.as_of)}` : null]} />
             <div className="mt-2 overflow-x-auto">
@@ -386,7 +387,7 @@ export function SystemEntryBoard() {
               <ExplainBox title="这一张表怎么点 · 单击高亮什么 · 双击去哪里">
                 <p className="text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
               </ExplainBox>
-              {cell.popHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{cell.popHint}</p>}
+              {cell.popHint && <NoticeBar kind="warning">{cell.popHint}</NoticeBar>}
             </div>
             <ExplainBox title="「有资金的鱼塘」那一维：量过了，没做进母体（后端原口径）">
               <p>{plain(cal.no_fish_pond ?? "")}</p>

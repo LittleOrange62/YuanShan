@@ -4,6 +4,7 @@ import { MODULES, moduleFor, navigationPath } from '@/lib/workspace/modules';
 import { cn } from '@/lib/utils';
 
 /** Sidebar disclosure groups; links retain their existing route and chat identity. */
+const STOCK_REVIEW_ROUTE = '/stock-review';
 export function ModuleNav({ compact, expandSidebar, navigate }: {
   compact: boolean;
   expandSidebar: () => void;
@@ -19,7 +20,10 @@ export function ModuleNav({ compact, expandSidebar, navigate }: {
   useEffect(() => {
     if (active) setExpanded(previous => ({ ...previous, [active.to]: true }));
   }, [pathname, active]);
-  const symbol = active?.title === '个股研究' ? new URLSearchParams(search).get('symbol') : null;
+  // 「带着当前那只票在组内切页」只对真读 `symbol` 的那一屏有意义（`pages/StockReview.tsx:44`），
+  // 所以按**路由**认、不按模块的显示名认 —— 10-27 那次「个股研究」→「个股研究与回测」改名
+  // 让下面这两处按名字比的判断静默失效了一整天（导航点了不再带票，屏幕上不报错）。
+  const symbol = active?.to === STOCK_REVIEW_ROUTE ? new URLSearchParams(search).get('symbol') : null;
   return <>{MODULES.map(({ to, title, icon: Icon, pages }, index) => {
     const selected = active?.to === to;
     const groupId = `${id}-module-${index}`;
@@ -43,7 +47,7 @@ export function ModuleNav({ compact, expandSidebar, navigate }: {
       </button>
       <ul id={groupId} hidden={!open} aria-label={`${title}二级栏目`} className="mb-2 ml-5 space-y-0.5 border-l border-border pl-2">
         {pages.map(page => <li key={page.to}><Link
-          to={page.to + (title === '个股研究' && symbol ? `?symbol=${encodeURIComponent(symbol)}` : '')}
+          to={page.to + (page.to === STOCK_REVIEW_ROUTE && symbol ? `?symbol=${encodeURIComponent(symbol)}` : '')}
           onClick={navigate} aria-current={navigationPath(pathname) === page.to ? 'page' : undefined}
           className="workspace-nav-link flex items-center px-3 py-2 text-xs leading-5 text-muted-foreground hover:bg-muted/50 hover:text-foreground">
           {page.title}

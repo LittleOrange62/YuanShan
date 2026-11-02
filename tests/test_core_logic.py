@@ -3917,7 +3917,10 @@ class TestPerStockPromptsStayAtSectorLevel:
     #: 页面 → 它取的**类型**。09-28 从"一页面一固定槽位"改成"一类型多模板可选"
     #: （内置槽位 + 用户在系统配置页自建的模板），tsx 里只剩 `useTemplatePicker("<类型>")`
     #: 这一处接线 —— 接线断了页面会安静地发空提示词（DeepDive 会拦住，但那等于功能没了）。
-    SLOT_IN_PAGE = {"firstboard": "pages/FirstBoard.tsx", "lianban": "components/home/MarketPanorama.tsx"}
+    #: 10-29 并表：首板样本与首页连板股榜并成「涨停分析」一张表，两个类型都接在那一个文件里
+    #: （表里既有首板行也有连板行，按行的连板数各取各的话术 —— 一套话术问两批票会问错）。
+    SLOT_IN_PAGE = {"firstboard": "components/review/LimitUpBoard.tsx",
+                    "lianban": "components/review/LimitUpBoard.tsx"}
 
     def _src(self, rel):
         import pathlib

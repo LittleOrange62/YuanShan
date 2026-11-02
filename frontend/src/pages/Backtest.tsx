@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { pctColor } from "@/lib/colors";
 import { TrendingDown, Loader2, RefreshCw, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ExplainBox } from "@/components/ui/DataPanel";
+import { DocDrawer } from "@/components/ui/DocDrawer";
 import {
   agentFetch, finite, plain, safeArray, safeRecord,
   type BacktestData, type BacktestDay, type BacktestStats,
@@ -294,16 +294,18 @@ export function Backtest() {
       {/* 封板时间曲线：首板里最强的单一过滤变量，把悬崖位置直接摆出来 */}
       {!!curve.length && (
         <div className="glass rounded-2xl p-5">
-          <h3 className="text-base font-bold">首板 · 最后封板时间曲线</h3>
-          {/* 说明与定义折进通用说明框（用户 10-14：这类字段义小字不该挤占读数那一屏）。
-              上方那条 CAVEAT 警告块与本页告警没有跟着折。 */}
-          <ExplainBox title="封板时间曲线的口径 · 为什么只统计首板">
-            <p>
-              同样是首板，什么时候把板<b>最终封住</b>决定了期望是正是负。数据源给的是<b>最后封板时间</b>，
-              所以"晚"同时意味着封得晚、或中途炸开过又回封——两者都指向同一件事：这个板不稳。
-              只统计首板，连板股的封板时间含义不同、混在一起会污染结论。
-            </p>
-          </ExplainBox>
+          {/* 说明按钮在标题这一行的最右边（用户 10-31）；句子里的「为什么只统计首板」逐字留着。
+              上方那条 CAVEAT 警告块与本页告警没有跟着搬——三类声明永远在屏上。 */}
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <h3 className="text-base font-bold">首板 · 最后封板时间曲线</h3>
+            <span className="ml-auto"><DocDrawer title="首板 · 最后封板时间曲线">
+              <p>
+                同样是首板，什么时候把板<b>最终封住</b>决定了期望是正是负。数据源给的是<b>最后封板时间</b>，
+                所以「晚」同时意味着封得晚、或中途炸开过又回封——两者都指向同一件事：这个板不稳。
+                只统计首板，连板股的封板时间含义不同、混在一起会污染结论。
+              </p>
+            </DocDrawer></span>
+          </div>
           <div className="space-y-2">
             {curve.map((b) => {
               const w = Math.min(100, Math.abs(b.avg ?? 0) * 30);
@@ -341,8 +343,14 @@ export function Backtest() {
           const excess = !isBase && base != null && o.avg != null ? o.avg - base : null;
           return (
             <div key={name} className={cn("glass rounded-2xl p-5", isBase && "border border-dashed border-border")}>
+              {/* 每一张策略卡一颗「这块的说明」，摆在标题这一行的最右边（用户 10-31）：
+                  抽屉里就是后端那句策略描述 `desc` 原文，正文那一行不再摊第二遍；
+                  「基准／超额／样本偏小」是读数与缺数标记，留在屏上。没有 desc 就不长空按钮。 */}
               <div className="mb-1 flex flex-wrap items-center gap-2">
                 <h3 className="text-base font-bold">{name}</h3>
+                {s.desc && (
+                  <span className="ml-auto"><DocDrawer title={name}>{plain(s.desc)}</DocDrawer></span>
+                )}
                 {isBase && <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">基准</span>}
                 {excess != null && (
                   <span className={cn("rounded px-2 py-0.5 text-[10px] font-bold",
@@ -354,7 +362,6 @@ export function Backtest() {
                   <span className="rounded bg-warning/15 px-2 py-0.5 text-[10px] font-bold text-warning">样本偏小</span>
                 )}
               </div>
-              <p className="mb-3 text-[11px] leading-relaxed text-muted-foreground/70">{plain(s.desc)}</p>
 
               {o.sample ? (
                 <>

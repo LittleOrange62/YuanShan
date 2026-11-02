@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { useTableSort } from "@/lib/useSort";
 import { pctColor } from "@/lib/colors";
@@ -6,6 +6,7 @@ import { Plus, X, RefreshCw, Star } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Disclaimer } from "@/components/ui/Disclaimer";
+import { DocDrawer } from "@/components/ui/DocDrawer";
 import { StockSearch } from "@/components/ui/StockSearch";
 import { STOCK_ROW_HINT, useStockRowInteraction } from "@/lib/useStockRowInteraction";
 import { usePageAskAi } from "@/lib/workspace/pageAskAi";
@@ -17,7 +18,15 @@ import { StockLink } from "@/components/ui/StockLink";
 const color = pctColor;   // 红涨绿跌口径见 lib/colors.ts
 const pct = (v: number | undefined) => (v == null ? "—" : `${v > 0 ? "+" : ""}${v}%`);
 
-export function Watchlist({ embedded = false }: { embedded?: boolean }) {
+/**
+ * 本机名单（`vr-watchlist`）这一叠：一份实现、两处嵌入（「分组自选」与「重点关注（持仓）」）。
+ *
+ * `doc`（用户 2026-10-31 第 1 条）：宿主交来一颗「这块的说明」按钮（`DocDrawer`），
+ * 本组件把它摆在这一叠**标题行的最右**（`PageHeader` 的 actions 那一格）。原先这叠的说明
+ * 长在宿主正文里（ExplainBox 折框，看起来像"数下面的一段话"），现在跟着标题走。
+ * 写什么由宿主定（每一叠的口径只有那一屏说得清，这里不替它编一句），本组件只当载体。
+ */
+export function Watchlist({ embedded = false, doc }: { embedded?: boolean; doc?: ReactNode }) {
   const [codes, setCodes] = useState<string[]>(loadWatch);
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const wlSort = useTableSort();
@@ -89,7 +98,7 @@ export function Watchlist({ embedded = false }: { embedded?: boolean }) {
       <PageHeader level={embedded ? 2 : 1}
         title="自选股"
         subtitle="批量添加、一屏总览你关注的标的。数据只存本地、不上传。"
-      />
+        actions={doc} />
 
       <GlassCard className="mb-4">
         <div className="mb-2 flex flex-wrap items-end gap-3">
@@ -135,19 +144,27 @@ export function Watchlist({ embedded = false }: { embedded?: boolean }) {
       </GlassCard>
 
       <GlassCard glow>
-        <div className="mb-2 flex items-center justify-between">
+        {/* 用户 2026-10-31 第 1 条：这颗「这块的说明」摆在这一块标题行的最右，「刷新价格」那个
+            刷新按钮属元信息，排在按钮后面。抽屉里只有表下面原来摊着的那句「怎么点」（原句搬入，
+            屏上不再出现第二遍）；弹窗被拦的告警不进来，仍摊在表下（红线，见 `NoticeBar` 顶部注释）。 */}
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
           <h3 className="flex items-center gap-1.5 font-semibold">
             <Star className="h-4 w-4 text-primary" /> 自选总览
             <span className="text-xs font-normal text-muted-foreground">（{codes.length}）</span>
           </h3>
-          <button
-            onClick={() => refresh(codes)}
-            disabled={loading}
-            className="text-muted-foreground hover:text-primary"
-            title="刷新价格"
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-          </button>
+          <span className="ml-auto flex flex-wrap items-center gap-1.5">
+            <DocDrawer title="自选总览">
+              <p>{STOCK_ROW_HINT}</p>
+            </DocDrawer>
+            <button
+              onClick={() => refresh(codes)}
+              disabled={loading}
+              className="text-muted-foreground hover:text-primary"
+              title="刷新价格"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+            </button>
+          </span>
         </div>
         {codes.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground/60">
@@ -196,8 +213,8 @@ export function Watchlist({ embedded = false }: { embedded?: boolean }) {
                 })}
               </tbody>
             </table>
-            {/* 怎么点这一张表：通用一句（实现全站一份）；弹窗被拦的告警单独念、不折进任何默认收起的说明框 */}
-            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
+            {/* 怎么点这一张表那句已搬进标题行的抽屉（同一句不许在屏上出现第二遍）；
+                弹窗被拦的告警是**告警**，仍然摊在表下、不进抽屉 */}
             {reviewHint && <p role="status" className="mt-1 text-[11px] leading-relaxed text-warning">{reviewHint}</p>}
           </div>
         )}

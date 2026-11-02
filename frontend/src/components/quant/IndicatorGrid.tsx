@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { ExplainBox, QuietFold } from "@/components/ui/DataPanel";
+import { QuietFold } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 import { describeState, dash, isQuiet, withUnit, type DataState } from "@/lib/datastate";
 import { useProbe } from "@/lib/probe";
 
@@ -33,11 +34,30 @@ export function IndicatorGrid({ state, title = "技术指标" }: { state: DataSt
   return (
     <GlassCard>
       {/* 用户 2026-10-22：后端说这一项本机没数（`available:false`）⇒ 整块收成一行，原因原句留在 summary 上；
-          取到数（换一只票或补跑后重取）这一支不再渲染，等于自动展开。标题一起进 summary，不再单占一行 */}
+          取到数（换一只票或补跑后重取）这一支不再渲染，等于自动展开。标题一起进 summary，不再单占一行。
+          用户 2026-10-31：「这块的说明」摆在这一块标题这一行的最右边（原来长在格子下面的 ExplainBox
+          整段搬进这颗按钮开的抽屉，屏上不再摊第二遍）；没数那一档（quiet）标题行整个不画，
+          说明按钮也不会长出一颗空的。 */}
       {!quiet && (
-        <h3 className="text-sm font-bold">
-          {title}{state.kind === "ok" && state.data.count ? `（${state.data.count} 项）` : ""}
-        </h3>
+        <div className="mb-1 flex flex-wrap items-center gap-1.5">
+          <h3 className="text-sm font-bold">
+            {title}{state.kind === "ok" && state.data.count ? `（${state.data.count} 项）` : ""}
+          </h3>
+          <span className="ml-auto flex flex-wrap items-center gap-1.5">
+            {state.kind === "ok" && state.data.available !== false && (
+              <DocDrawer title={title}>
+                <DrawerSection heading="去哪看加权分 · 窗口斜率 · 所属分组">
+                  <p>
+                    八项能力加权分与它的窗口斜率在
+                    <Link className="text-primary underline" to="/grouped">分组自选</Link>
+                    —— 选中一只票后，量化档案下面那一叠就是（原「趋势评分」独立屏 10-14 已并进去）；
+                    它属于哪一组也在同一页。
+                  </p>
+                </DrawerSection>
+              </DocDrawer>
+            )}
+          </span>
+        </div>
       )}
       {quiet && <QuietFold title={title} text={note} note={desc} />}
       {!quiet && <p className="mb-2 mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{desc}</p>}
@@ -60,14 +80,6 @@ export function IndicatorGrid({ state, title = "技术指标" }: { state: DataSt
               </p>
             ))}
           </div>
-          <ExplainBox title="去哪看加权分 · 窗口斜率 · 所属分组">
-            <p>
-              八项能力加权分与它的窗口斜率在
-              <Link className="text-primary underline" to="/grouped">分组自选</Link>
-              —— 选中一只票后，量化档案下面那一叠就是（原「趋势评分」独立屏 10-14 已并进去）；
-              它属于哪一组也在同一页。
-            </p>
-          </ExplainBox>
         </>
       )}
     </GlassCard>

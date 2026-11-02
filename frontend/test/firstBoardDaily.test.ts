@@ -9,6 +9,7 @@ import {
   industrySide, intText, limitCountCell, limitCountTitle, maStackCell, maStackTitle, num, pctText,
   prevSealedHits, quadCell, quadTitle, ratioText, reasonCell, reasonCoverage,
   consecCell, consecTitle, pos2yCell, pos2yTitle,
+  datedColLabel, sameWindow, xyCell, xyTitle,
   repeatedWords, sealText, shapeButtonLabel, shapeQuery, spikeTitle, thresholdsText, toggleShapeSel,
   truncationSentence, unjudgedShape, wanText, yiText,
   type FbdRow, type FirstBoardDaily,
@@ -34,6 +35,7 @@ const read = (rel: string) => fs.readFileSync(path.join(HERE, rel), 'utf8');
 const lib = read('../src/lib/firstBoardDaily.ts');
 const comp = read('../src/components/home/FirstBoardDailyPanel.tsx');
 const home = read('../src/components/home/MarketPanorama.tsx');
+const page = read('../src/pages/FirstBoard.tsx');
 const system = read('../src/pages/System.tsx');
 
 /** 2026-10-21 实测那一场（34 只首板 / 当日封住 50 只）的形状，字段名逐字照接口。 */
@@ -128,19 +130,58 @@ test('近 10 / 20 场倍量：两个数各自独立，缺的那个不许念 0，
   assert.match(dblTitle(row({ dbl10: null }), 10), /不是「一次倍量都没有」/);
 });
 
-test('近 5 场四维象限：一段序列，缺场次就少几段；旧基准那一段要点名', () => {
+test('近 5 场四维象限：格子里只有象限（日期在列名上），旧基准那一段仍要点名', () => {
+  // 用户 2026-10-28 点名：「不用显示日期（日期写在列名上），内容直接显示 q3q4q3 这样即可」
+  // ⇒ 这份断言就是那条要求的形状：改回带日期/带名次会当场红。
   assert.equal(quadCell(row({ quad: [] })), '—');
   assert.equal(quadCell(row({ quad: [{ day: '2026-10-16', quadrant: 'Q1', rank: 12 },
-    { day: '2026-10-20', quadrant: 'Q2', rank: null }] })), '10-16 Q1 12 → 10-20 Q2',
-    '名次没读到就留空，不写第 0 名');
-  assert.match(quadCell(row({ quad: [{ day: '2026-10-16', quadrant: null, rank: 5, stale: true }] })),
-    /— 5〈旧〉/);
+    { day: '2026-10-20', quadrant: 'Q2', rank: null }] })), 'Q1Q2',
+    '格子里不许有日期，也不许有名次（名次在悬停里）');
+  assert.doesNotMatch(quadCell(row({ quad: [{ day: '2026-10-16', quadrant: 'Q1', rank: 12 }] })),
+    /10-16|12/, '日期与名次都从格子挪走：一个进列名、一个进悬停');
+  // 缺象限但有名次的那一段留 —（读不到），不是 Q0；旧基准带〈旧〉
+  assert.equal(quadCell(row({ quad: [{ day: '2026-10-16', quadrant: null, rank: 5, stale: true }] })),
+    '—〈旧〉');
   assert.match(quadTitle(row({ quad: [] })), /不是「排名第 0」/);
   const t = quadTitle(row({ quad: [{ day: '2026-10-16', quadrant: 'Q1', rank: null, value: 0.4, stale: true }] }),
     '后端 quad 那句');
+  assert.match(t, /2026-10-16/);
   assert.match(t, /名次 —/);
   assert.match(t, /旧基准，名次不参与对比/);
   assert.match(t, /后端 quad 那句/);
+});
+
+test('XY 合计名次：一串第几名（越小越靠前），格子与判读层一个加法都不做', () => {
+  // 数来自 `analytics.xy_rank_daily`（加工段第 37 步），读侧只搬运。
+  // 用户 2026-10-28 要的形式就是 `21-20-19-18-5`。
+  assert.equal(xyCell(row({ xy: [] })), '—');
+  assert.equal(xyCell(row({ xy: [{ day: '2026-10-22', rank: 21 }, { day: '2026-10-23', rank: 20 },
+    { day: '2026-10-26', rank: 19 }, { day: '2026-10-27', rank: 18 },
+    { day: '2026-10-28', rank: 5 }] })), '21-20-19-18-5');
+  // 那一天没落到库里 ⇒ `·`（少一段），不是 0、不是"排在最后"
+  assert.equal(xyCell(row({ xy: [{ day: 'a', rank: 21 }, { day: 'b', rank: null },
+    { day: 'c', rank: 5 }] })), '21-·-5');
+  assert.match(xyCell(row({ xy: [{ day: 'a', rank: 21, stale: true }] })), /21〈旧〉/);
+  const t = xyTitle(row({ xy: [{ day: '2026-10-28', rank: 100, x: 48, y: 52, universe: 5570 }] }),
+    '后端 xy 那句');
+  assert.match(t, /合计 100 ＝ X 48 \+ Y 52/);
+  assert.match(t, /5,?570 只/);
+  assert.match(t, /后端 xy 那句/);
+  assert.match(xyTitle(row({ xy: [] })), /不是「排在最后」，也不是 0/);
+  // 判读层不许自己把两个加数再算一遍（那会成第二份真相源，与稳步前进榜各加各的）
+  assert.doesNotMatch(lib, /\.x \+ .*\.y|rank_sum/, '读法层只格式化，加法住在加工段');
+});
+
+test('列名上那串日期只认接口交的日期，缺了就退回场数', () => {
+  assert.equal(datedColLabel('四维象限', ['2026-10-22', '2026-10-28'], 5),
+    '四维象限（10-22·10-28）');
+  assert.equal(datedColLabel('四维象限', [], 5), '四维象限（近 5 场）');
+  assert.equal(datedColLabel('四维象限', null, null), '四维象限');
+  // 本机日期不许被拿来冒充行情日（交易日不是天天有数）
+  assert.doesNotMatch(lib, /new Date\(\)|toLocaleDateString/, '日期一律由接口交，页面不自己按本机时钟推');
+  assert.equal(sameWindow(['2026-10-22', '2026-10-23'], ['2026-10-22', '2026-10-23']), true);
+  assert.equal(sameWindow(['2026-10-22'], ['2026-10-23']), false);
+  assert.equal(sameWindow([], []), false, '两列都没日期时不算"同一批"（没依据）');
 });
 
 test('盘中信号：「这一族没读到」「没进榜」「有读数」是三种说法（探不到不许说成没冲高）', () => {
@@ -268,12 +309,16 @@ test('接口路径不带 /api 前缀，参数只有 date／limit／shapes 那几
   assert.doesNotMatch(comp, /limit:\s*(?!80\b)(\d{2,4})/, '界面不许发一个后端不认的 limit');
 });
 
-test('真的挂在首页「4b 短线情绪」收口之后、「全市场换手率 TOP20」之前', () => {
-  assert.match(home, /import \{ FirstBoardDailyPanel \} from "@\/components\/home\/FirstBoardDailyPanel"/);
-  const at = home.indexOf('<FirstBoardDailyPanel />');
-  assert.ok(at > 0, '首页没有渲染这一块的入口');
-  assert.ok(at > home.indexOf('{/* 4b. 短线情绪'), '首板分析要在连板股那张表之后');
-  assert.ok(at < home.indexOf('全市场换手率 TOP20</h3>'), '用户点名摆在换手率 TOP20 上面');
+test('真的挂在短线复盘页「短线情绪」那块之后（10-28 用户裁定 ③：从首页搬过来）', () => {
+  // 组件文件仍住 components/home/（它原来就长在首页那一轮），搬家动的是挂载点不是目录，
+  // 所以这一条同时钉住两件事：**新位置真的挂了**、**旧位置一份不剩**（留一份＝同一块屏出现两遍）。
+  assert.match(page, /import \{ FirstBoardDailyPanel \} from "@\/components\/home\/FirstBoardDailyPanel"/);
+  const at = page.indexOf('<FirstBoardDailyPanel />');
+  assert.ok(at > 0, '短线复盘页没有渲染这一块的入口');
+  assert.ok(at > page.indexOf('<LimitUpBoard day={day} />'), '首板分析要在短线情绪（涨停分析）之后');
+  assert.ok(at > page.indexOf('<LimitDownBoard day={day} />'), '首板分析要在短线情绪（跌停分析）之后');
+  assert.equal(home.indexOf('<FirstBoardDailyPanel />'), -1,
+    '首页那一处没撤干净＝同一块榜在两个屏各挂一次，改判据时只改一边就会分叉');
   assert.match(system, /"\/quant\/first-board-daily/, '自检清单 CAPABILITIES 里要有这一条，否则接口在跑却没人验');
 });
 
@@ -282,7 +327,8 @@ test('共用件全部复用，没有第二份实现', () => {
     /import \{ rankText, rankTitle, trimNum \} from "@\/lib\/ranking"/,
     /import \{ StockLink \} from "@\/components\/ui\/StockLink"/,
     /import \{ STOCK_ROW_HINT, useStockRowInteraction \} from "@\/lib\/useStockRowInteraction"/,
-    /import \{ CaliberFold, Definitions, ExplainBox[^}]*\} from "@\/components\/ui\/DataPanel"/,
+    /import \{ Caveats, CoverageNote, Definitions, Provenance[^}]*\} from "@\/components\/ui\/DataPanel"/,
+    /import \{ DocDrawer, DrawerSection \} from "@\/components\/ui\/DocDrawer"/,
     /import \{ useTableSort \} from "@\/lib\/useSort"/,
     /import \{ Disclaimer \} from "@\/components\/ui\/Disclaimer"/,
   ]) assert.match(comp, must, `没接上共用件：${must}`);
@@ -291,17 +337,23 @@ test('共用件全部复用，没有第二份实现', () => {
     '名次悬停的规则＋分母都读接口（分母＝有分的那批，不写成"全场"）');
   assert.match(comp, /useStockRowInteraction\("首板分析"\)/);
   assert.match(comp, /<StockLink code=\{r\.code\} name=\{r\.name\}/);
-  assert.match(comp, /<Definitions map=\{d\.definitions\} \/>/);
-  assert.match(comp, /<CaliberFold[^>]*caveats=\{d\.caveats\}/s,
-    '整份 caveats 交给共用件（属性顺序不钉，`foldAll` 是用户点名的那一屏才开的开关）');
+  assert.match(comp, /<Definitions map=\{d\?\.definitions \?\? null\} bare \/>/,
+    '字段字典走 bare（抽屉里的小节，不再套一层 ExplainBox 摘要）');
+  assert.match(comp, /<span className="ml-auto flex flex-wrap items-center gap-1\.5">\s*<DocDrawer/,
+    '这块唯一的说明出口在标题这一行最右边（用户 10-31），同一张卡不留第二颗同名按钮');
+  assert.doesNotMatch(comp, /<CaliberFold|<ExplainBox|<Caliber /,
+    '正文折框与「口径」芯片全部搬进标题行那颗：10-29 定的一条一模块一颗');
+  assert.match(comp, /splitCaveats\(d\?\.caveats\)/,
+    'caveats 分流仍只住 lib/caveatKind 那一份（foldAll＝这块 10-22 用户点名整屏收起）');
   assert.match(comp, /\{STOCK_ROW_HINT\}/);
   assert.match(comp, /<Disclaimer compact \/>/);
 });
 
-test('caveats 渲染在折叠框外面：这块自己不写 details，只把整份交给 CaliberFold', () => {
+test('这块自己不写 details，整份说明交给标题行那一颗抽屉（10-31 定形）', () => {
   assert.doesNotMatch(comp, /<details|<summary/, '组件自己写 details＝多一处折叠，告警会被顺手折掉');
-  assert.match(comp, /caveats=\{d\.caveats\}/, '整份 caveats 交给共用件分流（不许只传折得动的那一半）');
-  // 这一屏那八个 code 都不在折叠白名单里 ⇒ 全部留在屏上（含永远在外的四条与按需追加的四条）。
+  assert.match(comp, /const heldCav = \[\.\.\.foldableCav, \.\.\.unhealthyCav\];/,
+    '整份 caveats（含缺数那一族）进抽屉，分流照 lib/caveatKind 那一份 —— 10-22 用户点名这块整体收起');
+  // 这一屏那八个 code 都不在折叠白名单里 —— 折叠与否由用户点名的 foldAll 决定，白名单本身不许漂。
   // `prev_day_daily_only` 已改名 `recent_sources`（新那四列各有各的源表）；`boards_tolerance`
   // 随「几天几板」那一列一起撤掉了——屏上没有指对象的数字不算声明。
   const codes = ['one_ruler', 'reason_attribution', 'recent_sources', 'break_count_null', 'not_signal',
@@ -309,15 +361,15 @@ test('caveats 渲染在折叠框外面：这块自己不写 details，只把整�
   const { visible, foldable } = splitCaveats(codes.map(c => ({ code: c, text: `${c} 的句子` })));
   assert.equal(foldable.length, 0, `${foldable.map(c => c.code)} 被折进折叠框了`);
   assert.equal(visible.length, codes.length);
-  // 描述类（口径/字段义/覆盖/出处）确实收起来了：rule 与 caliber 走 CaliberFold 的 notes、definitions 走自身折叠
-  assert.match(comp, /notes=\{\[d\.rule, d\.caliber,/);
-  assert.match(comp, /text=\{d\?\.rule/);
+  // 描述类（口径/字段义/覆盖/出处）确实收起来了：rule 与 caliber 在抽屉「母体与读法」那节，definitions 走 bare 小节
+  assert.match(comp, /d\.rule, d\.caliber,/);
+  assert.match(comp, /!d\?\.rule &&/, '后端没交 rule 时抽屉里念那句兜底，页面不自己复述判据');
 });
 
 test('交互控件没有被 disabled／readOnly 锁住，开复盘只走共用 hook', () => {
   assert.doesNotMatch(comp, /\bdisabled\b|\breadOnly\b/i, '交互控件不许锁死');
   assert.doesNotMatch(comp, /window\.open\(/, '要开深度复盘走 useStockRowInteraction（地址只住 lib/openStockReview.ts）');
-  assert.match(comp, /\{x\.popHint && <p role="status"/, '弹窗被拦的告警渲染在折叠框外面');
+  assert.match(comp, /\{x\.popHint && <NoticeBar kind="warning"/, '弹窗被拦的告警渲染在折叠框外面');
 });
 
 test('列头 sortKey 与格子读的字段同名同序（写错不报错，只是那一列永不亮）', () => {
@@ -337,7 +389,7 @@ test('列头 sortKey 与格子读的字段同名同序（写错不报错，只�
 
 test('10-27 用户点名的那十列真的撤下了：整组 prev_*、几天几板、当日涨幅都不在列清单里', () => {
   const colKeys = [...comp.slice(comp.indexOf('const COLS'), comp.indexOf('const GROUPS'))
-    .matchAll(/\["([a-z0-9_]+)", "([^"]*)", "(day|prev|trend|history)"/g)].map(m => m[1]);
+    .matchAll(/\["([a-z0-9_]+)", "([^"]*)", "(day|prev|trend|history|energy)"/g)].map(m => m[1]);
   const gone = ['prev_date', 'prev_pct', 'prev_vol_ratio', 'prev_touched', 'prev_shape_label',
     'prev_turnover', 'prev_amount_yi', 'prev_sealed', 'board_label', 'launch_pct'];
   for (const k of gone) assert.equal(colKeys.includes(k), false, `${k} 点名撤掉了，还留在列清单里`);
@@ -463,4 +515,63 @@ test('开复盘新窗口的动作仍只住 lib/openStockReview.ts 那一份', ()
     .map(f => f.split(path.sep).join('/'));
   assert.deepEqual(openers, ['../src/lib/openStockReview.ts'],
     `又长出第二份开窗动作（要开深度复盘走 useStockRowInteraction）：${openers.join(', ')}`);
+});
+
+test('10-28 用户点名两件事的形状：倍量那一族在最后、代码与名称钉在左边', () => {
+  const pairs = [...comp.slice(comp.indexOf('const COLS'), comp.indexOf('const GROUPS'))
+    .matchAll(/\["([a-z0-9_]+)", "([^"]*)", "(day|trend|history|energy)"/g)].map(m => m[1] + '|' + m[3]);
+  const cols = pairs.map(x => x.split('|')[0]);
+  // ① 那四列（＋它的名次列）整族挪到最后：用户原话「这几个是什么意思，看不懂……移动到最后吧」
+  const energy = ['vol_grab_ratio', 'dbl10', 'dbl20', 'dbl_energy', 'dbl_rank'];
+  assert.deepEqual(cols.slice(-energy.length), energy, '倍量与抢跑那一族不在最后＝用户点名要的位置没改对');
+  // 挪位置不是撤列：一列都没少（全站那条"撤列要有撤列断言"的反面）
+  assert.equal(new Set(cols).size, cols.length, '列清单里有重复列');
+  // 分组顺序与"同组连续"：表头那一段的 colSpan 是按同组相邻算的，插一列到别组中间就会串位
+  const run = pairs.map(x => x.split('|')[1]).filter((g, i, a) => i === 0 || a[i - 1] !== g);
+  assert.deepEqual(run, ['day', 'trend', 'history', 'energy'], `分组顺序或连续性变了：${run.join('>')}`);
+  const groupLabels = [...comp.matchAll(/\{ key: "(\w+)", label: "([^"]+)" \}/g)].map(m => m[1]);
+  assert.deepEqual(groupLabels, run, 'GROUPS 那一段与列清单的分组不是一对（表头会串位）');
+
+  // ② 前两列钉住：格子与列头都要挂上同一对类，且样式与宽度只住 index.css 一处
+  assert.match(comp, /cellProps\(i, "code", "[^"]*col-pin col-pin-1"/);
+  assert.match(comp, /cellProps\(i, "name", "[^"]*col-pin col-pin-2"/);
+  assert.match(comp, /"col-pin col-pin-1"/);
+  assert.match(comp, /"col-pin col-pin-2"/);
+  const css = fs.readFileSync(path.join(HERE, '../src/index.css'), 'utf8');
+  assert.match(css, /th\.col-pin, td\.col-pin \{[\s\S]{0,120}position: sticky/, '钉住的样式没落地');
+  assert.match(css, /background-color: hsl\(var\(--card\)\)/,
+    '钉列底色必须是实色：半透明会让滚过去的正文从底下透出来');
+  assert.match(css, /td\.col-pin\.xl-cell/, '钉列也要能显出交叉高亮（否则选中态在那两列上消失）');
+  const left = (css.match(/col-pin-2 \{ left: ([\d.]+rem)/) ?? [])[1];
+  const width = (css.match(/col-pin-1 \{[^}]*width: ([\d.]+rem)/) ?? [])[1];
+  assert.ok(left && width && left === width,
+    `第二列的 left(${left}) 必须等于第一列的宽度(${width})：不一致就会出现两列重叠或中间一条缝`);
+  assert.doesNotMatch(comp, /left-\[[\d.]+(px|rem)\]/, '偏移只住 CSS 一份，组件里不许再写一个数');
+
+  // ③ 两列「近 5 场」的日期写在列名上，且两批日期是否同一批由后端现判（不许页面瞎猜）
+  assert.match(comp, /datedColLabel\(rawLabel, recent\?\.quad_dates/);
+  assert.match(comp, /datedColLabel\(rawLabel, recent\?\.xy_dates/);
+  assert.match(comp, /sameWindow\(recent\.quad_dates, recent\.xy_dates\)/);
+  assert.match(comp, /\["xy", "XY 合计名次", "day", false\]/, 'XY 那一列不给排序：整串没有单一大小');
+});
+
+test('10-29 用户复现的那条：钉列没坏，坏的是页面级左右滚动条 ⇒ 表壳必须能比自己窄', () => {
+  // 用户原话「前两列 代码和名称，固定一下。不要随着左右进度条的拉动看不到」。
+  // 现测（8910 真页面 + DOM 量）：`.col-pin` 的 sticky 是生效的（滚 260px 那两列仍停在原位、
+  // 第二列 left 正好等于第一列宽度），但 flex/grid 子项默认 `min-width: auto`，
+  // 一张 2839px 的表会把它那一格顶宽 ⇒ 内容区长出**页面级**横向滚动条 ⇒ 拖它时整块一起平移，
+  // 看着就是"固定没生效"。所以这一条钉的是根因，不是再抄一遍 sticky。
+  const css = fs.readFileSync(path.join(HERE, '../src/index.css'), 'utf8');
+  assert.match(css, /\.overflow-x-auto \{\s*min-width: 0;\s*\}/,
+    '每张表的滚动壳不许被自己的内容顶宽（页面级那条一旦存在，钉住的前两列就会跟着一起滑走）');
+  // 光放开壳自己不够：装壳的那一格/那一行也是 flex/grid 子项，默认 `min-width:auto` 照样被顶宽
+  assert.match(css, /\.workspace-content :is\(\.grid, \.flex\) > :has\(\.overflow-x-auto\) \{\s*min-width: 0;\s*\}/,
+    '装横向滚动壳的那一格也要能变窄（现测：只加上一条时内容区仍被顶出 124px 的页面级滚动条）');
+  // 样式只住 index.css 一处：组件里再写一份 `min-w-0` 就是第二个真源（全站宽表几十张，逐块加必漏）
+  assert.doesNotMatch(comp, /className="overflow-x-auto min-w-0/,
+    '这一条是全站规则，不许退回单个组件里补');
+  // 钉列那份规则仍在（新增规则不许顶掉旧的三条理由）
+  assert.match(css, /th\.col-pin, td\.col-pin \{[\s\S]{0,120}position: sticky/);
+  assert.match(css, /background-color: hsl\(var\(--card\)\)/,
+    '钉列底色必须实色：半透明会让滚过去的正文从底下透出来');
 });

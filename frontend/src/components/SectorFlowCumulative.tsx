@@ -2,7 +2,8 @@ import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Caliber } from "@/components/ui/Caliber";
 import { SectorLink } from "@/components/ui/SectorLink";
-import { CaveatText, Caveats, Contract, Definitions, ExplainBox, Provenance, Row } from "@/components/ui/DataPanel";
+import { CaveatText, Caveats, Contract, Definitions, Provenance, Row } from "@/components/ui/DataPanel";
+import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { useTableSort } from "@/lib/useSort";
@@ -51,6 +52,10 @@ export function SectorFlowCumulative() {
   /** 列头悬停文字读后端那一份 `definitions`（口径句子只住在 `duanxian/sector_flow.py`，
    *  页面自己抄一遍就会漂）。后端没交时才用兜底句，且兜底句只说"怎么算"、不说新口径。 */
   const def = (k: string, fb = "") => d?.definitions?.[k] ?? fb;
+  /** 屏上那一行标题与抽屉标题是同一份（两处各拼一遍迟早分叉成「屏上叫 A、弹窗叫 B」） */
+  const blockTitle = `覆盖以来累计净流入（库里 ${d ? dash(d.coverage?.sessions) : "—"} 场` +
+    `${d?.coverage?.available ? `：${dash(d.coverage?.from)} ~ ${dash(d.coverage?.to)}` : ""}` +
+    ` · 窗口累计降序 · 前 ${size} · 可翻页）`;
 
   return (
     <GlassCard>
@@ -58,17 +63,52 @@ export function SectorFlowCumulative() {
         {/* 标题不许承诺一个还没有的窗口。这张表 2026-10-06 才建、10-08 才第一次写通，
             库里只有 1 场时「2024 年以来累计」读起来就是假数（用户 10-08 当场指出"累计数肯定是错的"）。
             所以场数与区间进标题，日期由后端 `coverage` 给，不写死。 */}
-        <h2 className="text-sm font-bold">
-          覆盖以来累计净流入（库里 {d ? dash(d.coverage?.sessions) : "—"} 场
-          {d?.coverage?.available ? `：${dash(d.coverage?.from)} ~ ${dash(d.coverage?.to)}` : ""}
-          · 窗口累计降序 · 前 {size} · 可翻页）
-        </h2>
+        <h2 className="text-sm font-bold">{blockTitle}</h2>
         <Caliber text={Object.values(d?.calibers ?? {}).join("\n")
           || "净流入 = 同花顺行业榜的「净额」原样落库（流入 − 流出），单位亿元；是大单方向推断口径，不是交易所实测。"} />
-        <button type="button" onClick={refresh}
-          className="ml-auto flex items-center gap-1 rounded border border-border px-2 py-0.5 text-[11px] hover:bg-muted/50">
-          <RefreshCw className="h-3 w-3" /> 重新取数
-        </button>
+        {/* 用户 2026-10-31：「这块的说明」摆在这一块标题这一行的最右边、排在「重新取数」前面；
+            原来长在表下的那段 ExplainBox（怎么读 · 每一列是什么 · 字段契约）与字段字典整段搬进
+            这颗按钮开的抽屉，屏上不再摊第二遍。不满窗告警、`CaveatText`、后端 `caveats`、
+            缺料声明与出处行都留在屏上，绝不跟着进抽屉。 */}
+        <span className="ml-auto flex flex-wrap items-center gap-1.5">
+          {d && (
+            <DocDrawer title={blockTitle}>
+              <DrawerSection heading="这一张表怎么读 · 每一列是什么">
+                <p>默认序 = 窗口累计由大到小（后端给的序，负数排在后面，翻到最后一页是被抽干的那些）。
+                  翻页翻的是后端交出的全量（接口不按页截断），所以点列头排序是排全量再取这一页 ——
+                  不是只在前若干行里换顺序。</p>
+                <p className="mt-2">加权与涨跌幅这两族是 10-15 加的。一句话版：
+                  <b>「占流通市值 %」把「多少亿」折成「相对这个盘子有多大」</b>——10-15 实测银行窗口累计 +58.55 亿只占流通市值
+                  0.053%，影视院线 +29.22 亿是 1.50%；只看「和」会把大板块天然排在前面，那不是它更强。</p>
+                <p className="mt-2">{d.calibers?.weight ?? ""}</p>
+                <p className="mt-2">{d.calibers?.chg ?? ""}</p>
+                <p className="mt-2">{d.calibers?.long_history ?? ""}</p>
+                <p className="mt-2">{d.calibers?.classification ?? ""}</p>
+              </DrawerSection>
+              {(Object.keys(d.definitions ?? {})).length > 0 && (
+                <DrawerSection heading="这些字段是什么意思（后端 definitions）">
+                  <Definitions map={d.definitions} block="板块累计净流入" bare />
+                </DrawerSection>
+              )}
+              <DrawerSection heading="字段契约">
+                <Contract path="GET /api/market/sector-flow" source="duanxian/sector_flow.aggregate（两个窗口的口径只住那一份）" fields={[
+                  ["rows[]{sector_name, net_sum_recent, net_sum_since, days_recent, days_since, net_last, net_last_day}",
+                    "两个窗口的累计与各自的分母（场数）；末场那一列不是此刻现抓"],
+                  ["rows[]{net_pct_float_recent, net_avg_recent, pos_days_recent, chg_recent_pct, chg_days, inflow_sum_recent, outflow_sum_recent, float_mv_yi, total_mv_yi}",
+                    "10-15 新加的加权与涨跌幅族；分母/天数/缺天都随行交出，页面不补数"],
+                  ["coverage{sessions, from, to}", "能算多前由表里最早那天决定 —— 缺料要可见，不冒充 2024 年以来"],
+                  ["market_value{as_of, covered, industries, basis, missing}", "加权分母取自哪一场、90 个行业里拼得出几个、缺的是哪几个"],
+                  ["window{since, recent_from, recent_to, top_default}", "窗口起点与每页档位（默认 50，翻页在页面）"],
+                  ["calibers", "口径文字由后端交出，界面不自己抄一份"],
+                ]} />
+              </DrawerSection>
+            </DocDrawer>
+          )}
+          <button type="button" onClick={refresh}
+            className="flex items-center gap-1 rounded border border-border px-2 py-0.5 text-[11px] hover:bg-muted/50">
+            <RefreshCw className="h-3 w-3" /> 重新取数
+          </button>
+        </span>
       </div>
       {/* 只有"库里的场数撑不起这个窗"这一句留在外面常驻（缺料声明不许折进收起的框），
           其余"怎么读、怎么排、字段是什么"都收进下面的通用说明框（用户 2026-10-15：默认收起，点开才看）。 */}
@@ -227,36 +267,9 @@ export function SectorFlowCumulative() {
             </>
           )}
 
-          {/* 说明与字段契约收进通用说明框（用户 2026-10-15：默认收起、点开才看）。
-              ⚠️ 三类东西**刻意留在框外**：不满窗的告警、`CaveatText`（覆盖以来只有 N 场）、
-              后端的 `caveats`（市值分母时点／拼不出市值／复利用了几天）—— 收进折叠框等于没写。 */}
-          <ExplainBox title="这一张表怎么读 · 每一列是什么 · 字段契约">
-            <p>默认序 = 窗口累计由大到小（后端给的序，负数排在后面，翻到最后一页是被抽干的那些）。
-              翻页翻的是后端交出的全量（接口不按页截断），所以点列头排序是排全量再取这一页 ——
-              不是只在前若干行里换顺序。</p>
-            <p className="mt-2">加权与涨跌幅这两族是 10-15 加的。一句话版：
-              <b>「占流通市值 %」把"多少亿"折成"相对这个盘子有多大"</b>——10-15 实测银行窗口累计 +58.55 亿只占流通市值
-              0.053%，影视院线 +29.22 亿是 1.50%；只看"和"会把大板块天然排在前面，那不是它更强。</p>
-            <p className="mt-2">{d.calibers?.weight ?? ""}</p>
-            <p className="mt-2">{d.calibers?.chg ?? ""}</p>
-            <p className="mt-2">{d.calibers?.long_history ?? ""}</p>
-            <p className="mt-2">{d.calibers?.classification ?? ""}</p>
-            {/* 字段契约也收在这儿（用户点名的"这些说明文字"里最长的一段）。
-                真正会改变读法的三句留在框外：不满窗告警、`CaveatText`、后端 `caveats`。 */}
-            <div className="mt-2">
-              <Contract path="GET /api/market/sector-flow" source="duanxian/sector_flow.aggregate（两个窗口的口径只住那一份）" fields={[
-                ["rows[]{sector_name, net_sum_recent, net_sum_since, days_recent, days_since, net_last, net_last_day}",
-                  "两个窗口的累计与各自的分母（场数）；末场那一列不是此刻现抓"],
-                ["rows[]{net_pct_float_recent, net_avg_recent, pos_days_recent, chg_recent_pct, chg_days, inflow_sum_recent, outflow_sum_recent, float_mv_yi, total_mv_yi}",
-                  "10-15 新加的加权与涨跌幅族；分母/天数/缺天都随行交出，页面不补数"],
-                ["coverage{sessions, from, to}", "能算多前由表里最早那天决定 —— 缺料要可见，不冒充 2024 年以来"],
-                ["market_value{as_of, covered, industries, basis, missing}", "加权分母取自哪一场、90 个行业里拼得出几个、缺的是哪几个"],
-                ["window{since, recent_from, recent_to, top_default}", "窗口起点与每页档位（默认 50，翻页在页面）"],
-                ["calibers", "口径文字由后端交出，界面不自己抄一份"],
-              ]} />
-            </div>
-          </ExplainBox>
-          <Definitions map={d.definitions} />
+          {/* 说明与字段契约已搬进标题行那颗「这块的说明」（用户 2026-10-31），这里不再长第二颗按钮。
+              ⚠️ 三类东西**刻意留在屏上**：不满窗的告警、`CaveatText`（覆盖以来只有 N 场）、
+              后端的 `caveats`（市值分母时点／拼不出市值／复利用了几天）—— 收进抽屉等于没写。 */}
           <CaveatText text={d.coverage?.available
             ? `「覆盖以来累计」现在只有 ${dash(d.coverage.sessions)} 场：那是这 ${dash(d.coverage.sessions)} 场的和，不是 2024 年以来的和。每天收盘后由加工链的 sectorflow 步续一格，攒到什么时候就读到什么时候。`
             : undefined} />

@@ -108,6 +108,9 @@ STEP_TIMEOUT_SEC = 1800
 STEP_TIMEOUTS: dict[str, int] = {
     'indicators': 5400,      # 实测 1002s / 5 场；窗口拉到 10 场还要翻倍（MAX_SPAN=30 是上限）
     'scores': 3600,
+    # XY 合计名次：一天一条 INSERT..SELECT，实测 2026-10-28 单日 5,570 行约 1 秒；
+    # 窗口 30 场约半分钟。900 秒是给"score 正被 d2 重灌、这一发在等锁"那种最坏情况留的余量。
+    'xyrank': 900,
     'sectortrend': 1800,
     'tdxdl': 2400 + STEP_TIMEOUT_SEC,   # p0 自己就带分钟线 7′41″ + 转档 + 每步重试
     'daily': STEP_TIMEOUT_SEC,          # c10 里可能顺手起一次 p0 下载
@@ -136,6 +139,12 @@ STEP_TIMEOUTS: dict[str, int] = {
     # 板块对表：实测 2026-10-15 整跑 6 秒（东财两张清单各一发、em_get 自带 1 秒节流，
     # 再加 1,574 行 upsert）。300 秒是给"源在抖、走代理重试"那种最坏情况留的。
     'boardlink': 300,
+    # 指数市值快照：三发请求 × 8 秒超时（实测 2026-10-28 单发 0.3~0.7 秒）+ 一次清一天再 COPY 三行。
+    # 180 秒是给"push2 抖、走代理重试"那种最坏情况留的，不是预期耗时。
+    'index_mv': 180,
+    # 国家队代理指标：两条聚合 SQL（份额×价格窗口 + 成分市值求和）× 两把尺。
+    # 实测 2026-10-28 一整年（242 场 / 484 行）跑完在秒级；600 秒给"etf_share/stock_snapshot 正被别的步重灌"。
+    'national_team': 600,
     # 逐票量能倍数：实测单日 5,561 行 = 8.7 秒（含找上一根日线的窗口扫描），
     # 窗口 30 场一次扫完也远小于这个数 —— 900 秒是给"日线表被别的作业同时写满"那种最坏情况留的。
     'volratio': 900,
@@ -281,6 +290,20 @@ STAGES = (
     ('boardlink', '板块名对东财板块页 → reference_data.em_board_link（两发请求，秒级）', False),
     ('dividend',   '分红 + 回算复权因子',                      False),
     ('share',      '股本（市值口径）',                         False),
+    # 指数级总市值/流通市值快照（东财 push2 f116/f117）。**这一发只给当日、报文里没有日期**，
+    # 所以漏一天就是历史分母上永久少一天（与 c21/c22 同一条硬约束）；归属日由脚本自己按
+    # 库里 `index_daily` 的最近交易日定，并拿返回体的 f43 与那一场收盘价对账，对不上就拒写（rc 3）。
+    # 定位是**外部对照**：国家队那一屏的分母主尺是本地自算（`stock_snapshot` 每票流通市值 × 成分求和，
+    # 实测 2026-10-27 与东财差 −0.08%），这台机器对 push2 有频率封，不能让它当主尺。
+    ('index_mv',   '指数市值快照 → market_data.index_market_value（东财只给当天，只当对照）', False),
+    # 国家队代理指标（用户 2026-10-26 点名「头部沪深300基金市值占沪深300流通市值比例」）。
+    # **必须排在 etf / snapshot / share 之后**：分子读 `market_data.etf_share` + `fund_daily`，
+    # 分母读 `market_data.stock_snapshot` 的成分求和，排前面会拿到昨天那份母体。
+    # 每天重算整个追平窗口（不是只算今天）：份额源是 T+1 才落（实测 `etf_share` 比 `snapshot` 晚一场），
+    # 只算今天会让最后那一天的占比永远缺分子；写入是"清这段再 COPY"，幂等。
+    # 非骨干 —— 判据产出，缺一天就是首页/复盘那一屏那天断一格。异动与历史分档**不落这张表**
+    # （阈值型判据，阈值一改历史行就挂旧含义），只在读侧 `duanxian/national_team.py` 按当次窗口现算。
+    ('national_team', '国家队代理指标 analytics.national_team_etf_daily（两把尺份额/规模/净申赎 ÷ 本地自算流通市值）', False),
     # 个股财务多期（同花顺，累计档 + 单季档）。**默认母体只有本机名单**（自选 ⊃ 持仓）：
     # 全市场一遍实测约 100 分钟（2026-10-16：1,750 只 37 分钟），不能天天跑；
     # 全库回刷是显式的 `--all`。名单外的票靠读侧那句"这份财务多久没重采"说话，不拿旧值冒充当期。
@@ -317,6 +340,11 @@ STAGES = (
     ('spikedays', '爆量急拉联合计数 analytics.startup_spike_days（倍量/急拉落在量增还是量缩，日线代理）', False),
     ('indicators', '基础因子 analytics.indicator',                   True),
     ('scores',     '评分 analytics.score',                           True),
+    # X 名次 + Y 名次的合计名次（10-28 用户点名：这一档要作为数据加工的一环每天跑，别每个屏各加各的）。
+    # **必须紧跟在 `scores` 之后**：原料就是上一步刚写好的 `analytics.score.rank_in_market`，
+    # 排前面拿到的是昨天那份名次。它自己不加判据、不重排名 —— 只配对、求和、带上旧基准标记。
+    # 非骨干：`scores` 是骨干，它挂了主链已经红了；这一步单挂只是那一列断一格（屏上 —）。
+    ('xyrank',     'XY 合计名次 → analytics.xy_rank_daily（xyr-1，两轴名次相加，越小越靠前）', False),
     # 必须排在 scores 之后：板块趋势是从 analytics.score[sector_heat] 聚出来的，
     # 评分没算完先跑这一步只会把昨天的结果再写一遍。
     ('sectortrend', '板块热度趋势 analytics.sector_trend',           True),
@@ -367,11 +395,15 @@ def _retryable(name: str, rc: int) -> bool:
     - `daily` 的 2 = vipdoc 没覆盖目标日且没给 `--allow-web` → 要人去下载，不是重跑；
     - `tdxdl` 的 2/3 = 日线到位、只有分钟线没拿到（或它自己判定停下）→ 该单独重跑
       下载那一段（`run_agent --only s5_dialog --only s7_minute`），不是重跑整步；
+    - `index_mv` 的 2 = 接口那一发与库里那场对不上账（这个口只给「现在」）→ 重跑一百次
+      也还是「现在」，按设计不写；
     - 其余非零（网络抖、超时、上游 5xx）都算可重试。
     """
     if name == 'daily' and rc == 2:
         return False
     if name == 'tdxdl' and rc in (2, 3):
+        return False
+    if name == 'index_mv' and rc == 2:
         return False
     return rc != 0
 
@@ -715,6 +747,14 @@ def main() -> int:
         'fundflow_rank': ('ingest.jobs.c21_fundflow_sina', []),
         'dividend': ('ingest.jobs.c8_dividend', []),
         'share': ('ingest.jobs.c9_share', []),
+        # 不传 `--date`：这个接口只给"现在"那一个截面，追平跑到前天时把今天的市值盖上前天
+        # 就是造假（同 c21/c22 那条纪律）。脚本自己按库里 `index_daily` 的最近交易日定归属日，
+        # 并拿返回体 f43 与那一场指数收盘对账 —— 对不上就是不写，而不是写一行贴个错日期。
+        'index_mv': ('ingest.jobs.c26_index_mv', []),
+        # 跟着追平窗口整段重算（实测 2024-01-02..2024-12-31 一整年 484 行 = 秒级）：
+        # 份额 T+1 才落、快照按天可能补到，只算今天会把窗口里前面几天永久留空。
+        'national_team': ('app.compute.national_team',
+                          ['--start', start.strftime(ymd), '--end', target.strftime(ymd)]),
         # 个股财务多期（同花顺，累计档＋单季档）。母体**分两档各拿一份预算**（`--refresh-gap 60`）：
         # 第一档补"表里一行都没有的 + 名单外 60 天没刷的"，第二档刷"名单里最旧的"。
         # 为什么要分档而不是排成一条队：实测本机名单 1,122 只 ≈ 24 分钟 > 每日 6 分钟预算 ——
@@ -822,6 +862,10 @@ def main() -> int:
 
 
         'scores': ('ingest.jobs.d2_scores',
+                   ['--date', target.isoformat(), '--recent', str(span)]),
+        # 两轴名次的合计：跟着 `scores` 那一段窗口一起补（一天一条 INSERT..SELECT，
+        # 实测 2026-10-28 单日 5,570 行约 1 秒 ⇒ 30 场也就半分钟，不省这一点）。
+        'xyrank': ('app.compute.xy_rank',
                    ['--date', target.isoformat(), '--recent', str(span)]),
         'sectortrend': ('ingest.jobs.d3_sector_trend',
                         ['--date', target.isoformat(), '--recent', str(span)]),
@@ -1026,6 +1070,15 @@ def main() -> int:
         if name == 'spikedays' and rc == 2:
             done.append(name)
             steps[name]['soft'] = ('这一段没有母体事件、或窗口一场日线都凑不出 —— 按设计不写，不算故障')
+            print('  → %s' % steps[name]['soft'])
+            continue
+        # 指数市值快照：2 = 归属日对账不过（push2 那个口只给「现在」的截面，返回的收盘与库里
+        # 那场对不上）—— 按设计不写，不算故障；写进去就是拿今天的市值盖在前天头上。
+        # 1 = 三条指数一条都没取到（源断了 / 这台机器被频率封）—— 那才算失败。
+        if name == 'index_mv' and rc == 2:
+            done.append(name)
+            steps[name]['soft'] = ('接口那一发与库里那场对不上账（这个口只给「现在」的截面）'
+                                   '—— 按设计不写，不算故障')
             print('  → %s' % steps[name]['soft'])
             continue
         # 剩下的真失败：归因成一句人话，让"这步没成"不再是光秃秃一个名字。
