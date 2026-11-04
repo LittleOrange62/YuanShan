@@ -125,6 +125,10 @@ STEP_TIMEOUTS: dict[str, int] = {
     # 首板分析：实测 2026-10-21 CLI 跑 `--date 2026-10-21 --recent 3`（三场 116 行，含同花顺涨停揭秘池
     # 三次发单 + 落库后体检）9 秒。300 秒 = 三十倍余量，给"池子那张页慢/重传"与"日线正被 c1 重灌"那种最坏情况。
     'fbdaily': 300,
+    # 股性：实测 2026-11-04 单场（全场 5,586 行、两条聚合 SQL + 一次 executemany）12.6 秒，
+    # 回算 250 场那一趟在库里有别的作业并发时到约 50 秒/场 ⇒ 三场最坏约 150 秒。
+    # 600 秒 = 四倍余量，给「日线正被 c1 重灌、涨停池正被 fbdaily 重写」那种最坏情况。
+    'stockchar': 600,
     # 启动前象限轨迹：实测 2026-10-17 回填 12 个月（2,263 行 / 324 个母体事件）约 25 秒，
     # 两条取数（母体名单 + 一条把窗口/名次/象限翻转一起算出来的聚合 SQL）都走 etl 角色。
     # 900 秒与 `fbshape` 同档：给"score 正在被 d2 重写 + 日线表正被重灌"那种最坏情况留的余量。
@@ -338,6 +342,11 @@ STAGES = (
     # （outcome_len/seg_complete/r5/ex5 都从 fb-2 join），排前面拿到的是昨天那份母体、结果列也永远补不齐。
     # 非骨干；每天把最近 12 个月的母体重算一遍（与 `quadtrack` 同一条理由：截面轨迹不逐日重算）。
     ('spikedays', '爆量急拉联合计数 analytics.startup_spike_days（倍量/急拉落在量增还是量缩，日线代理）', False),
+    # 股性与近 10 场日均振幅（11-04，用户点名给埋伏榜加的两列）。
+    # **必须排在 `fbdaily` 之后**：涨停基因那一腿（近 250 场封住/触到的次数、最高的那一轮连板）读的
+    # 就是那一步写的 `limit_up_pool_daily`（lup-1），排前面会拿到昨天那份池子，今天的封板次数永远少一天。
+    # 非骨干 —— 分析产出，缺一天只是埋伏榜那两列断一格（屏上 — 加一句「判不了」），不影响日线/评分主链。
+    ('stockchar', '股性与近 10 场日均振幅 analytics.stock_character_daily（stockchar-1）', False),
     ('indicators', '基础因子 analytics.indicator',                   True),
     ('scores',     '评分 analytics.score',                           True),
     # X 名次 + Y 名次的合计名次（10-28 用户点名：这一档要作为数据加工的一环每天跑，别每个屏各加各的）。
@@ -776,6 +785,12 @@ def main() -> int:
         # 母体本身（fb-2 那批首板）与前一交易日读数是历史值，重算一遍只是幂等 upsert + 清那一场的残留行。
         'fbdaily': ('app.compute.first_board_daily',
                     ['--date', target.isoformat(), '--recent', '3']),
+        # 股性（埋伏榜那两列的原料）：`--recent 3` 与 `fbdaily` 同档 —— 涨停基因那一腿读的是
+        # 上一步 `fbdaily --recent 3` 刚补写的近三场 `limit_up_pool_daily`（晚到的档位价要在第二天
+        # 落进股性列），只算今天就会把那三场的缺档永久留在 NULL。
+        # 一天一算是因为这一场的分位是**横截面**的（全场互相比），把 --recent 拉大只是把同一天重刷。
+        'stockchar': ('app.compute.stock_character',
+                      ['--date', target.isoformat(), '--recent', '3']),
         # 启动前象限轨迹：一次算满 12 个月的母体（页面有 3/6/12 三档窗口月数，跑 3 个月会让 6/12 档
         # 变成"挂着 12 个月标签的 3 个月名单"，同 `startupvol` 那一条理由）。
         # ⚠️ 排在 `startupvol`/`fbshape` 之后：它读 sv-2 的母体名单，还要从 fb-2 带 outcome_len（走到几板）。

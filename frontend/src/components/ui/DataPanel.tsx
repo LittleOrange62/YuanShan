@@ -3,7 +3,8 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { ageText, dash, describeState, hasData, isQuiet, type Availability, type DataState } from "@/lib/datastate";
 import { cn } from "@/lib/utils";
 import { plain } from "@/lib/agent";
-import { splitCaveats } from "@/lib/caveatKind";
+import { splitCaveats, type CaveatLike } from "@/lib/caveatKind";
+import { NoticeBar } from "@/components/ui/NoticeBar";
 import { BlockTitleCtx, DrawerSection, DocDrawer, InsideDrawerCtx, useBlockTitle } from "@/components/ui/DocDrawer";
 
 /**
@@ -187,6 +188,31 @@ export function Caveats({ items }: { items?: { code?: string | null; label?: str
 }
 
 /**
+ * 「这一场有几天读不到」那一半的**一行形状**（11-03 用户：「除了主要展示内容，其余的都收缩起来，界面要专注核心」）。
+ *
+ * 与"整条原文摊在屏上"比，这一行仍然出声、但不吃版面：念**有几条、各是哪类**（后端给的中文标签），
+ * 原文搬进那一颗说明抽屉里单独一节。
+ * ⚠️ 它不等于"折起来"：计数与标签必须看得见 —— 一条都不念就是屏幕在说"这场没有读不到的地方"。
+ *    所以没有内容就整行不渲染（不摆「没问题」占位），也不许拿它去折纯口径解释（那些本来就该进抽屉）。
+ */
+export function CaveatTally({ items }: { items?: CaveatLike[] | null }) {
+  const list = (items ?? []).filter(c => c && c.text);
+  if (list.length === 0) return null;
+  const codes = list.map(c => String(c.code ?? ''));
+  const kind = codes.some(c => /truncat/.test(c)) ? 'truncated'
+    : codes.some(c => /no_|missing|empty|unread|fail|stale|absent|partial|degraded/.test(c)) ? 'missing' : 'warning';
+  // 标签一律用后端给的那几个中文（`label`）；没配的**不许把机器键念到脸上**（全站那条「屏幕上不许多机器码」），
+  // 退成一句类别话，键名留在悬停里给对账的人。补 label 才是正解，这里只是不骗用户。
+  const named = list.map((c, i) => (c.label ?? '').trim()
+    || `第 ${i + 1} 条（后端没配中文标签：${c.code ?? '无 code'}）`);
+  return (
+    <NoticeBar kind={kind}>
+      要留意 {list.length} 条：{named.join(' · ')}（原文在这块右上角那颗「这块的说明」里，那一节叫「本场要留意的声明」）
+    </NoticeBar>
+  );
+}
+
+/**
  * 「这一屏是缓存还是现算」那两行。收在一处是因为它的语义最容易悄悄丢：
  * 慢接口普遍带 TTL 缓存（覆盖体检、数据源体检、环境体检），只印 `generated_at`
  * 等于把 2.4 小时前的结果摆成刚刚算的 —— 页面必须同时给出**距今多久**和**是否已过期**。
@@ -328,7 +354,7 @@ export function ExplainBox({ title, count, block, children }: {
  *    那类句子折起来就等于让屏幕说假话，规矩没变（见 `ExplainBox` 那条红线与本仓 §六 台账）；
  *  · 文字一律后端原句，只剥成对 `**`（`plain`），不许改写、不许缩短。
  */
-export function CaliberFold({ caveats, definitions, coverage, provenance, notes, foldAll, viaDrawer, drawerTitle, extra }: {
+export function CaliberFold({ caveats, definitions, coverage, provenance, notes, foldAll, viaDrawer, drawerTitle, extra, compactCaveats }: {
   caveats?: { code?: string | null; label?: string | null; text?: string | null }[] | null;
   definitions?: Record<string, string> | null;
   coverage?: Record<string, unknown> | null;
@@ -358,9 +384,19 @@ export function CaliberFold({ caveats, definitions, coverage, provenance, notes,
    * 这类句子整段搬进抽屉。用 `DrawerSection` 起小标题，与后端原句分节，不混进 `notes` 那一段。
    */
   extra?: ReactNode;
+  /**
+   * 11-03 用户定稿「除了主要展示内容，其余的都收缩起来，界面要专注核心」：
+   * 缺数／上限／告警那一半不再整段摊在屏上，而是压成一行计数（`CaveatTally`：有几条、各是哪类，
+   * 用后端给的中文标签），原文进这颗抽屉里单独一节「本场要留意的声明」。
+   * ⚠️ 与 `foldAll` 的区别就是那行计数必须**在屏上**：光写在按钮后面（`foldAll` 那一型）
+   *   等于把"这场有读不到的地方"缩成一次点击，用户要的是版面干净，不是页面噤声。
+   * 默认 false ⇒ 没点这个开关的屏一律照旧摊全文（全站那 35 块由用户逐屏点头再切）。
+   */
+  compactCaveats?: boolean;
 }) {
   // 只有"纯口径解释"那一份被折进去；缺数／截断／查询失败那一族留在屏上（`lib/caveatKind.ts` 一处定）
   const { visible, foldable } = splitCaveats(caveats);
+  const compact = compactCaveats === true;
   const held = foldAll ? [...foldable, ...visible] : foldable;
   const heldUnhealthy = foldAll ? visible.length : 0;
   const ds = Object.entries(definitions ?? {});
@@ -368,7 +404,8 @@ export function CaliberFold({ caveats, definitions, coverage, provenance, notes,
     v && typeof v === "object" && !Array.isArray(v) && ("from" in (v as object) || "to" in (v as object)));
   const ps = (provenance ?? []).filter(Boolean);
   const ns = (notes ?? []).filter(Boolean);
-  const foldCount = held.length + ds.length + vs.length + ps.length + ns.length + (extra ? 1 : 0);
+  const foldCount = held.length + ds.length + vs.length + ps.length + ns.length + (extra ? 1 : 0)
+    + (compact && visible.length > 0 ? 1 : 0);
   // 说明正文只有一份：就地折叠那一版与抽屉那一版**共用同一段 JSX**，不换壳就不换内容 ——
   // 两处各写一遍迟早给出"屏上一个口径、弹窗里另一个口径"。
   // 2026-10-28：抽屉体是一口气读完的长文，每类各起一个小节标题，读者才知道自己看到哪儿。
@@ -382,6 +419,12 @@ export function CaliberFold({ caveats, definitions, coverage, provenance, notes,
       {held.length > 0 && (
         <DrawerSection heading="口径声明（后端 caveats 原句，页面未改写）">
           <Caveats items={held} />
+        </DrawerSection>
+      )}
+      {compact && visible.length > 0 && (
+        /* `compactCaveats`：屏上那行计数（`CaveatTally`）点的就是这一节 —— 标签在屏上、原句在这儿。 */
+        <DrawerSection heading="本场要留意的声明（缺数／上限／告警，后端原句）">
+          <Caveats items={visible} />
         </DrawerSection>
       )}
       {ds.length > 0 && (
@@ -414,14 +457,15 @@ export function CaliberFold({ caveats, definitions, coverage, provenance, notes,
   ].filter(Boolean).join(" · ");
 
   // 指路牌只写一句、两个壳共用：出现两遍会让人怀疑「哪一份才是缺数声明」。
-  const guide = (!foldAll && visible.length > 0)
+  // `compact` 那一型不需要它 —— 屏上那一行 `CaveatTally` 已经把条数与标签念出来了。
+  const guide = (!foldAll && !compact && visible.length > 0)
     ? <span className="ml-1 text-warning">另有 {visible.length} 条缺数／截断类声明没有折，在上方</span>
     : null;
 
   const blockTitle = useBlockTitle();
   return (
     <>
-      {!foldAll && <Caveats items={visible} />}
+      {!foldAll && (compact ? <CaveatTally items={visible} /> : <Caveats items={visible} />)}
       {foldCount > 0 && (viaDrawer !== false ? (
         // 抽屉那一版：正文与就地折叠完全同一份 `body`；缺数／截断那几条（`visible`）
         // 仍然留在上面这一屏里，绝不跟着搬进抽屉。

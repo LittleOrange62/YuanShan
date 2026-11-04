@@ -30,6 +30,7 @@ import { Quality } from "@/pages/Quality";
 import { Screen } from "@/pages/Screen";
 import { DataProcess } from "@/pages/DataProcess";
 import { System } from "@/pages/System";
+import { PushTasks } from "@/pages/PushTasks";
 // `WatchlistAnalytics`（原 `/watchlist-analytics`）2026-10-14 不再挂路由：整块「分组整体分析」
 // 搬进「我的股票 · 分组自选」的最上方（用户：先分析分组的整体情况，再分析分组自选）。
 // 表格/折线/口径那一份实现住在 `components/quant/GroupAnalyticsBoard.tsx`，由 `/grouped` 顶部调用；
@@ -93,6 +94,7 @@ export const router = createBrowserRouter([
       // 由人重新选一只 —— 页面里明写「不替你挑」。
       // 两个页面文件都留着，只是不再独立挂路由：StockData / DeepDive 由本页按同一份取数代码嵌入。
       { path: "/stock-review", element: <StockReview /> },
+      { path: "/push-tasks", element: <PushTasks /> },
       { path: "/intel", element: <Intel /> },
       { path: "/stock-data", element: <Navigate to="/stock-review" replace /> },
       { path: "/agent/deepdive", element: <Navigate to="/stock-review" replace /> },

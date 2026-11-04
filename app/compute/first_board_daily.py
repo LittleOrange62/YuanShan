@@ -76,6 +76,10 @@ from app.db import engine                                       # noqa: E402
 from app.compute import limit_up_pool                            # noqa: E402  同一次出网喂两张表
 from duanxian import board_span, day_returns, fetchers          # noqa: E402
 from duanxian import historical_sources as hsrc                 # noqa: E402
+# 涨停/跌停"封住 vs 触及"那把尺与"最高连板"那段读库，2026-11-04 起搬进 `app/compute/limit_gene.py`：
+# 埋伏票榜的「股性」要用同一个算法（不同窗口），两处各写一份就是两把尺。本模块只留同名别名，
+# 老调用点与老测试（`F.limit_counts(...)` 拿 `_3m` 键）行为一字不变。
+from app.compute import limit_gene as gene                      # noqa: E402
 
 TABLE = 'analytics.first_board_daily'
 #: `fbd-2`（2026-10-27）：加四列"这只票自己的历史位置"（涨/跌停次数、连板最高、两年区间位置、
@@ -87,7 +91,8 @@ SPEC_VERSION = 'fbd-2'
 SHAPE_SPEC = 'fb-2'
 #: 封板容差：**与母体 EVENTS_SQL 同一条**（`close >= limit_up - 0.01`）。
 #: 这里换成 board_span 的 0.001 会让"前一日封住"这条自检漏掉 0.001~0.01 那档，母体串了也看不见。
-LIMIT_SEAL_EPS = 0.01
+#: 数值本体在 `limit_gene.SEAL_EPS`（11-04 起那里是唯一出处；这里留同名别名给读侧与自检用）。
+LIMIT_SEAL_EPS = gene.SEAL_EPS
 PREV_BASE_BARS = 5        # 前一日量比的分母：前一日往前几场的均量（不含前一日）
 PREV_BASE_MIN = 3         # 分母里真有的行少于 3 根就不给量比（次新股/长停牌凑不出"近 5 场均量"）
 CHG_SPANS = (5, 10, 15)   # 近期走势三档（day_returns 的 span，含目标日）
@@ -213,16 +218,17 @@ GAP_PREV_BASE_SHORT = 'prev_base_bars_lt3'         # 前一日往前真有的行
 GAP_NO_DAILY_ROW = 'no_daily_row_on_target'        # 当日日线行缺（母体行理论上必然有）
 GAP_NO_LIMIT_UP = 'limit_up_missing_on_prev'       # 前一日没有涨停价档位 ⇒ 触板/封板判不了
 GAP_BOARD_SOURCE = 'board_source_unavailable'      # board_span 整批读回空（读不到库，不是"都没板"）
-GAP_NO_ROUND = 'no_local_round'                    # board_span 数不出这一轮
+GAP_NO_ROUND = gene.GAP_NO_ROUND                # board_span 数不出这一轮（本体在 limit_gene，一处）
 GAP_CHG_SOURCE = 'chg_source_unavailable'          # day_returns 整批读回空
 GAP_CHG_BASE = 'chg_base_day_missing'              # 基期那天没行（停牌/未上市）
 GAP_ENERGY_ROW = 'no_volume_double_row'            # 当日 volume_double 没这只票的行
 GAP_SHAPE_INPUT = 'prev_shape_inputs_missing'
 # 四列历史位置那一族（10-27 新增）：每一列判不了都要有名字，界面才说得出"是哪种判不了"
-GAP_HIST_ROWS = 'hist_window_no_rows'          # 两年窗口里这只票一根日线都没有（全新上市或读库失败）
-GAP_HIST_LIMIT_UP = 'hist_limit_up_missing'    # 窗口里有日线但缺涨停档位价 ⇒ 涨停次数判不了
-GAP_HIST_LIMIT_DOWN = 'hist_limit_down_missing'
-GAP_CONSEC_SOURCE = 'lup_rows_unavailable'     # lup-1 那一场整批改是空（没读到库，不是"这半年没连板"）
+# 这四个令牌 11-04 起本体在 `limit_gene`（涨停次数与连板那两族共用一份，两屏才可能说出同一个原因）
+GAP_HIST_ROWS = gene.GAP_HIST_ROWS             # 两年窗口里这只票一根日线都没有（全新上市或读库失败）
+GAP_HIST_LIMIT_UP = gene.GAP_HIST_LIMIT_UP     # 窗口里有日线但缺涨停档位价 ⇒ 涨停次数判不了
+GAP_HIST_LIMIT_DOWN = gene.GAP_HIST_LIMIT_DOWN
+GAP_CONSEC_SOURCE = gene.GAP_CONSEC_SOURCE     # lup-1 那一场整批改是空（没读到库，不是"这半年没连板"）
 GAP_POS_BARS = f'bars_2y_lt{POS_MIN_BARS}'     # 两年窗口真有的行不足 250 根 ⇒ 区间位置判不了
 GAP_MA_BARS = 'ma_bars_lt60'                   # 不足 60 根 ⇒ 四条线凑不齐 ⇒ 均线排列判不了
 
@@ -447,14 +453,8 @@ select security_code, trade_date, close, high, low,
 
 #: 连板最高只读 lup-1 的 `consec`（"这一段是第几板"的唯一实现，见该模块 docstring）：
 #: 这里再数一遍就会有两把尺 —— 停牌那天算不算断、ST 档位的容差取几分，两处各判一次必分叉。
-CONSEC_SQL = """
-select security_code, max(consec)::int as max_consec
-  from analytics.limit_up_pool_daily
- where spec_version = %(lup)s and sealed
-   and trade_date between %(frm)s and %(to)s
-   and security_code = any(%(codes)s::text[])
- group by 1
-"""
+#: 11-04 起 SQL 与跑它的函数都在 `limit_gene`（埋伏票榜的股性用同一段），这里留别名给老引用。
+CONSEC_SQL = gene.CONSEC_SQL
 
 
 def sessions_before(day: dt.date, n: int) -> List[dt.date]:
@@ -558,44 +558,26 @@ def adj_val(bar: dict, key: str = 'close') -> Optional[float]:
 
 
 def _win(bars: List[dict], since: Optional[dt.date]) -> List[dict]:
-    """窗口＝起始场次（含）往后的行。`bars` 已按场次升序（调用侧排好）。"""
-    return [b for b in bars if since is None or b['trade_date'] >= since]
+    """窗口＝起始场次（含）往后的行。`bars` 已按场次升序（调用侧排好）。本体在 `limit_gene.win`。"""
+    return gene.win(bars, since)
+
+
+#: 公用件那一族的中性键 → 本表列名后缀（首板榜的窗口是 63 场＝"3 个月"，列名带 `_3m`）
+_GENE_COLS = {'lu_sealed': 'lu_sealed_3m', 'lu_touched': 'lu_touched_3m',
+              'ld_sealed': 'ld_sealed_3m', 'ld_touched': 'ld_touched_3m'}
 
 
 def limit_counts(bars: List[dict], since: dt.date,
                  eps: float = LIMIT_SEAL_EPS) -> Tuple[Dict[str, Any], Dict[str, str]]:
     """近 3 个月（63 场）涨停/跌停几天：**封住**与**触及**两个口径都给（用户 10-27 点名）。
 
-    · 封住＝收盘贴在板上（`close ≥ limit_up − eps`，跌停方向反过来）；
-    · 触及＝盘中摸到过价（`high ≥ limit_up − eps` / `low ≤ limit_down + eps`，含后来炸开的）。
-    两把尺在本机实测同一场差 19 只（触板 103 对 封住 84）—— 只留一个数就会把"冲板没封住"那批藏掉。
-    ⚠️ 窗口里只要有哪一天的档位价缺失，这一族就交 NULL + 点名：缺一天＝少计一次，
-    报出来的那个数就不再是"这三个月有几天封住"，而是一个说不清少了谁的下界。
+    算法本体在 `app/compute/limit_gene.py::seal_touch_counts`（11-04 搬过去：埋伏票榜的
+    「股性」要用同一条尺，只是窗口取 250 场）；这里只把中性键换成带 `_3m` 的列名。
+    两把尺的差别与"缺一天档位价就整族判不了"那条规矩，都写在那边，不在这里重复。
     """
-    gap: Dict[str, str] = {}
-    win = _win(bars, since)
-    cols = {'lu_sealed_3m': None, 'lu_touched_3m': None,
-            'ld_sealed_3m': None, 'ld_touched_3m': None}
-    if not win:
-        gap = {c: GAP_HIST_ROWS for c in cols}
-        return cols, gap
-    up_bad = [b for b in win if _num(b.get('limit_up')) is None or _num(b.get('high')) is None]
-    dn_bad = [b for b in win if _num(b.get('limit_down')) is None or _num(b.get('low')) is None]
-    if not up_bad:
-        cols['lu_sealed_3m'] = sum(1 for b in win
-                                   if _num(b['close']) is not None
-                                   and _num(b['close']) >= _num(b['limit_up']) - eps)
-        cols['lu_touched_3m'] = sum(1 for b in win if _num(b['high']) >= _num(b['limit_up']) - eps)
-    else:
-        gap['lu_sealed_3m'] = gap['lu_touched_3m'] = GAP_HIST_LIMIT_UP
-    if not dn_bad:
-        cols['ld_sealed_3m'] = sum(1 for b in win
-                                   if _num(b['close']) is not None
-                                   and _num(b['close']) <= _num(b['limit_down']) + eps)
-        cols['ld_touched_3m'] = sum(1 for b in win if _num(b['low']) <= _num(b['limit_down']) + eps)
-    else:
-        gap['ld_sealed_3m'] = gap['ld_touched_3m'] = GAP_HIST_LIMIT_DOWN
-    return cols, gap
+    cols, gap = gene.seal_touch_counts(bars, since, eps)
+    return ({_GENE_COLS[k]: v for k, v in cols.items()},
+            {_GENE_COLS[k]: v for k, v in gap.items()})
 
 
 def position_2y(bars: List[dict], since: dt.date,
@@ -697,10 +679,9 @@ def hist_readings(codes: Sequence[str], day: dt.date) -> Dict[str, Dict[str, Any
     by: Dict[str, List[dict]] = {}
     for r in rows:
         by.setdefault(r['security_code'], []).append(r)
-    crows = engine.query(CONSEC_SQL, {'lup': limit_up_pool.SPEC_VERSION, 'frm': since6,
-                                      'to': dates[-1], 'codes': list(codes)}, role='reader') or []
-    consec = {r['security_code']: r['max_consec'] for r in crows}
-    consec_batch_empty = not crows          # 整批读回空＝lup 那一场没跑，不是"这批票半年都没连板"
+    consec, consec_batch_empty = gene.consec_by_code(codes, since6, dates[-1],
+                                                     limit_up_pool.SPEC_VERSION)
+    # 整批读回空＝lup 那一场没跑，不是"这批票半年都没连板"（那两种要在界面上分得开）
     out: Dict[str, Dict[str, Any]] = {}
     for code in codes:
         bars = sorted(by.get(code) or [], key=lambda r: r['trade_date'])

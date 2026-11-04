@@ -51,13 +51,25 @@ function assertButtonFirst(row: string, metas: string[], label: string) {
 
 // ——— 个股信息 / 量价走势 / 全指标总账（components/stock）———
 
-test('个股信息：一颗按钮在标题行最右、排在「重新取数」前；缺数与告警没跟进抽屉', () => {
+test('个股信息：一颗按钮在标题行最右、排在「重新取数」前；缺数与告警压成一行计数、原文在抽屉', () => {
   const row = rowBetween(FACTS, '个股信息</h2>', '<Panel title="这一只是什么', '个股信息');
   assertButtonFirst(row, ['onClick={refresh}'], '个股信息');
   assert.equal((FACTS.match(/<DocDrawer\b/g) ?? []).length, 1, '一个模块一颗');
   assert.match(FACTS, /<DocDrawer title="个股信息">/, '抽屉标题与屏上标题同一个词');
-  assert.ok(FACTS.indexOf('</DocDrawer>') < FACTS.indexOf('<Caveats items={d.caveats'),
-    '缺数与告警跟进弹窗＝让屏幕说假话');
+  // 11-03 用户定稿「界面要专注核心」：这一型是屏上留**一行计数**（`CaveatTally` 念有几条、各是哪类），
+  // 原文进抽屉那一节。红线没撤 —— 撤的是"必须整段摊在屏上"，留的是"不许静默"。
+  assert.match(FACTS, /<CaveatTally items=\{leftCaveats\(d\.caveats\)\} \/>/,
+    '屏上那一行计数必须在（一条都不念＝屏幕说"这场没有读不到的地方"）');
+  assert.ok(FACTS.indexOf('</DocDrawer>') < FACTS.indexOf('<CaveatTally'),
+    '计数行必须排在抽屉之外（它在块内、不在那口弹窗里）');
+  assert.match(FACTS, /<Caveats items=\{leftCaveats\(d\?\.caveats\)\} \/>/,
+    '原句进抽屉那一节，用的是同一份名单，不是另挑一遍');
+  // 11-03 分流：三条里只有「范围声明」`local_only` 进了抽屉（它不是缺数/截断/告警），
+  // 另两条（主档两列为空、档案多日未刷新）仍必须摊在屏上。
+  assert.match(FACTS, /const leftCaveats = [\s\S]{0,160}filter\(c => c\.code !== "local_only" && c\.text\)/,
+    '这一族只筛掉那一条范围声明（它已在第一节念过原话），且没文字的行不摆空条');
+  assert.match(FACTS, /\{localScope\(d\?\.caveats\)/,
+    '抽屉里那一句念的是后端 `local_only` 原话，不是页面自己写的同义 paraphrase');
   assert.doesNotMatch(FACTS, /<ExplainBox\b|<CaliberFold\b|<Caliber\b/, '正文折框与问号角标都退场');
 });
 

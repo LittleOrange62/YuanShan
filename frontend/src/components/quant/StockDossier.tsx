@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { CaliberFold, Panel, Row } from "@/components/ui/DataPanel";
+import { NoticeBar } from "@/components/ui/NoticeBar";
+import { CELL_MARKED_CODES } from "@/lib/caveatKind";
 import { StockLink } from "@/components/ui/StockLink";
 import { useProbe, useNonce } from "@/lib/probe";
 import { dash, describeState, num } from "@/lib/datastate";
@@ -61,6 +63,9 @@ const STATUS_TONE: Record<string, string> = {
   not_computed: "这一块还没算到",
   not_on_board: "这一场它没进这一榜",
 };
+
+/** 屏上正在摆的这八行里，哪几行的分数是上一场沿用的（只读接口那一份布尔，不自己判）。 */
+const staleRows = (caps: { is_stale?: boolean | null }[]) => caps.filter(c => c.is_stale === true);
 
 /** 后端散文进 `title`（悬停提示）之前也过同一道闸：那些字段里写着成对的粗体标记，
  *  提示气泡是按纯文本显示的，不剥就会把 `**` 原样印出来。数据值不走这里。 */
@@ -146,6 +151,15 @@ function Scores({ b }: { b?: Blk }) {
   const caps = d.capabilities ?? [];
   return (
     <Shell title="趋势评分八分量" blk={b} hint={d.caliber}>
+      {/* 那句 `stale` 散文收进抽屉了（11-03），但"这一场有旧值"这件事必须仍然自己出声：
+          按**这一屏正在摆出来的这些行**现数，N>0 就摆一条告警（N=0 整条不渲染，不摆「没问题」占位）。
+          只数屏上这些行、不重算任何判据 —— 与「名字就是代码」那几处的点数同一做法。 */}
+      {staleRows(caps).length > 0 && (
+        <NoticeBar kind="warning">
+          这 {staleRows(caps).length} 行的分数是上一场沿用的（行首标着「上一场的值」）——
+          读数仍可用，但不要与新算的那些横比。
+        </NoticeBar>
+      )}
       <ul className="grid gap-1 sm:grid-cols-2">
         {caps.map(c => {
           const rc = scoreRankCell(c);
@@ -155,6 +169,13 @@ function Scores({ b }: { b?: Blk }) {
               <summary className="cursor-pointer">
                 <span className="text-muted-foreground">{dash(c.capability_label ?? c.capability_key)}</span>{" "}
                 <b className="font-mono tabular-nums">{num(c.value, 2)}</b>{" "}
+                {/* 后端那条 `stale` 声明自己要的正是「读数仍可用但要标注」——11-03 之前只有象限那一格标了，
+                    八分量这八行一颗标记都没有，那句"要标注"是空话，所以那句声明也只能摊在屏上。
+                    现在行上标出来了，那句散文才搬得进抽屉（屏上不留"哪几行是旧值"这一说的空白）。 */}
+                {c.is_stale === true && (
+                  <span className="mr-1 rounded bg-warning/15 px-1 text-[10px] text-warning"
+                    title="这一行的输入已不是该场最新数据（沿用上一场那一份），不与新算的横比">上一场的值</span>
+                )}
                 <span className={cn("text-[10px]", rc?.warn ? "text-warning" : "text-muted-foreground")}
                   title={rc?.title}>
                   {rc ? `${rc.head}${rc.pct ? `（${rc.pct}）` : ""}${rc.extras.length ? `｜${rc.extras.join("｜")}` : ""}` : ""}
@@ -194,8 +215,20 @@ function Scores({ b }: { b?: Blk }) {
           档案里八块各自摊一段口径，一屏大半是字）。纯口径解释那几条折起来，
           缺数／截断／失败那一族仍留在屏上（`CaliberFold` 内部分流）；上面那句「权重之和不为 1」的徽标没跟着折。 */}
       {/* ⚠️ `drawerTitle` 是这块自己起的名字：不给就继承外层母块的块名，两颗按钮会念成同一句
-          「这块的说明 · 口径与覆盖」—— 读者点了母块那颗，以为子块没话可说。 */}
-      <CaliberFold caveats={d.caveats ?? []} drawerTitle="趋势评分八分量 · 口径与覆盖" />
+          「这块的说明 · 口径与覆盖」—— 读者点了母块那颗，以为子块没话可说。
+          11-03 用户点名再收一层：`stale`／`rank_degenerate`／`rank_coarse` 三条从屏上搬进这口抽屉。
+          搬得走的理由不是"它们像解释"，而是**读数自己已经会说话**：
+          旧值那几行行首现在挂着「上一场的值」那颗标记，名次格本身写着「名次 —｜并列 5,570 只」
+          「这项全场 32 个取值」—— 折掉的只是重复一遍的散文，事实还在原位。
+          这一份名单住 `lib/caveatKind.ts::CELL_MARKED_CODES`（全站一处），不是本块自拟；
+          白名单 `FOLDABLE_CAVEAT_CODES` 没动 —— `stale` 按名字仍属"库不健康"那一族，
+          第二道闸继续兜着未来那条同名新 code。） */}
+      <CaliberFold caveats={(d.caveats ?? []).filter(c => !CELL_MARKED_CODES.has(String(c.code ?? "")))}
+        drawerTitle="趋势评分八分量 · 口径与覆盖" compactCaveats
+        notes={[...CELL_MARKED_CODES].map(code => {
+          const c = (d.caveats ?? []).find(x => x.code === code);
+          return c ? `${c.label ?? code}：${plain(c.text ?? "")}` : null
+        }).filter(Boolean) as string[]} />
     </Shell>
   );
 }
@@ -452,7 +485,7 @@ export function StockDossier({ code, date }: { code: string | null; date?: strin
             现在标题行那颗撤了，那句话变成抽屉里的第一段（字没改，只是不再另开一颗按钮）。
             **没跟着折的**：上面那句「覆盖哪些屏 / 不覆盖哪些」（带链接）、下面的重取按钮、
             取数状态那句 `text-warning`；缺数／截断一族的 caveat 由 `CaliberFold` 自己分流留在屏上。 */}
-        <CaliberFold caveats={x.caveats ?? []} coverage={x.coverage}
+        <CaliberFold caveats={x.caveats ?? []} coverage={x.coverage} compactCaveats
           notes={["把「量化选股」那一组各自算好的读数按这一只票拼到一起。一块判据都不在这儿重算，页面也只念后端交出的字段。"]}
           provenance={[x.source, x.caliber]} />
         <button type="button" onClick={refresh}

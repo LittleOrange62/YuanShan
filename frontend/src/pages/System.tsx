@@ -14,7 +14,6 @@ import { VolumeEnergyPanel } from "@/components/VolumeEnergyPanel";
 import { LoopSwitchboard } from "@/components/LoopSwitchboard";
 import { NotifyPanel } from "@/components/NotifyPanel";
 import { WxPushPanel } from "@/components/WxPushPanel";
-import { IntradayBroadcastPanel } from "@/components/IntradayBroadcastPanel";
 import { SectionNav } from "@/components/SectionNav";
 import { TdxWatchPanel } from "@/components/TdxWatchPanel";
 import { LanAccessPanel } from "@/components/LanAccessPanel";
@@ -110,7 +109,7 @@ const CAPABILITIES: { path: string; label: string; where: string; slow?: boolean
   { path: "/pipeline", label: "链路四环进度", where: "/pipeline" },
   { path: "/tdx/watch", label: "通达信看护（探测 + 待人工清单）", where: "/system" },
   { path: "/wxpush", label: "个人微信推送（在这台机器桌面上按键盘的那条通道：步骤、发送前的检查逐条实情、内容档；步数与闸数由接口现算，本行不抄）", where: "/system" },
-  { path: "/intraday/broadcast", label: "盘中播报四条（时点／渠道／开关，与机器上真注册的计划任务、当天库里的留痕并排给；保存＝按新配置覆盖式重注册，关掉的那一路注销。要起一次 PowerShell 查任务状态，所以标 slow）", where: "/system", slow: true },
+  { path: "/intraday/broadcast", label: "盘中播报与盘后一栏（各路时点／渠道／开关，与机器上真注册的计划任务、当天库里的留痕并排给；取数落库与到点推送分两层；保存＝按新配置覆盖式重注册，关掉的那一路注销。要起一次 PowerShell 查任务状态，所以标 slow）", where: "/push-tasks", slow: true },
   { path: "/tdx/status", label: "通达信客户端与文件日期", where: "/tdx" },
 ];
 
@@ -293,10 +292,13 @@ export function System() {
             紧挨着放是为了让"无人值守该用哪条"这件事在同一屏里就能比出来。 */}
         <WxPushPanel />
 
-        {/* 盘中播报四条（用户 11-02 点名要把时点与渠道交进界面）：它和上面两块都不同 ——
-            执行体是 Windows 计划任务里那些「到点起一个短进程」，不是本进程的循环。
-            紧挨着两条推送面放，是为了在同一屏里比清楚这三条链各是谁在跑。 */}
-        <IntradayBroadcastPanel />
+        {/* 盘中播报那一整块 11-04 搬去独立一屏「推送任务」（用户点名：推送配置从系统配置里移动出来）。
+            这里**只留跳转**，不留第二份可改的入口 —— 两处都能改就是两处会不一致。 */}
+        <p className="text-[11px] text-muted-foreground">
+          盘中播报与盘后那几路推送（时点／渠道／开关、与机器上真注册的任务、当天库里的留痕）已经搬到
+          <Link className="mx-1 text-primary underline" to="/push-tasks">推送任务</Link>
+          那一屏（在「个股研究与回测」组里）—— 保存那一屏的改动会动 Windows 任务计划程序。
+        </p>
 
         {/* 收盘链依赖的那个客户端本身"在不在跑"，原先整机没有一个可见处：
             它挂了不会报错，只会让上游的数一天一天不动。这一格只读、带最近探测时间。 */}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { DocDrawer } from "@/components/ui/DocDrawer";
 import { RefreshCw, Save } from "lucide-react";
-import { blockingReason, dirtyPatch, ledgerText, resultCodeText, taskPatch,
+import { blockingReason, dirtyPatch, ledgerText, resultCodeText, runAtText, taskPatch,
   type BroadcastConfig, type BroadcastState, type BroadcastTask } from "@/lib/intradayBroadcastReads";
 import { loadBroadcast, saveBroadcast } from "@/lib/intradayBroadcast";
 import { cn } from "@/lib/utils";
@@ -64,7 +64,7 @@ export function IntradayBroadcastPanel() {
   return (
     <GlassCard>
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-sm font-semibold">盘中播报（四点与推送渠道）</h2>
+        <h2 className="text-sm font-semibold">盘中播报（时点、渠道与微信镜像）</h2>
         <span className="ml-auto flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
             <input type="checkbox" checked={!!cfg.enabled} disabled={busy !== ""}
@@ -81,9 +81,9 @@ export function IntradayBroadcastPanel() {
             className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] text-muted-foreground hover:border-primary/40 hover:text-primary disabled:opacity-60">
             <RefreshCw className="h-3 w-3" />重新读取
           </button>
-          <DocDrawer title="盘中播报（四点与推送渠道）">
+          <DocDrawer title="盘中播报（时点、渠道与微信镜像）">
             <p>
-              这四条是「到点起一个短进程、跑完就退」，由 <b className="font-medium">Windows 任务计划程序</b>执行，
+              这几路是「到点起一个短进程、跑完就退」，由 <b className="font-medium">Windows 任务计划程序</b>执行，
               不是本项目进程里的常驻循环 —— 外部 10-23 那次常驻 watcher 静默死亡、盘中 8 轮全瞎，
               之后看门狗就交给了调度器。所以<b className="font-medium">保存这一屏会动任务计划程序</b>：
               开着的那几路覆盖式注册，关掉的那一路直接把任务注销（不留"每天空跑一次然后不出声"的任务）。
@@ -97,6 +97,24 @@ export function IntradayBroadcastPanel() {
               每行右边两格是不同的事：<b className="font-medium">任务</b>是机器上真注册成什么状态，
               <b className="font-medium">今天</b>是库里 <code>analytics.intraday_broadcast</code> 的留痕
               （打了几针、真发出去几条）。针数比发出条数多属正常 —— 事件差那一炉要攒够变化才播一次。
+              「上次 / 下次」那两格只到<b className="font-medium">分钟</b>：任务计划程序回的时间秒位不可信
+              （本机实测它把秒印成分钟），要精确到秒看行末「今天 … 最后 …」那一格，那是脚本自己写进库的。
+            </p>
+            <p className="mt-1">
+              <b className="font-medium">取数与推送是两层</b>（用户 11-03 定）：
+              「涨跌停池事件差」那一行<b className="font-medium">只落库、不发送</b>，盘中每 5 分钟一针把事件差写进
+              <code>analytics.intraday_pool_event</code>；到点发送归「盘中涨跌停变化量」那一行，它一次源站都不碰，
+              只读库里的事件差汇总 —— 所以六点里任何一次都能事后重跑（<code>--since HH:MM</code> 补发），
+              重跑拿到的数与当时一致。概念热度跟这六个时点走（各自 +10 秒，等事件差先落库），
+              界面上它只有开关、没有自己的时点格。
+            </p>
+            <p className="mt-1">
+              同一层分法也用在<b className="font-medium">交易体系榜</b>上：<code>14:39</code> 那一行取历史日线 +
+              盘中快照、按 <code>sys-1</code> 判完逐票落 <code>analytics.intraday_sysentry</code>（不发东西）；
+              <code>14:40:30</code> 那一行只读那张表排版再发。库里今天没有行时它播一句「行情未就绪」并写清为什么，
+              <b className="font-medium">绝不把昨天的行当今天的榜</b>。这一对是 11-03 从外部
+              <code>intraday_sysentry/</code> 收编进来的 —— 外部那条 <code>Guanlan-SysEntry1440</code> 是一次性触发，
+              自 10-30 起就再没排过期（屏上"Ready"但下次时间为空），这里改成每日触发并已把它停用。
             </p>
           </DocDrawer>
         </span>
@@ -107,7 +125,7 @@ export function IntradayBroadcastPanel() {
       {!!s?.warnings?.length && <p className="mt-1 text-[11px] text-warning">⚠ {s.warnings.map(plain).join("；")}</p>}
       {s?.ledger_reason && <p className="mt-1 text-[11px] text-warning">⚠ {plain(s.ledger_reason)}</p>}
 
-      {/* 渠道：勾的是"这四条发到哪些群"，候选一个都不写死 */}
+      {/* 渠道：勾的是"这几路发到哪些群"，候选一个都不写死 */}
       <div className="mt-2 rounded-lg border border-border/60 p-2">
         <div className="flex flex-wrap items-baseline gap-2">
           <span className="text-xs font-medium">发到哪些渠道</span>
@@ -156,7 +174,7 @@ export function IntradayBroadcastPanel() {
         ))}
         {!tasks.length && s && (
           <p className="text-[11px] text-muted-foreground">
-            后端没有回任何一条 —— 这是配置读不到，不是「四条都不存在」。
+            后端没有回任何一条 —— 这是配置读不到，不是「这几路都不存在」。
           </p>
         )}
       </div>
@@ -182,11 +200,13 @@ function TaskRow({ task, cfg, saved, setCfg, busy, onSave, day }: {
   day?: string | null;
 }) {
   const enabledName = `${task.key}_enabled`;
-  const timesName = `${task.key}_times`;
+  // 这一行的时点格叫什么由后端那一格给（`delta` 行是 `push_times`，推导出来的 heat 行没有）——
+  // 前端不另起一套"谁算推导"的判断，否则后端改了归属，屏上还是老样子
+  const timesName = task.times_field ?? "";
   const on = cfg[enabledName] !== false;
   const reg = task.registered;
   const block = blockingReason(task.key, cfg, task);
-  const patch = taskPatch(task.key, cfg);
+  const patch = taskPatch(task.key, cfg, task);
   const dirty = Object.keys(dirtyPatch(patch, saved)).length > 0;
 
   return (
@@ -201,6 +221,7 @@ function TaskRow({ task, cfg, saved, setCfg, busy, onSave, day }: {
           {task.label}
         </label>
         <code className="text-[10px] text-muted-foreground">{task.task_name}</code>
+        <code className="text-[10px] text-muted-foreground" title="作业脚本（序号=本表行序）">{task.module.replace(/\./g, "/") + ".py"}</code>
         {!task.available && (
           <span className="rounded bg-warning/15 px-1 py-0.5 text-[10px] text-warning">
             执行体不在仓库（{task.module}）—— 保存会拒注册
@@ -208,9 +229,11 @@ function TaskRow({ task, cfg, saved, setCfg, busy, onSave, day }: {
         )}
         <span className="ml-auto flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
           <span>任务 {reg?.state ?? "未注册"}</span>
-          <span>下次 {reg?.next ?? DASH}</span>
-          <span>上次 {reg?.last ?? DASH}</span>
-          {reg?.result !== undefined && reg?.result !== null && <span>上次结果 {resultCodeText(reg.result)}</span>}
+          <span>下次 {runAtText(reg?.next) || DASH}</span>
+          <span>上次 {runAtText(reg?.last) || "没跑过"}</span>
+          {/* 结果码与"上次时间"同一个闸：新注册的任务 LastTaskResult 会是 0（从没跑过），
+              单显示它等于谎称"上次成功" */}
+          {!!runAtText(reg?.last) && <span>上次结果 {resultCodeText(reg?.result)}</span>}
         </span>
       </div>
 
@@ -222,11 +245,16 @@ function TaskRow({ task, cfg, saved, setCfg, busy, onSave, day }: {
             <Field cfg={cfg} setCfg={setCfg} name="watcher_interval_min" label="间隔分" busy={busy} mono />
             <Field cfg={cfg} setCfg={setCfg} name="watcher_duration_h" label="时长小时" busy={busy} mono />
           </>
-        ) : (
+        ) : timesName ? (
           <input value={String(cfg[timesName] ?? "")} disabled={busy !== "" || !task.editable}
             aria-label={`${task.label} 时点`}
             onChange={e => setCfg(c => ({ ...c, [timesName]: e.target.value }))}
             className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2 py-1 font-mono text-[11px]" />
+        ) : (
+          <span className="text-[11px] text-muted-foreground">
+            这一行没有自己的时点格：<b className="font-medium">{task.schedule}</b>
+            （要改点，去动那一格的时点）
+          </span>
         )}
         <button type="button" disabled={busy !== "" || !!block || (!dirty && !task.drift.length)}
           onClick={() => onSave(patch)}
@@ -234,9 +262,11 @@ function TaskRow({ task, cfg, saved, setCfg, busy, onSave, day }: {
           <Save className="h-3 w-3" />保存并重注册
         </button>
       </div>
-      {task.key !== 'watcher' && (
+      {!!timesName && task.key !== 'watcher' && (
         <p className="mt-1 text-[11px] text-muted-foreground">
           多个时点用逗号分隔，写成 <code>HH:MM</code> 或 <code>HH:MM:SS</code>；现在生效的是 {task.schedule}
+          {timesName !== `${task.key}_times` &&
+            <> —— 这一格（<code>{timesName}</code>）是六点共用的，概念热度跟着它各自 +10 秒</>}
         </p>
       )}
 

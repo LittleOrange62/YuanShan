@@ -55,6 +55,7 @@ export const MODULES = [
   { title: '个股研究与回测', to: '/stock-review', icon: LineChart, pages: [
     { to: '/stock-review', title: '个股深度复盘' },
     { to: '/backtest-agent', title: '策略回测' },
+    { to: '/push-tasks', title: '推送任务' },
   ] },
   // 交易日志 09-28 从「我的股票」里拿出来独立成一级模块（用户裁定），排在它后面。
   // 复盘笔记与提醒**不另开一级模块**：同一件事的三个视图挂在这一页的三个 tab 上

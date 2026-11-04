@@ -102,8 +102,7 @@ export function RankStabilityBoard({ state, onDaysChange, days, onRefresh }: {
             </button>
           )}
         </div>
-      }
-      note="名次不是新算的：每天每票的全市场名次早就写在打分表里（`rank_in_market`），这一屏只是把窗口内每天的名次相加。">
+      }>
       {d => {
         const rows = d.rows ?? [];
         const pages = Math.max(1, Math.ceil(rows.length / pageSize));
@@ -131,8 +130,11 @@ export function RankStabilityBoard({ state, onDaysChange, days, onRefresh }: {
             {/* 声明 / 字段含义 / 覆盖 / 出处收成一处默认收起的折叠块（用户 2026-10-19 夜：
                 「这些内容都默认收缩起来」）。summary 把每一类的条数摆在外面 ⇒ 收起不等于藏掉；
                 告警（`popHint`）与上面那三行读数不折 —— 那条规矩没变。 */}
+            {/* 一模块一颗（11-02）：标题行那颗 `note` 撤了，那句话是这口抽屉的第一段。 */}
             <CaliberFold caveats={d.caveats} definitions={d.definitions}
-              coverage={d.coverage} provenance={[d.source, d.capability_key]} />
+              coverage={d.coverage} provenance={[d.source, d.capability_key]}
+              notes={["名次不是新算的：每天每票的全市场名次早就写在打分表里（`rank_in_market`），"
+                + "这一屏只是把窗口内每天的名次相加。"]} />
             <div className="mt-2 overflow-x-auto">
               <table className="w-full text-[11px]">
                 <thead><tr className="text-left text-muted-foreground">

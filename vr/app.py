@@ -2653,9 +2653,9 @@ def notify_preview(payload: NotifyPreview, request: Request):
 
 
 def _intraday_broadcast_payload() -> dict:
-    """盘中播报四条的读数：配置 × 机器上真注册的任务 × 今天的留痕。
+    """盘中播报各路（八行）的读数：配置 × 机器上真注册的任务 × 今天的留痕。
 
-    三样必须并排给：只看配置会说出"四条都开着"，而机器上可能有人已经在任务计划程序里
+    三样必须并排给：只看配置会说出"都开着"，而机器上可能有人已经在任务计划程序里
     停过；只看留痕又分不出"这一路没发"是配置关了、到点没跑、还是跑起来取不到数。
     """
     import datetime as dt
@@ -2689,7 +2689,7 @@ def _intraday_broadcast_payload() -> dict:
 
 @app.get("/api/intraday/broadcast")
 def intraday_broadcast_status():
-    """系统配置 →「盘中播报」：四条各自的时点、渠道、开关，与机器实况、当天留痕的对账。"""
+    """系统配置 →「盘中播报」：各路各自的时点、渠道、开关，与机器实况、当天留痕的对账。"""
     try:
         return {"data": _intraday_broadcast_payload()}
     except Exception as exc:  # noqa: BLE001
@@ -2709,7 +2709,7 @@ class IntradayBroadcastPatch(BaseModel):
 
 @app.post("/api/intraday/broadcast")
 def intraday_broadcast_update(payload: IntradayBroadcastPatch, request: Request):
-    """改时点／渠道／开关，并（默认）按新配置重注册那四条 Windows 计划任务。
+    """改时点／渠道／开关，并（默认）按新配置重注册那几路 Windows 计划任务。
 
     ⚠️ 这一步真的会动任务计划程序：开着的用 `Register-ScheduledTask -Force` 覆盖注册，
     关掉的那一路 `Unregister-ScheduledTask` 注销（不留"每天空跑一次然后不出声"的任务）。

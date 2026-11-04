@@ -12,10 +12,10 @@ A2 · 竞价速览（09:25:30 一针）——外部 `intraday_zt/auction_report.
 不足重拉 `retry`(3) 次、间隔 `retry_wait_s`(15) 秒；仍不过 ⇒ 记 `auction_unready` 并按需发
 "未就绪"占位 —— **绝不拿昨收盘顶**。
 
-    python -m ingest.jobs.auction_report --dry-run     # 取数+渲染，不落库不发送
-    python -m ingest.jobs.auction_report --force       # 非 9 点档手工跑（文案自标"样机演示"）
-    python -m ingest.jobs.auction_report               # 落库
-    python -m ingest.jobs.auction_report --send        # 落库 + 发送
+    python -m ingest.jobs.push.t02_auction_report --dry-run     # 取数+渲染，不落库不发送
+    python -m ingest.jobs.push.t02_auction_report --force       # 非 9 点档手工跑（文案自标"样机演示"）
+    python -m ingest.jobs.push.t02_auction_report               # 落库
+    python -m ingest.jobs.push.t02_auction_report --send        # 落库 + 发送
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ import sys
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = Path(__file__).resolve().parents[3]      # push/ → jobs/ → ingest/ → 仓库根（挪目录时这一格最容易数错）
 sys.path.insert(0, str(ROOT))
 try:
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')      # type: ignore[attr-defined]
@@ -35,7 +35,7 @@ except Exception:  # noqa: BLE001
 
 from app.intraday import sources, store, tasks                      # noqa: E402
 from app.intraday.pool_events import SPEC_VERSION, money_text       # noqa: E402
-from ingest.jobs import zt_watch                                    # noqa: E402  池子出口只有一份
+from ingest.jobs.push import t01_zt_watch as zt_watch                                    # noqa: E402  池子出口只有一份
 
 CFG = {**{'min_pct': 5.0, 'top_n': 60, 'sector_top': 10, 'max_members': 1500,
           'page_size': 100, 'max_pages': 3,
@@ -44,8 +44,14 @@ CFG = {**{'min_pct': 5.0, 'top_n': 60, 'sector_top': 10, 'max_members': 1500,
 TPL = json.loads((ROOT / 'app' / 'intraday' / 'templates.json').read_text(encoding='utf-8'))
 
 
+#: `--dry-run` 时置 True：干跑不写账（与 `noon_review` 同一条纪律，见那里的注释）
+DRY_RUN = False
+
+
 def _log(now, what, **kw):
     """写库失败不许把播报带崩：这是留痕，不是主流程。"""
+    if DRY_RUN:
+        return 0
     try:
         store.write_broadcast(now, task='auction', what=what, **kw)
     except Exception:  # noqa: BLE001
@@ -119,12 +125,13 @@ def _side_block(board_key, rows, cfg, now, board_rows, concept_rows):
 
 def one_round(*, dry_run: bool, send: bool, force: bool,
               channel: str | None) -> int:
+    global DRY_RUN
+    DRY_RUN = dry_run
     now = dt.datetime.now()
     if now.hour != 9 and not force:
         print(f'[{now:%H:%M:%S}] 不在 9 点档（竞价价还没产生）—— 手工看数请加 --force')
         return 0
-    open_day = zt_watch.is_trade_day(now)
-    if open_day is False or (open_day is None and now.weekday() > 4):
+    if not zt_watch.is_trading_day(now):
         print(f'[{now:%H:%M:%S}] 非交易日，静默退出')
         return 0
     up, down, _su, _sd, why = boards(CFG, now)

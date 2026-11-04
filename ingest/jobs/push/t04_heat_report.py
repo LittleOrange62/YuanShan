@@ -7,9 +7,9 @@ H3 · 概念热度（10:05 / 10:55 / 14:18 三针）——外部 `intraday_zt/he
 只保留出现次数 ≥ `heat_min_n`（默认 3）的概念，降序；两组分开播，组内无命中播"无命中"。
 池子取不到 ⇒ 记 `未就绪` 一行并退出，**不播、不拿上一针顶**。
 
-    python -m ingest.jobs.heat_report --dry-run        # 取数+算+打印，不落库不发送
-    python -m ingest.jobs.heat_report                  # 落库（analytics.intraday_concept_count）
-    python -m ingest.jobs.heat_report --send           # 再加发送
+    python -m ingest.jobs.push.t04_heat_report --dry-run        # 取数+算+打印，不落库不发送
+    python -m ingest.jobs.push.t04_heat_report                  # 落库（analytics.intraday_concept_count）
+    python -m ingest.jobs.push.t04_heat_report --send           # 再加发送
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = Path(__file__).resolve().parents[3]      # push/ → jobs/ → ingest/ → 仓库根（挪目录时这一格最容易数错）
 sys.path.insert(0, str(ROOT))
 try:
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')     # type: ignore[attr-defined]
@@ -28,7 +28,7 @@ except Exception:  # noqa: BLE001
 
 from app.intraday import sources, store, tasks                     # noqa: E402
 from app.intraday.pool_events import SPEC_VERSION                  # noqa: E402
-from ingest.jobs import zt_watch                                   # noqa: E402  池子出口只有一份
+from ingest.jobs.push import t01_zt_watch as zt_watch                                   # noqa: E402  池子出口只有一份
 
 CFG = json.loads((ROOT / 'app' / 'intraday' / 'broadcast_config.json').read_text(encoding='utf-8'))
 TPL = json.loads((ROOT / 'app' / 'intraday' / 'templates.json').read_text(encoding='utf-8'))
@@ -37,6 +37,11 @@ TPL = json.loads((ROOT / 'app' / 'intraday' / 'templates.json').read_text(encodi
 def one_round(*, dry_run: bool, send: bool, channel: str | None,
               force: bool = False) -> int:
     now = dt.datetime.now()
+    # 交易日闸只认 `zt_watch.is_trading_day` 那一份（原来这一条**只有时段闸**：
+    # 调度器是每日触发，`in_session` 在周六 09:35 也是真 ⇒ 周末会起一炉、拿空池播一条假读数）
+    if not force and not zt_watch.is_trading_day(now):
+        print(f'[{now:%H:%M:%S}] 非交易日 —— 不播不写')
+        return 0
     if not force and not zt_watch.in_session(now):
         print(f'[{now:%H:%M:%S}] 不在交易时段（12:10 那类午休时点属正常）—— 不播不写')
         return 0
@@ -48,6 +53,9 @@ def one_round(*, dry_run: bool, send: bool, channel: str | None,
             store.write_broadcast(now, task='heat', what='heat_fail', err=str(exc)[:300])
         return 1
     min_n, top = int(CFG.get('heat_min_n', 3)), int(CFG.get('heat_top', 25))
+    # 屏上只列前 `heat_show_top` 个（用户 11-03 定：12 个够了），**入库仍按 `heat_top` 全量落**
+    # —— 少了能回查，发出去收不回；两个数分开放，改文案就不会削掉库里的历史。
+    show = int(CFG.get('heat_show_top', 12))
     groups = {'heat_zt': sorted(cur), 'heat_dt': sorted(cur_dt)}
     rows, counts_by_bucket = [], {}
     for bucket, codes in groups.items():
@@ -69,9 +77,8 @@ def one_round(*, dry_run: bool, send: bool, channel: str | None,
                          .format(min_n=min_n, dt_n=len(cur_dt)))
             continue
         lines.append(TPL[label].format(rows='、'.join(
-            sources.concept_rows(hits, pcts, tpl_row=TPL['auction_sector_row'],
+            sources.concept_rows(hits[:show], pcts, tpl_row=TPL['auction_sector_row'],
                                  tpl_pct_row=TPL['auction_sector_pct_row']))))
-    lines.append(TPL['heat_footer'].format(t=f'{now:%H:%M:%S}'))
     text = '\n'.join(lines)
     print(text)
     if dry_run:

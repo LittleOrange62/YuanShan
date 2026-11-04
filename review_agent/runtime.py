@@ -658,12 +658,27 @@ class Runtime:
         (run / ".vibe-astock-root").touch()
         (run / "bundle.json").write_text(canonical(bundle), encoding="utf-8")
         prompt = canonical(context) + "\n调用工具读取证据，使用 submit_answer 提交回答并根据校验反馈修正。"
+        log = run / "tools.jsonl"
         self._invoke(run, source, key, prompt, cancel, progress, self.timeout)
+        if not log.exists() and not cancel.is_set():
+            # 一次工具回执都没有 == 模型根本没按协议走，而不是渠道不通。这台本地网关实测过两次
+            # 同样的提示词：10-27 那轮调了 list_evidence→submit_answer（成），11-03 那轮零调用，
+            # 界面只念得出"未提交通过校验的回答"，读的人以为是网络或引用问题。
+            # 补一发点名要求的重试，**只做一次、且只在零回执时**；再不就如实报失败，不无限敲。
+            progress("本轮没有任何工具回执，按协议再提醒一次")
+            self._invoke(run, source, key, prompt + "\n上一轮你没有调用任何工具。本轮必须先 list_evidence，"
+                         "再用 submit_answer 提交；直接返回的文字不会被保存。",
+                         cancel, progress, self.timeout)
         progress("核对引用与计算结果")
-        session = ToolSession(bundle, run / "tools.jsonl")
+        session = ToolSession(bundle, log)
         session.replay()
         if session.answer is None:
-            raise EvidenceError("Agent 未提交通过校验的回答；本轮未保存为成功结果")
+            raise EvidenceError(
+                "模型本轮没有调用任何工具（连 list_evidence 都没有），未保存为成功结果；"
+                "这不是网络问题：请再点一次「测试连接」，或换一个模型标识"
+                if not log.exists() else
+                f"提交的答案未通过校验（共提交 {session.submissions} 次）："
+                f"{session.last_rejection or '引用或结构无效'}；本轮未保存为成功结果")
         return {**session.answer, "elapsed_seconds": round(time.monotonic() - started, 2)}
 
     def _invoke(self, run: Path, source: dict, key: str, prompt: str,

@@ -3,9 +3,9 @@
 Z1 · 盘中涨跌停池事件差 —— 单次一针（外部 `intraday_zt/zt_watcher.py` 的整体迁入）。
 
 跑法：
-    python -m ingest.jobs.zt_watch --once                # 取一针、判事件、**只落库**
-    python -m ingest.jobs.zt_watch --once --dry-run      # 连库都不写，只打印
-    python -m ingest.jobs.zt_watch --once --send         # 落库 + 发渠道（默认不发）
+    python -m ingest.jobs.push.t01_zt_watch --once                # 取一针、判事件、**只落库**
+    python -m ingest.jobs.push.t01_zt_watch --once --dry-run      # 连库都不写，只打印
+    python -m ingest.jobs.push.t01_zt_watch --once --send         # 落库 + 发渠道（默认不发）
 
 **默认不发送**：外部那套每次触发都往飞书盯盘群推。迁过来后发送要显式 `--send`，
 理由是"发到群里"是别人看得见的动作，不该由一次调试运行顺带做掉；
@@ -35,7 +35,7 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = Path(__file__).resolve().parents[3]      # push/ → jobs/ → ingest/ → 仓库根（挪目录时这一格最容易数错）
 sys.path.insert(0, str(ROOT))
 try:
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')      # type: ignore[attr-defined]
@@ -126,6 +126,19 @@ def is_trade_day(now: dt.datetime) -> bool | None:
         return None
 
 
+def is_trading_day(now: dt.datetime) -> bool:
+    """播报这一族**只用这一个**交易日判据（原来只有 `zt_watch`/`auction_report` 带周末兜底，
+    其余各条写的是 `is_trade_day(...) is False` —— 日历读不出来的那天，周末照发一条假读数）。
+
+    取"宁可不播"这一侧：日历说是⇒是；说不是⇒不是；**读不出来⇒按工作日兜底**（周六周日当休市）。
+    库真挂了时少播一条是可见的损失，周末推一条"今天 0 家涨停"是不可见的假读数。
+    """
+    open_day = is_trade_day(now)
+    if open_day is False or (open_day is None and now.weekday() > 4):
+        return False
+    return True
+
+
 #: 排列与 emoji 都按外部定版那份（`zt_watcher.py:133-136`），只是中文标签改从 `KIND_LABELS` 取
 KIND_EMOJI = {'unseal': '🔴', 'dt_open': '🟠', 'dt_seal_new': '🟣',
               'dt_reseal': '🟣', 'dt_reseal_after_open': '🟣'}
@@ -205,8 +218,7 @@ def report_text(now: dt.datetime, cur: dict, cur_dt: dict, prev: dict, prev_dt: 
 def one_round(*, dry_run: bool, send: bool, channel: str | None,
               quiet_first: bool) -> int:
     now = dt.datetime.now()
-    open_day = is_trade_day(now)
-    if open_day is False or (open_day is None and now.weekday() > 4):
+    if not is_trading_day(now):
         print(f'[{now:%H:%M:%S}] 非交易日，静默退出（不发不写）')
         return 0
     state = load_state(now)

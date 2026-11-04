@@ -357,25 +357,25 @@ def board(metric: str = 'xy', date: str = '', limit: int = 80, refresh: bool = F
     matched = Q._int(parent.get('total_matched'))
     lim = Q._int(parent.get('limit'))
     caveats: list[dict] = []
-    caveats.append({'code': 'follow_scope', 'text': (
+    caveats.append({'code': 'follow_scope', 'label': '母体是哪张榜', 'text': (
         f'母体＝上一场（{pd}）那张「名次稳步前进榜」（{parent.get("series_label")}档）交出的前 '
         f'{lim} 名（与它同一档 metric 可切）—— 不是今天那张榜，也不是各榜并集。'
         f'母体那天之后必须至少有一场行情，'
         f'「今日涨跌」那一列才算得出来；目前读到 {to_date}（库里最新一场行情），'
         f'母体之后共 {sessions_after if sessions_after is not None else "—"} 场。'
         f'「近 {PERF_SPAN} 日涨跌」看的是读至日往回 {PERF_SPAN} 个市场场次，与母体日无关。')})
-    caveats.append({'code': 'dash_not_zero', 'text': (
+    caveats.append({'code': 'dash_not_zero', 'label': '— 不是 0', 'text': (
         '— 与 0 是两种读数（全站一条规矩）：缺任何一边（那天停牌、当日没行、没有基期、'
         '那一族榜那天没跑）一律交 null，界面念 —；0、false 与「否」都是实质读数（平盘、'
         '没进这一族榜、没被选中）。哪一族那天整场没数，下面会点名，不拿「否」充数。')})
     if next_day is None:
-        caveats.append({'code': 'no_next_session', 'text': _PERF_NOTES['no_next_session'] +
+        caveats.append({'code': 'no_next_session', 'label': '还没有下一场', 'text': _PERF_NOTES['no_next_session'] +
                         f'（基准日 {pd} 就是行情表里最新的一场；等下一场收盘链跑完这一栏才有数。）'})
     if not perf5 and codes:
-        caveats.append({'code': 'perf5_unread', 'hard': True, 'text': (
+        caveats.append({'code': 'perf5_unread', 'hard': True, 'label': '近 5 日读不到', 'text': (
             _PERF_NOTES['perf5_unread'] + f'（读至日 {to_date}，窗口 {PERF_SPAN} 场。）')})
     if sessions_after == 1:
-        caveats.append({'code': 'today_is_last_day_of_window', 'text': (
+        caveats.append({'code': 'today_is_last_day_of_window', 'label': '今日就是窗口最后一根', 'text': (
             f'目前母体之后只有 {next_day} 这一场行情 ⇒ 「今日涨跌」正好是「近 {PERF_SPAN} 日」窗口里的'
             f'最后一根。两列不是同一把尺（一个只看这一场、一个是 {PERF_SPAN} 场滚动的累计，'
             '且都是后复权复利），不许把两列相减去推「前面几天涨了多少」。')})
@@ -399,14 +399,14 @@ def board(metric: str = 'xy', date: str = '', limit: int = 80, refresh: bool = F
             continue
         n = Q._int(counts.get(key_map[fam]))
         if fam == 'dbl' and not Q._int(counts.get('dbl_scored')):
-            caveats.append({'code': 'dbl_batch_empty', 'text': _DBL_NOTES['no_batch'] +
+            caveats.append({'code': 'dbl_batch_empty', 'label': '倍量那批没数', 'text': _DBL_NOTES['no_batch'] +
                             f'（生效指纹 {fp}，{pd} 这场带这一批指纹的倍量行为 {n}。）'})
         elif fam != 'dbl' and n == 0:
             caveats.append({'code': code, 'text': (
                 f'{pd} 这一场「{label}」的表没有行（那天这一族没跑或还没回填）—— 相关列全部交 —，'
                 '这不等于「这些票都不在榜」，也不等于「0 只」。')})
     if pd != d:
-        caveats.append({'code': 'parent_shifted', 'text': (
+        caveats.append({'code': 'parent_shifted', 'label': '母体榜往前挪了一场', 'text': (
             f'你给的基准日 {d} 不是有名次的场次，母体榜实际取到的是 {pd} 那场（往前数最近一场）。')})
     caveats.extend(Q._caveats('coverage'))
     caveats.extend(Q._cache_caveat(('coverage:score', f'rank_momentum_stats:{pd}:{m}')))

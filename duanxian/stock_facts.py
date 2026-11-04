@@ -76,11 +76,13 @@ DEFINITIONS: Dict[str, str] = {
     'profile_age_days': '这份个股档案距今几天没刷新。它本来就一年刷几次，老了不等于坏了。',
 }
 
+#: `label` 是屏上那颗小 chip 念的几个字（`Caveats` 取 `label ?? code`）：
+#: 只交 code 就会把机器键摆到读者脸上 —— 全站那条「屏幕上不许念机器码」的纪律在这一处也一样。
 HARD_CAVEATS = (
-    {'code': 'local_only', 'text':
+    {'code': 'local_only', 'label': '只读本机库', 'text':
      '这一块全是本机库读数，不出网；下面「个股研究」那一块的行情与估值是公开源即时值，'
      '两边可能差一场（本机落库要到收盘链跑完），差在那儿是时点不同，不是有一边算错。'},
-    {'code': 'master_columns_empty', 'text':
+    {'code': 'master_columns_empty', 'label': '两列本机为空', 'text':
      '主档里「上市日」与「总股本」两列本机全表为空（实测 5,577 只 0 行非空）⇒ 交的是 null 不是 0，'
      '总市值走的是收盘快照那一列；每股类与 ROE 也不在这一块'
      '（收盘快照那几列本机全是 0，读它就是读假数）。'},
@@ -216,22 +218,22 @@ def board(code: str) -> Dict[str, Any]:
     prof = _profile(code)
     caveats: List[str] = list(HARD_CAVEATS)
     if not session:
-        caveats.append({'code': 'no_daily', 'text':
+        caveats.append({'code': 'no_daily', 'label': '没有日线', 'text':
             '这只票在 `market_data.stock_daily` 里一根日线都没有 ⇒ 上面那些行情/估值格子是空的。'
             '新股当天不入库、或本机还没采到它，两种都会这样。'})
     if session and not session.get('snapshot_present'):
-        caveats.append({'code': 'no_snapshot', 'text':
+        caveats.append({'code': 'no_snapshot', 'label': '收盘快照缺', 'text':
             '最近这一场的收盘快照没入库 ⇒ PE/PB/市值三格是 null（不是 0）。'
             '快照来自通达信客户端插件，插件没跑就没有新表。'})
     if prof.get('available') is False:
-        caveats.append({'code': 'no_profile', 'text': prof['reason']})
+        caveats.append({'code': 'no_profile', 'label': '没有档案', 'text': prof['reason']})
     elif (prof.get('profile_age_days') or 0) > 30:
-        caveats.append({'code': 'profile_stale', 'text':
+        caveats.append({'code': 'profile_stale', 'label': '档案未刷新', 'text':
             f'这份个股档案已 {prof["profile_age_days"]} 天没刷新（它本来就一年刷几次）'
             '—— 主营/员工数/β 是老读数，行情与估值不是。'})
     st = bool(ident.get('is_st'))
     if st:
-        caveats.append({'code': 'is_st', 'text':
+        caveats.append({'code': 'is_st', 'label': 'ST 档位', 'text':
             '主档标了 ST：涨跌停档位与主板非 ST 不同，异动判据也按 ST 档走。'})
     # 那份 AI 公司说明也在这一块（用户 2026-10-22：「在个股信息……把 ai 的结论放过来」）。
     # 读的是 `analytics.stock_brief` ⇒ 仍然只读本机库、不出网；没有这一行就是**还没生成过**，

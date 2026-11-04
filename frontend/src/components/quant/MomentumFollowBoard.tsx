@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { CaliberFold, ExplainBox, Panel, Row } from "@/components/ui/DataPanel";
+import { CaliberFold, Panel } from "@/components/ui/DataPanel";
+import { DrawerSection } from "@/components/ui/DocDrawer";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { StockLink } from "@/components/ui/StockLink";
 import { useTableSort } from "@/lib/useSort";
@@ -37,6 +38,9 @@ import { NoticeBar } from "@/components/ui/NoticeBar";
  * 对象本身，页面一个字不抄）；埋伏那一列是**榜内**名次（那张表只落命中的票），列名与悬停
  * 都点破它与全场名次不是同一把尺。
  */
+
+/** 这块在屏上的名字，只住这一处：`Panel` 的标题与那颗抽屉的标题都从这里拼（抄两份迟早分叉）。 */
+const PANEL_TITLE = "上一场稳步前进榜前 N 名 · 今日与近 5 日股价表现（母体档位跟着上面那张榜）";
 
 /** 列的一份清单：表头与格子从同一个数组走（两处各写一份就会错位，全站栽过一次）。 */
 const COLS: [string, string][] = [
@@ -76,7 +80,7 @@ export function MomentumFollowBoard({ state, metric, onMetricChange, limit, onLi
   const pick = (fn: () => void) => { x.clearAll(); setPage(1); fn(); };
 
   return (
-    <Panel title="上一场稳步前进榜前 N 名 · 今日与近 5 日股价表现（母体档位跟着上面那张榜）" state={state}
+    <Panel title={PANEL_TITLE} state={state}
       slowHint="母体那张榜本身要现算（近 6 场全库聚合），再加六族名次/在榜与一只票一发的后复权行情：实测（2026-10-20）首次约 19 秒，窗口与覆盖命中缓存后仍要逐族现读。"
       controls={
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
@@ -111,8 +115,7 @@ export function MomentumFollowBoard({ state, metric, onMetricChange, limit, onLi
             </button>
           )}
         </div>
-      }
-      note="两栏涨跌幅都是后复权（尺子只住 day_returns 一处）：「今日涨跌」看母体之后的那一场，「近 5 日涨跌」看读至日往回 5 个市场场次，起点不同、不许相减；各路名次读的是母体场次当天各表已落好的行，这一屏不重算任何判据。">
+      }>
       {d => {
         const rows = d.rows ?? [];
         const pages = Math.max(1, Math.ceil(rows.length / pageSize));
@@ -126,8 +129,11 @@ export function MomentumFollowBoard({ state, metric, onMetricChange, limit, onLi
         const missDbl = nullTally(rows, "dbl_rank");
         return (
           <>
-            <Row label="看的是哪几天" value={windowSentence(d)} />
-            {/* 截断声明、— 与 0 的分工、空栏计数：三条都不许折进说明框（藏起来等于让屏幕说假话） */}
+            {/* 一模块一颗（11-02 用户点名，与上面那张「名次稳步前进榜」同一做法）：
+                原来这块三处出口（标题行 `note` 一颗、这块怎么读那颗 `ExplainBox`、声明那颗 `CaliberFold`），
+                现在并成一颗 —— 抽屉标题由屏上那块名拼出来，按钮念「这块怎么读」。
+                **仍留屏的三条**（搬进抽屉＝让屏幕会说谎，所以一条没动）：
+                母体榜被上限截断、「— 与 0 是两种读数」的空栏计数、弹窗被拦 `popHint`。 */}
             <NoticeBar kind="truncated">{parentTruncationSentence(d)}</NoticeBar>
             <NoticeBar kind="missing">
               — 与 0 是两种读数：缺任何一边（母体后第一场停牌、那天没行、没有基期、那一族那天没跑）
@@ -135,19 +141,36 @@ export function MomentumFollowBoard({ state, metric, onMetricChange, limit, onLi
               已交出的这 {rows.length} 行里：今日读不到 {missNext} 只、近 5 日读不到 {miss5} 只、
               倍量名次没数 {missDbl} 只（每格悬停有那句原因原文；两栏各读各的，一栏有数另一栏是 — 是常态）。
             </NoticeBar>
-            <ExplainBox title="这块怎么读（母体判据原句 + 复权尺子原文 + 三把名次尺的分母）">
-              <p>{d.rule ? plain(d.rule) : "（母体判据原句后端没交，页面不自己编）"}</p>
-              <p className="mt-2">{plain(d.pct_rule ?? "接口没交 pct_rule —— 这两栏的复权口径就没有出处，页面不自己解释什么叫后复权。")}</p>
-              <p className="mt-2">{uni?.note ?? "各路名次分母是哪一批：接口没交，页面不猜。"}</p>
-              <p className="mt-2">{STOCK_ROW_HINT}</p>
-            </ExplainBox>
             {x.popHint && <NoticeBar kind="warning">{x.popHint}</NoticeBar>}
-            {/* 声明 / 覆盖 / 字段含义 / 出处收成一处默认收起的折叠块（用户 2026-10-21：
-                「把页面上的描述性内容全部收缩起来，避免过多占屏」）。
-                **留在屏上没跟着折的**：上面那句母体榜被上限截断（`parentTruncationSentence`）、
-                「— 与 0 是两种读数」那格空栏计数、`x.popHint`；缺数／截断一族的 caveat 也由折叠块自己分回屏上。 */}
             <CaliberFold caveats={d.caveats} definitions={d.definitions}
-              coverage={d.coverage} provenance={[d.source, d.fingerprint]} />
+              coverage={d.coverage} provenance={[d.source, d.fingerprint]}
+              drawerTitle={`${PANEL_TITLE} · 这块怎么读`}
+              notes={["两栏涨跌幅都是后复权（尺子只住 day_returns 一处）：「今日涨跌」看母体之后的那一场，"
+                + "「近 5 日涨跌」看读至日往回 5 个市场场次，起点不同、不许相减；"
+                + "各路名次读的是母体场次当天各表已落好的行，这一屏不重算任何判据。"]}
+              extra={(
+                <>
+                  <DrawerSection heading="看的是哪几天（数字都是接口交的）">
+                    <p>{windowSentence(d)}</p>
+                  </DrawerSection>
+                  <DrawerSection heading="母体判据原句（后端交出，页面未改写）">
+                    <p>{d.rule ? plain(d.rule) : "（母体判据原句后端没交，页面不自己编）"}</p>
+                  </DrawerSection>
+                  <DrawerSection heading="这两栏的尺子：后复权原句">
+                    <p>{plain(d.pct_rule ?? "接口没交 pct_rule —— 这两栏的复权口径就没有出处，页面不自己解释什么叫后复权。")}</p>
+                  </DrawerSection>
+                  <DrawerSection heading="三把名次尺的分母（各路名次是在哪一批里排的）">
+                    <p>{uni?.note ?? "各路名次分母是哪一批：接口没交，页面不猜。"}</p>
+                  </DrawerSection>
+                  <DrawerSection heading="这一张表怎么点 · 单击高亮什么 · 双击去哪里">
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">{STOCK_ROW_HINT}</p>
+                    <p className="mt-1">
+                      翻页不重新发请求：一次取数交母体榜前 {dash(d.limit)} 名的全部后续表现行，页内点列头只换本页先后；
+                      要挖更深得调大「前 N」。基准日（母体场）跟着接口走 —— 每个交易日它都会往前挪一场。
+                    </p>
+                  </DrawerSection>
+                </>
+              )} />
             <div className="mt-2 overflow-x-auto">
               <table className="w-full text-[11px]">
                 <thead><tr className="text-left text-muted-foreground">
@@ -249,10 +272,8 @@ export function MomentumFollowBoard({ state, metric, onMetricChange, limit, onLi
                 {cur < pages && <button type="button" onClick={() => { x.clearAll(); setPage(cur + 1); }}
                   className="rounded-lg bg-primary/15 px-2 py-0.5 font-medium text-primary hover:bg-primary/25">下一页</button>}
               </div>
-              <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-                翻页不重新发请求：一次取数交母体榜前 {dash(d.limit)} 名的全部后续表现行，页内点列头只换本页先后；
-                要挖更深得调大「前 N」。基准日（母体场）跟着接口走 —— 每个交易日它都会往前挪一场。
-              </p>
+              {/* 翻页与基准日那句搬进了那颗抽屉（一模块一颗）；
+                  下面 `rows.length === 0` 那条是缺数声明，留在屏上不动。 */}
               {rows.length === 0 && (
                 <p className="mt-1 text-[11px] leading-relaxed text-warning">
                   母体那场榜交回 0 行 —— 「没有一只满足稳步前进判据」与「那一窗的场次没读全」是两件事，

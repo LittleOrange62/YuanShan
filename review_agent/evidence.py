@@ -354,6 +354,7 @@ class ToolSession:
         self.calls = 0
         self.answer = None
         self.submissions = 0
+        self.last_rejection = ""      # 提交过但被拒时，最后一次拒在哪（给人看的错误里要能说出原因）
         self.network_gaps = []
         self.network_calls = 0
         self.replaying = False
@@ -422,6 +423,7 @@ class ToolSession:
         try:
             answer = validate_answer(payload, self)
         except EvidenceError as exc:
+            self.last_rejection = str(exc)
             return {"accepted": False, "error": str(exc), "attempts_left": 4 - self.submissions}
         self.answer = {**answer, "format_corrections": self.submissions - 1}
         return {"accepted": True, "instruction": "回答已保存。请结束本轮，不再调用工具。"}

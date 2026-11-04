@@ -334,7 +334,7 @@ def test_上游一直吐字节却不收尾时总闸到点就停(monkeypatch):
 def test_三段计时的口径写死并且不是一刀切60秒():
     """用户拍的是"拆开三段"，不是 60 秒一刀：同一条链今天 39.7 秒成过、下午 120 秒不答。"""
     assert bridge.UPSTREAM_CONNECT_SECONDS == 10
-    assert bridge.UPSTREAM_FIRST_BYTE_SECONDS == 45
+    assert bridge.UPSTREAM_FIRST_BYTE_SECONDS == 75, "11-03 用户确认：这条网关最好一次成功 39.7 秒，45 秒余量太窄"
     assert bridge.UPSTREAM_TOTAL_SECONDS == 180
     assert bridge.UPSTREAM_TIMEOUT.connect == bridge.UPSTREAM_CONNECT_SECONDS
     assert bridge.UPSTREAM_TIMEOUT.read == bridge.UPSTREAM_FIRST_BYTE_SECONDS

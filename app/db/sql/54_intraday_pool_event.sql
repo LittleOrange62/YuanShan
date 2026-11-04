@@ -80,9 +80,12 @@ comment on column analytics.intraday_pool_event.pool_zt_n is
 comment on column analytics.intraday_pool_event.is_baseline is
     'true=首轮或换日重置后的基线摘要，不是变化事件。盘前池为空时不建"0 家"假基线（外部实测教训）。';
 
--- 播报留痕：几点发了什么、发没发出去、失败原因。四条播报（watcher/auction/heat/noon）共用。
--- `sysentry` 那一路不建新表 —— 它的判据与母体本来就是 `analytics.system_entry`（DDL 33/34），
--- 这里只留"这条消息几点发过"的一行，避免一个东西两张表。
+-- 播报留痕：几点发了什么、发没发出去、失败原因。盘中这一族（watcher/auction/heat/delta/noon/
+-- sysentry_fill/sysentry/mirror）共用这一张表。
+-- ⚠️ 这一句在 10-26 写的是"`sysentry` 那一路不建新表 —— 母体本来就是 `analytics.system_entry`"；
+-- 11-03 起**改了**：盘中 14:39 那一针的逐票判据结果另落 `analytics.intraday_sysentry`（DDL 60），
+-- 理由是"取数落库"与"到点推送"要分成两层（重发必须拿到同一场数），而 `system_entry` 是**收盘后**那张，
+-- 拿它当盘中那张就等于把两种时点混进一张表。发送留痕仍旧只有这一张表的一行。
 create table if not exists analytics.intraday_broadcast (
     trade_date        date        not null,
     broadcast_key     text        not null,           -- task|at，重播同一时刻不重插

@@ -265,9 +265,10 @@ def test_链里那条命令就是_months_12_且文档步数与代码一致():
     assert m, 'plan 里读不到 quadtrack 的入参（跑到那一步会 KeyError）'
     assert "'--months', '12'" in m.group(1), m.group(1)
     import ingest.jobs.e1_fill_all as e1
-    assert len(e1.STAGES) == 45, ('又加了一步却没改文档：docs 里那些手抄数由 test_volume_ratio 钉住'
+    assert len(e1.STAGES) == 46, ('又加了一步却没改文档：docs 里那些手抄数由 test_volume_ratio 钉住'
                                   '（10-21 加 `fbdaily` 首板分析 → 42，10-28 加 `index_mv` + `national_team` → 44，'
-                                  '10-28 深夜加 `xyrank` → 45；quadtrack 仍是第 33 步，新步排在它之后）')
+                                  '10-28 深夜加 `xyrank` → 45，11-04 加 `stockchar` 股性 → 46；'
+                                  'quadtrack/spikedays 仍是第 33/34 步，新步排在它们之后）')
     # 10-18 的 anyfirst 档必须由链默认带到：plan 里不带 --cohort ⇒ 写侧 cohort=None 两路母体都跑，
     # 这一档才跟着每日链刷新（否则 backfill 那天之后它就永远停在旧批）。
     assert "--cohort" not in m.group(1), 'quadtrack 若被钉死单档，anyfirst 就不再随每日链更新'

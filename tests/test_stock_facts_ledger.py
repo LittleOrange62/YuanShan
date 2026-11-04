@@ -9,7 +9,9 @@
 from __future__ import annotations
 
 import datetime as dt
+import inspect
 import json
+import re
 
 import pytest
 
@@ -114,3 +116,43 @@ def test_真库这一只的信息能被json_parse_且每股类与ROE不在这块
     # 主档那两列本机为空：交 null 而不是 0，并有一条说明替它解释
     assert d['list_date'] is None
     assert any(c['code'] == 'master_columns_empty' for c in d['caveats'])
+
+
+def test_每条_caveat_都带中文_label_屏上不许念机器码():
+    """`Caveats` 那颗 chip 取的是 `label ?? code`（`DataPanel.tsx`）—— 没配 label 就把机器键摆到读者脸上。
+
+    11-03 实测抓到三条（`local_only`／`master_columns_empty`／`profile_stale` 全在念 code）。
+    这条闸不许再退回去：后端交几条，就得有几条中文标签。
+    """
+    from duanxian import stock_facts as SF
+
+    labels = {c['code']: c.get('label') for c in SF.HARD_CAVEATS}
+    assert labels, '硬声明一份都没有，谈不上标签'
+    # 动态那几条也在同一份源码里，逐个键名扫一遍（新增一条却忘了 label ⇒ 这里红）
+    src = inspect.getsource(SF)
+    codes = re.findall(r"'code':\s*'([a-z0-9_]+)'", src)
+    assert codes, '这个文件里没找到任何 caveat 定义，检查上面那条正则'
+    for code in set(codes):
+        # 逐条要求：源码里这条的字典必须同时写 label
+        block = src[src.index("'code': '%s'" % code):][:260]
+        assert "'label': '" in block, f'{code} 没有 label —— 屏上那颗 chip 会念机器码'
+        m = re.search(r"'label':\s*'([^']+)'", block)
+        assert m and re.search(r'[一-鿿]', m.group(1)), f'{code} 的 label 不是中文：{labels.get(code)}'
+
+
+def test_财务多期与档案与趋势那几处的_caveat_也都要带中文_label():
+    """11-03 屏上那一行计数（`CaveatTally`）点的就是这些标签：没配 label 就只能念"第 N 条"。
+
+    逐个文件扫源码：每出现一条 `'code': '...'`，同一条字典里就得有中文 `'label'`
+    （走 `quant._caveats(...)` 那份注册表的除外 —— 那边由 `_CAV_LABEL` 统一配）。
+    """
+    import inspect
+    import re as _re
+    from duanxian import (stock_fundamentals, stock_dossier, momentum_follow,
+                           price_volume_trend, stock_metrics_ledger)
+    for mod in (stock_fundamentals, stock_dossier, momentum_follow,
+                price_volume_trend, stock_metrics_ledger):
+        src = inspect.getsource(mod)
+        for m in _re.finditer(r"\{'code':\s*'([a-z0-9_]+)'", src):
+            block = src[m.start():][:300]
+            assert "'label': '" in block, f'{mod.__name__} 的 {m.group(1)} 没配中文标签'

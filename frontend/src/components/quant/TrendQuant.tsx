@@ -8,6 +8,8 @@ import { useNonce, useProbe } from "@/lib/probe";
 import { dash } from "@/lib/datastate";
 import { num } from "@/lib/qd";
 import { scoreRankCell } from "@/lib/ranking";
+import { CELL_MARKED_CODES } from "@/lib/caveatKind";
+import { plain } from "@/lib/agent";
 import { pctColor, heatText } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 
@@ -100,18 +102,33 @@ function Breakdown({ code, nonce }: { code: string; nonce: number }) {
         <>
           <Row label="代码 / 评分日" value={`${dash(d.code)} · ${dash(d.date)}`} />
           <Row label="分量总数" value={dash(d.n_components)} />
-          <Row label="权重出处" value={dash(d.weights_registry_table)} />
-          {/* 名字的两个出处也念出来：屏上的中文名不是前端手抄的表，是注册表里那一份 */}
-          <Row label="能力名出处" value={dash(d.names_source)} />
-          <Row label="分量名出处" value={dash(d.component_names_source)} />
           {/* 一模块一颗「这块的说明」（用户 10-29 第 4 条 ＋ 11-01「做」）：
               标题行那颗 `Panel note` 与下面这颗是同一块的说明，分两处点两次才看全 ⇒ 合并成这一颗，
               那句话原样搬进 `notes` 第一段，一个字没改。
-              **没跟着折的**：上面几行读数、每一格里的「用的是上一场的值」与「权重和不对 ⇒ 今天不可比」
-              那两枚告警徽标、名次那一格后面那句为什么；缺数／失败一族的 caveat 由折叠块自己留在屏上。 */}
-          <CaliberFold caveats={d.caveats} definitions={d.definitions}
-            coverage={d.coverage} provenance={[d.source]}
-            notes={["每项能力 = 若干分量按注册表权重加权。权重不为 1 或有缺失时，这一项的分数不可跨票比较，页面上会标出来。"]} />
+              11-03 用户再点名一轮：三行「出处」（权重／能力名／分量名出自哪张表）也进这颗抽屉 ——
+              出处是"这数哪来的"，问一次就够，不必每天占三行。
+              **仍没跟着折的三件**：`cached_aggregates`（那几个全库级聚合是一小时前实算的缓存 —— 这一块的
+              格子里没有第二处说新鲜度，折掉就等于把旧值摆成新值）；每一行行首那枚「用的是上一场的值」
+              与「权重和不对 ⇒ 今天不可比」徽标；名次格里那句「名次 —／并列 N 只／这项全场 K 个取值」。
+              后两件正是 `stale`／`rank_degenerate`／`rank_coarse` 那三条散文能被收起来的前提
+              （名单住 `lib/caveatKind.ts::CELL_MARKED_CODES`，一处）。 */}
+          <CaliberFold caveats={(d.caveats ?? []).filter(c => !CELL_MARKED_CODES.has(String(c.code ?? "")))}
+            definitions={d.definitions}
+            coverage={d.coverage} provenance={[d.source]} compactCaveats
+            notes={[
+              "每项能力 = 若干分量按注册表权重加权。权重不为 1 或有缺失时，这一项的分数不可跨票比较，页面上会标出来。",
+              ...[...CELL_MARKED_CODES].map(code => {
+                const c = (d.caveats ?? []).find(x => x.code === code);
+                return c ? `${c.label ?? code}：${plain(c.text ?? "")}` : null;
+              }),
+            ].filter(Boolean) as string[]}
+            extra={(
+              <DrawerSection heading="权重与名字出自哪张表（对账、查库都按这三行找）">
+                <Row label="权重出处" value={dash(d.weights_registry_table)} />
+                <Row label="能力名出处" value={dash(d.names_source)} />
+                <Row label="分量名出处" value={dash(d.component_names_source)} />
+              </DrawerSection>
+            )} />
 
           <ul className="mt-2 space-y-1.5">
             {(d.capabilities ?? []).map(c => (
@@ -212,7 +229,7 @@ function Windows({ code, nonce }: { code: string; nonce: number }) {
               **留在屏上的**：上面那行「交出 …；表里列前 40 行」（截断声明）、
               `cached_aggregates`／`thin_window`／`window_entry_quadrant_null` 那几条（缓存年龄与缺数计数，
               由 `CaliberFold` 内部分流自己摊在屏上）、表格里每一行的「相关性弱」告警色。 */}
-          <CaliberFold caveats={d.caveats} definitions={d.definitions}
+          <CaliberFold caveats={d.caveats} definitions={d.definitions} compactCaveats
             notes={['每行是一个「基准交易日 + 往前若干个有评分的交易日」的窗口（窗口长度见下面「窗口 / 门槛」那一节）。'
               + '窗口天数不是日历天数：长假里 10 个日历日可能只剩 5 个交易日。'
               + '斜率说方向与快慢，「高点在第几天」说这个方向是哪一种形状 —— 两个一起才读得对。']}

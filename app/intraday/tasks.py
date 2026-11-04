@@ -1,14 +1,18 @@
 # -*- coding: utf-8 -*-
-"""盘中播报四轮（事件差／竞价／热度／午间）的「什么时候跑、发到哪、谁在跑」这一面。
+"""盘中播报这六路（事件差／竞价／热度／变化量／午间／微信镜像）的「什么时候跑、发到哪、谁在跑」这一面。
 
 分工要说死：判据与正文不归这里（住 `ingest/jobs/*.py` 与 `app/intraday/templates.json`），
 这个模块只管三件事 —— **配置（`jobs/config.json` 里的 `intraday_broadcast`）→ 计划任务定义
 → 注册与对账**。改时点这件事落到「重新注册 Windows 计划任务」，不是落到某个循环的 sleep。
 
 为什么不并进 `notifyconfig` 那套定时计划：那套的执行体在 8910 进程内
-（`server.py` 的推送循环每轮重读配置），而盘中这四条是「到点起一个短进程、跑完就退」——
+（`server.py` 的推送循环每轮重读配置），而盘中这几条是「到点起一个短进程、跑完就退」——
 10-23 那次常驻 loop 在 09:29 建完基线后静默死亡、盘中 8 轮全瞎，之后看门狗就交给了调度器
-（原委记在 `ingest/jobs/zt_watch.py` 开头）。把节奏搬回进程内等于把那个坑再挖一遍。
+（原委记在 `ingest/jobs/push/t01_zt_watch.py` 开头）。把节奏搬回进程内等于把那个坑再挖一遍。
+
+时点只有两格可改：`auction_times`（竞价）与 `push_times`（盘中六点）。
+`heat`/`delta` 两路是**从 `push_times` 推导**的（热度各自 +10 秒），界面上它们只有开关、
+没有时点格 —— 留第二份可改的时点，就会出现"改了推送点、忘了改热度"这种两处都像配好了的不一致。
 
 `enabled=false` 的语义是**注销任务**，不是"留着任务每天空跑一次然后不出声"。
 空跑的代价：屏上写着已停用、任务计划程序里还躺着一个 Ready 的任务，第二天没人分得清
@@ -35,33 +39,72 @@ XML_DIR = ROOT / '.local' / 'tasks'
 
 SETTING_NAME = "intraday_broadcast"
 CHANNELS_DEFAULT = "feishu-main"
-#: 四条的顺序就是界面上的顺序
+#: 这里的顺序就是界面上那一列的顺序。`mode`：`record` 只落库不外发（取数那一层），
+#: 没写就是 `push`（到点把已经算好的东西发出去）—— 界面上"发 0 条"到底是坏了还是本来就不发，
+#: 必须由这两格之一说得出，不能让人去猜。
 SPEC: dict[str, dict] = {
     "watcher": {
-        "label": "涨跌停池事件差（盘中每 5 分钟一针）",
+        "label": "涨跌停池事件差（盘中每 5 分钟一针，只落库不发送）",
         "task_name": "YuanShan-IntradayZtWatch",
-        "module": "ingest.jobs.zt_watch",
-        "base_args": "--once --send", "shape": "repeat",
+        "module": "ingest.jobs.push.t01_zt_watch",
+        # 只落库、不发送（用户 11-03：取数落库与推送分成两层，互不影响）
+        "base_args": "--once", "shape": "repeat", "mode": "record", "pushed_by": "delta",
         "limit": "PT10M", "retry_interval": "PT1M", "retry_count": 3,
     },
     "auction": {
         "label": "竞价双榜＋一字＋概念计数",
         "task_name": "YuanShan-AuctionReport",
-        "module": "ingest.jobs.auction_report",
+        "module": "ingest.jobs.push.t02_auction_report",
         "base_args": "--send", "shape": "times",
         "limit": "PT15M", "retry_interval": "PT2M", "retry_count": 2,
+    },
+    "delta": {
+        "label": "盘中涨跌停变化量（读库汇总后推送）", "short": "盘中涨跌停变化量",
+        "task_name": "YuanShan-IntradayDelta",
+        "module": "ingest.jobs.push.t03_zt_delta",
+        "base_args": "--send", "shape": "times", "derived": "push_times",
+        "limit": "PT10M", "retry_interval": "PT2M", "retry_count": 2,
     },
     "heat": {
         "label": "概念热度计数（涨跌停池 ≥3 只）",
         "task_name": "YuanShan-HeatReport",
-        "module": "ingest.jobs.heat_report",
-        "base_args": "--send", "shape": "times",
+        "module": "ingest.jobs.push.t04_heat_report",
+        "base_args": "--send", "shape": "times", "derived": "push_times+10s",
         "limit": "PT15M", "retry_interval": "PT2M", "retry_count": 2,
     },
     "noon": {
         "label": "午间复盘快照",
         "task_name": "YuanShan-NoonReview",
-        "module": "ingest.jobs.noon_review",
+        "module": "ingest.jobs.push.t05_noon_review",
+        "base_args": "--send", "shape": "times",
+        "limit": "PT15M", "retry_interval": "PT2M", "retry_count": 2,
+    },
+    "sysentry_fill": {
+        "label": "交易体系榜取数落库（14:39，只算只落库不发）",
+        "task_name": "YuanShan-SysEntryFill",
+        "module": "ingest.jobs.push.t06_sysentry_fill",
+        # 只落库、不发送（与事件差那一炉同一层；发送归 14:40:30 那一炉）
+        "base_args": "", "shape": "times", "mode": "record", "pushed_by": "sysentry",
+        "limit": "PT10M", "retry_interval": "PT2M", "retry_count": 1,
+    },
+    "sysentry": {
+        "label": "交易体系榜推送（读库里那一针的结果后发送）", "short": "交易体系榜推送",
+        "task_name": "YuanShan-SysEntry1440",
+        "module": "ingest.jobs.push.t07_sysentry_report",
+        "base_args": "--send", "shape": "times",
+        "limit": "PT10M", "retry_interval": "PT2M", "retry_count": 2,
+    },
+    "mirror": {
+        "label": "竞价榜→个人微信镜像（读今天真发给飞书的那一份）",
+        "task_name": "YuanShan-WxMirrorAuction",
+        "module": "ingest.jobs.push.t08_wx_mirror",
+        "base_args": "", "shape": "times",
+        "limit": "PT15M", "retry_interval": "PT2M", "retry_count": 2,
+    },
+    "daily_review": {
+        "label": "每日复盘（18:18，盘后那一栏）",
+        "task_name": "YuanShan-DailyReview",
+        "module": "ingest.jobs.push.t09_daily_review",
         "base_args": "--send", "shape": "times",
         "limit": "PT15M", "retry_interval": "PT2M", "retry_count": 2,
     },
@@ -74,12 +117,52 @@ DEFAULTS: dict[str, Any] = {
     "watcher_enabled": True, "watcher_start": "09:15",
     "watcher_interval_min": 5, "watcher_duration_h": 6,
     "auction_enabled": True, "auction_times": "09:25:30",
-    "heat_enabled": True, "heat_times": "10:05,10:55,14:18",
+    #: 盘中变化量与概念热度**共用这一格**时点（热度自动错开 10 秒）：
+    #: 分成两格就会出现"改了推送点忘了改热度"，那是界面上最难发现的一种不一致。
+    "push_times": "09:35,09:45,10:10,10:50,11:25,14:00",
+    "heat_enabled": True,
+    "delta_enabled": True,
     "noon_enabled": True, "noon_times": "12:10",
+    #: 交易体系榜（⑤，11-03 从外部 `intraday_sysentry/` 收编）也是两层：
+    #: 14:39 那一针**只取数只落库**（`sysentry_fill`），14:40:30 那一炉**只读库再发**（`sysentry`）。
+    #: `sysentry_wait_s` 是 B 侧愿意等多久 A 的数（TQ 一次要跑几十只票，慢的时候真会跨过半分钟）；
+    #: 等到点还没有 ⇒ 播"未就绪"那句，绝不拿昨天的行顶。
+    "sysentry_fill_enabled": True, "sysentry_fill_times": "14:39:00",
+    "sysentry_enabled": True, "sysentry_times": "14:40:30", "sysentry_wait_s": 180,
+    #: 下面这几格就是外部那份 `sysentry_config.json` 的内容，全部收进同一个配置块（两处可改＝一处生效）
+    "sysentry_at_all": True, "sysentry_max_rows": 30, "sysentry_watch_list": False,
+    "sysentry_quote_source": "tq", "sysentry_tq_fallback_web": True,
+    "sysentry_tq_timeout_s": 240, "sysentry_tq_retry_wait_s": 8,
+    "sysentry_quote_batch": 50, "sysentry_quote_retry": 2, "sysentry_quote_cool_s": 9,
+    "sysentry_preclose_tol_pct": 0.5, "sysentry_min_fresh_ratio": 0.5,
+    #: 微信镜像那一炉：`mirror_times` 是它自己几点起（竞价 09:25:30 之后留一点余量），
+    #: `mirror_until`/`mirror_interval_s` 是它**愿意等多久今天的正文**（桌面没解锁时会一直等）。
+    "mirror_enabled": True, "mirror_times": "09:26", "mirror_until": "09:35",
+    "mirror_interval_s": 60,
+    #: 每日复盘那一栏（18:18）。**默认关着**：`ingest/jobs/push/t09_daily_review.py` 的正文判据是要人去填的骨架，
+    #: 开着它就等于让调度器每天往群里发一条"还没写上内容"的东西 —— 关着时连任务都不注册（屏上那行会说"这一路已关"）。
+    "daily_review_enabled": False, "daily_review_times": "18:18",
     "note": "",
 }
 
 _TIME_RE = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$")
+
+#: 交易体系榜那两个作业共用的 tunable（收编外部 `sysentry_config.json`，键名带 `sysentry_` 前缀）。
+#: 界面上只给"时点 + 开关"，这几格从命令行／配置文件改（`--set sysentry_max_rows=20`）。
+SYS_INT_RANGE: dict[str, tuple[int, int, str]] = {
+    "sysentry_max_rows": (1, 200, '只（榜上最多列几只；本机实测平均 5.7 只/场，30 足够）'),
+    "sysentry_quote_batch": (10, 300, '只（一次批量报价的票数；②候选实测 18~54 只）'),
+    "sysentry_quote_retry": (1, 5, '次（每个网络源的整轮重试）'),
+    "sysentry_tq_timeout_s": (30, 900, '秒（一次 TQ 子进程取数上限）'),
+    "sysentry_tq_retry_wait_s": (1, 120, '秒（TQ 行情日期非今日时，隔多久再要第二轮）'),
+    "sysentry_quote_cool_s": (0, 120, '秒（东财 push2 风控冷却，只有落到末位源才用到）'),
+}
+SYS_FLOAT_RANGE: dict[str, tuple[float, float, str]] = {
+    "sysentry_preclose_tol_pct": (0.05, 5.0, '个百分点（快照昨收与库昨收差超过它判除权/基不符）'),
+    "sysentry_min_fresh_ratio": (0.1, 1.0, '比例（候选里「行情日期=今天」的占比下限，不到判源未刷新）'),
+}
+SYS_QUOTE_SOURCES = ('tq', 'web', 'auto')
+SYS_BOOL_KEYS = ('sysentry_at_all', 'sysentry_watch_list')
 
 
 def _hhmmss(value: object) -> bool:
@@ -91,8 +174,25 @@ def parse_times(raw: object) -> list[str]:
     return [c.strip() for c in str(raw or "").split(",") if c.strip()]
 
 
+def _shift(hhmm: str, seconds: int) -> str:
+    parts = [int(x) for x in str(hhmm).split(':')]
+    while len(parts) < 3:
+        parts.append(0)
+    total = parts[0] * 3600 + parts[1] * 60 + parts[2] + seconds
+    total %= 24 * 3600
+    return f'{total // 3600:02d}:{total % 3600 // 60:02d}:{total % 60:02d}'
+
+
+def derived_times(mode: str, cfg: dict) -> list[str]:
+    base = parse_times(cfg.get('push_times'))
+    return [_shift(t, 10) for t in base] if mode.endswith('+10s') else list(base)
+
+
 def schedule_of(key: str, cfg: dict) -> dict:
     spec = SPEC[key]
+    if spec.get("derived"):
+        return {"shape": "times", "times": derived_times(spec["derived"], cfg),
+                "derived": spec["derived"]}
     if spec["shape"] == "repeat":
         return {"shape": "repeat", "start": str(cfg.get(f'{key}_start') or ''),
                 "interval_min": int(cfg.get(f'{key}_interval_min') or 0),
@@ -103,6 +203,16 @@ def schedule_of(key: str, cfg: dict) -> dict:
 def schedule_text(key: str, cfg: dict) -> str:
     """界面上那一句节奏（也是任务描述里的同一句，别让两处各写各的措辞）。"""
     sch = schedule_of(key, cfg)
+    if sch.get("derived") and key != 'delta':
+        base = str(cfg.get("push_times") or "")
+        tail = '（各自 +10 秒）' if sch["derived"].endswith('+10s') else ''
+        #: 名字从在册表取（`short`），不在句子里写死另一路的名字 —— 改名时这句会跟着走
+        return f'跟着「{SPEC["delta"].get("short") or SPEC["delta"]["label"]}」那一格 {base}{tail}'
+    if key == 'mirror':
+        # 镜像那一炉的"到点跑"只占一半：另一半是它愿意等多久今天的正文
+        return (f'每天 {sch["times"][0] if sch["times"] else "—"} 起，'
+                f'等到 {cfg.get("mirror_until") or "—"} 为止（每 '
+                f'{cfg.get("mirror_interval_s") or 60} 秒回看一次）')
     if sch["shape"] == "repeat":
         return (f'每天 {sch["start"]} 起，每 {sch["interval_min"]} 分钟一针，'
                 f'持续 {sch["duration_h"]} 小时')
@@ -127,7 +237,7 @@ def channel_arg(cfg: dict | None = None) -> str:
 def channels_display(cfg: dict) -> str:
     """界面与任务描述里那一格：空就照实说是空，不拿默认值糊。"""
     raw = str(cfg.get("channels") or "").strip()
-    return raw or '（空 —— 四条都发不出去，先去消息推送配好渠道）'
+    return raw or '（空 —— 几路都发不出去，先去消息推送配好渠道）'
 
 
 def send_channels(channel: str | None = None) -> list[str]:
@@ -162,7 +272,11 @@ def validate_patch(kv: dict, cfg: dict) -> str | None:
     for key, value in kv.items():
         if value is None or value == "":
             continue
-        if key not in DEFAULTS:
+        if key.endswith("_times") and SPEC.get(key[:-len("_times")], {}).get("derived"):
+            # 说得出"为什么这格没了"：只回一句"不在册"，人会以为是拼错了
+            why = (f"{key} 已经不存在了：这一路与变化量一起由 `push_times` 推导"
+                   f"（改那一格这边跟着变）")
+        elif key not in DEFAULTS:
             # 先认在册再判形状：否则 `heat_start` 这种拼错的名字会被 `*_start` 那档收下去，
             # 存进配置却没人读它 —— 正是本项目明令禁止的"写着有其实没接"。
             why = f"{key} 不在册：可用的是 " + "、".join(sorted(DEFAULTS))
@@ -170,8 +284,28 @@ def validate_patch(kv: dict, cfg: dict) -> str | None:
             why = _channels_exist(value)
         elif key.endswith("_times"):
             why = _times_ok(key, value)
-        elif key == "watcher_start":
+        elif key == "watcher_start" or key == "mirror_until":
             why = None if _hhmmss(value) else f"{key} 需要 HH:MM，收到 {value!r}"
+        elif key in ("mirror_interval_s",):
+            why = _int_range(value, 5, 600, key, "秒（再长就赶不上 `mirror_until` 那道自设上限）")
+        elif key == "sysentry_wait_s":
+            why = _int_range(value, 0, 600, key,
+                             "秒（B 侧愿意等多久 A 的数；0＝不等，库里没有就当今天没有）")
+        elif key in SYS_INT_RANGE:
+            lo, hi, unit = SYS_INT_RANGE[key]
+            why = _int_range(value, lo, hi, key, unit)
+        elif key in SYS_FLOAT_RANGE:
+            lo, hi, unit = SYS_FLOAT_RANGE[key]
+            why = _float_range(value, lo, hi, key, unit)
+        elif key == "sysentry_quote_source":
+            if str(value) in SYS_QUOTE_SOURCES:
+                why = None
+            else:
+                opts = '、'.join(SYS_QUOTE_SOURCES)
+                why = (f"{key} 只能是 {opts}（tq=本地通达信、web=只用网络源、auto=先 TQ 再网络），"
+                       f"收到 {value!r}")
+        elif key in SYS_BOOL_KEYS:
+            why = None if isinstance(value, bool) else f"{key} 需要 true/false，收到 {value!r}"
         elif key == "watcher_interval_min":
             why = _int_range(value, 1, 30, key, "分钟（再密就只是在刷同一个池子）")
         elif key == "watcher_duration_h":
@@ -185,7 +319,7 @@ def validate_patch(kv: dict, cfg: dict) -> str | None:
         if why:
             return f"{why}；这一笔整条没写入，仍按原值运行"
     for key, spec in SPEC.items():
-        if spec["shape"] == "times" and merged.get(f'{key}_enabled') \
+        if spec["shape"] == "times" and not spec.get("derived") and merged.get(f'{key}_enabled') \
                 and not parse_times(merged.get(f'{key}_times')):
             return (f"{spec['label']} 开着但一个时点都没有（`{key}_times` 是空的）；"
                     f"要么填一个时点，要么把这一路的开关关掉。这一笔整条没写入")
@@ -208,6 +342,21 @@ def _int_range(value: object, lo: int, hi: int, key: str, unit: str) -> str | No
     except (TypeError, ValueError):
         return f"{key} 需要 {lo}~{hi} 的整数（{unit}），收到 {value!r}"
     return None if lo <= number <= hi else f"{key} 需要在 {lo}~{hi} 之间（{unit}），收到 {number}"
+
+
+def _float_range(value: object, lo: float, hi: float, key: str, unit: str) -> str | None:
+    """阈值类的一格（`preclose_tol_pct`、`min_fresh_ratio`）：判"是不是个数、在不在带内"。
+
+    比整数那档多一条：`bool` 在 Python 里是 int 的子类，`true` 不该被当成 1 收进阈值带。
+    """
+    if value is None or isinstance(value, bool):
+        return f"{key} 需要 {lo}~{hi} 的数（{unit}），收到 {value!r}"
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return f"{key} 需要 {lo}~{hi} 的数（{unit}），收到 {value!r}"
+    return None if lo <= number <= hi else \
+        f"{key} 需要在 {lo}~{hi} 之间（{unit}），收到 {number}"
 
 
 def _channels_exist(raw: object) -> str | None:
@@ -245,9 +394,12 @@ def task_args(key: str, cfg: dict) -> str:
     「每轮重读、改完即生效」的规矩一致；写进任务参数就会出现
     "配置说 A、任务参数说 B"那种两边各读各的假生效。
     `--channel` 仍留着给手动补发用（显式给了就按给的发）。
+
+    折叠空白：像 `mirror` 那样 `base_args` 为空的路会留下一个尾空格，
+    而任务计划程序存的是去掉尾空格的串 —— 不折叠的话对账永远报"参数不一致"。
     """
     spec = SPEC[key]
-    return f"-X utf8 -m {spec['module']} {spec['base_args']}"
+    return ' '.join(f"-X utf8 -m {spec['module']} {spec['base_args']}".split())
 
 
 def _boundary(hhmm: str, day: dt.date) -> str:
@@ -280,7 +432,8 @@ def build_xml(key: str, cfg: dict, *, day: dt.date | None = None) -> str:
         if not sch["times"]:
             # 读面（`jobs.settings`）只判类型不判形状，脏值（`",,"`）能进到配置里来。
             # 到这一步抛，比插出一份 `<Triggers></Triggers>` 让 PowerShell 回一句天书好。
-            raise RuntimeError(f'{SPEC[key]["label"]} 开着但一个时点都没有（`{key}_times` 是空的）')
+            src = 'push_times' if spec.get("derived") else f'{key}_times'
+            raise RuntimeError(f'{SPEC[key]["label"]} 开着但一个时点都没有（`{src}` 是空的）')
         triggers = "".join(_trigger(_boundary(t, day)) for t in sch["times"])
     desc = (f'YuanShan: {schedule_text(key, cfg)} · 发到 {channels_display(cfg)} · '
             f'{spec["label"]}；非交易日脚本内静默退；由 app/intraday/tasks.py 注册')
@@ -328,7 +481,7 @@ def want_boundaries(key: str, cfg: dict, *, day: dt.date | None = None) -> list[
 
 
 #: `StartBoundary` 的日期那半是**注册那天**（每日触发器靠它推下一场），对账只看钟点。
-#: 不这么切的话四条会永远显示"时点不一致"—— 一条一直红的对账等于没有对账。
+#: 不这么切的话这几路会永远显示"时点不一致"—— 一条一直红的对账等于没有对账。
 _CLOCK_RE = re.compile(r'T(\d{2}:\d{2}:\d{2})')
 
 
@@ -369,7 +522,7 @@ def registered(*, force: bool = False) -> dict[str, dict]:
 
     用 powershell 而不是 `schtasks`：后者在本机输出 UTF-16，会误判成"没有相关任务"
     （`scripts/manage.py::_tasks_csv` 踩过，这里保持同一口径）。读不出来要出声，
-    不许兜成空表 —— 空表在界面上就是"四条都没注册"。
+    不许兜成空表 —— 空表在界面上就是"这几路都没注册"。
 
     起一次 PowerShell 要 4~5 秒，而这一格是面板每开一次都要读的东西，所以留 15 秒缓存；
     改完配置走 POST 那条路会带 `force=True`，绝不让人对着"刚保存却还显示旧状态"发呆。
@@ -431,7 +584,7 @@ def plan(*, ledger: dict | None = None, force_reg: bool = False) -> dict:
         elif got is None and not err and want_on:
             drift.append('配置开着，机器上没有这个任务')
         elif got is not None:
-            if got['args'] != task_args(key, cfg):
+            if ' '.join(got['args'].split()) != ' '.join(task_args(key, cfg).split()):
                 drift.append('任务里的命令行参数与当前配置不一致')
             if not schedule_of(key, cfg).get('times') and SPEC[key]['shape'] == 'times':
                 drift.append('开着但一个时点都没有（注册会拒，先填时点或关掉这一路）')
@@ -443,6 +596,18 @@ def plan(*, ledger: dict | None = None, force_reg: bool = False) -> dict:
         rows.append({'key': key, 'label': spec['label'], 'task_name': spec['task_name'],
                      'module': spec['module'], 'available': exists,
                      'on': want_on, 'editable': exists and not err,
+                     'derived': SPEC[key].get('derived'),
+                     'mode': SPEC[key].get('mode', 'push'),
+                     #: 只落库那一路在屏上要说清"那发送归谁"，否则"发 0 条"读起来像坏了。
+                     #: 用短名（`short`）：整条 label 带括号，套进句子里就读成两层括注。
+                     'push_label': (SPEC[spec['pushed_by']].get('short')
+                                    if spec.get('pushed_by') and spec['pushed_by'] in SPEC
+                                    else None),
+                     #: 界面拿这一格决定"给不给时点输入框"：推导出来的那一路（heat）没有自己的格，
+                     #: 而 `delta` 这一路虽然也写着 derived，它本身就是那六点钟点的 owner。
+                     'times_field': (None if spec['shape'] == 'repeat'
+                                     else 'push_times' if key == 'delta'
+                                     else None if spec.get('derived') else f'{key}_times'),
                      'schedule': schedule_text(key, cfg),
                      'channels': channels_display(cfg),
                      'registered': got, 'drift': drift,
@@ -555,11 +720,11 @@ def _remove(key: str, name: str, *, reason: str, dry_run: bool) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description='盘中播报四条的计划任务面（看／改／重注册）')
+    ap = argparse.ArgumentParser(description='盘中播报各路的计划任务面（看／改／重注册）')
     ap.add_argument('--show', action='store_true', help='配置 × 机器实况对照（只读，默认动作）')
     ap.add_argument('--set', action='append', default=[], metavar='K=V',
-                    help='改一个在册键（可重复），如 --set heat_times=10:05,14:18')
-    ap.add_argument('--apply', action='store_true', help='按当前配置重新注册四条任务')
+                    help='改一个在册键（可重复），如 --set push_times=09:35,11:00,14:00')
+    ap.add_argument('--apply', action='store_true', help='按当前配置重新注册这几路任务')
     ap.add_argument('--only', default='', metavar='K[,K]',
                     help='只动划出来的那几条（如 `auction,heat`）；名字必须是 ' + '/'.join(SPEC))
     ap.add_argument('--dry-run', action='store_true', help='只生成 XML，不动任务计划程序')
@@ -568,7 +733,7 @@ def main(argv: list[str] | None = None) -> int:
     keys = [k.strip() for k in args.only.split(',') if k.strip()]
     unknown = [k for k in keys if k not in SPEC]
     if unknown:
-        print(f"--only 里 {'、'.join(unknown)} 不是这四条之一：可用 {'、'.join(SPEC)}")
+        print(f"--only 里 {'、'.join(unknown)} 不是在册的某一路：可用 {'、'.join(SPEC)}")
         return 2
 
     kv: dict[str, Any] = {}
@@ -583,13 +748,20 @@ def main(argv: list[str] | None = None) -> int:
             print(f'--set {k}= 留空不写（留空＝删键回默认，屏上看不出来）；'
                   f'要改请给具体值')
             return 2
-        if k == 'enabled' or k.endswith('_enabled'):
+        if k == 'enabled' or k.endswith('_enabled') or k in SYS_BOOL_KEYS:
             kv[k] = raw.strip().lower() in ('1', 'true', 'yes', 'on')
-        elif k.endswith('_interval_min') or k.endswith('_duration_h'):
+        elif k.endswith('_interval_min') or k.endswith('_duration_h') or k in SYS_INT_RANGE \
+                or k == 'sysentry_wait_s' or k == 'mirror_interval_s':
             try:
                 kv[k] = int(raw)
             except ValueError:
                 print(f'{k} 需要整数，收到 {raw!r}')
+                return 2
+        elif k in SYS_FLOAT_RANGE:
+            try:
+                kv[k] = float(raw)
+            except ValueError:
+                print(f'{k} 需要小数，收到 {raw!r}')
                 return 2
         else:
             kv[k] = raw

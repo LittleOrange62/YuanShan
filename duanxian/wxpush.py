@@ -384,6 +384,13 @@ def preflight(cfg: dict | None = None, *, hwnd: int | None = None) -> dict:
                                                      for c in blocked))}
 
 
+def cooldown_seconds(cfg: dict | None = None) -> int:
+    """「两次发送之间至少隔」那一格的现值。镜像连发多块时要按它隔开，
+    别在调用方另写一个 20 —— 那一格改小的那天，写死的那份就会自己把自己挡在预检外。"""
+    cfg = cfg or WC.load()
+    return int({**WC.default_guards(), **(cfg.get("guards") or {})}.get("cooldown_seconds") or 0)
+
+
 def seconds_since_last_send() -> float | None:
     """离最近一次**真按过键盘**有多少秒；None = 没有过。
 
@@ -468,6 +475,13 @@ def run_script(rel: str, *, timeout: int = 30) -> dict:
 _RUN_SCRIPT_DEFAULT = run_script
 
 
+def body_cap(cfg: dict | None = None) -> int:
+    """「正文长度上限」的唯一读法。镜像那侧要按同一把尺切块，
+    自己再数一遍 1200 就会在这格被改小的那天开始撞拒发。"""
+    cfg = cfg or WC.load()
+    return int({**WC.default_guards(), **(cfg.get("guards") or {})}.get("max_body_chars") or 1200)
+
+
 def build_body(*, text: str = "", template_key: str = "", scenes: dict | None = None,
                title: str = "", date: str = "", cfg: dict | None = None) -> dict:
     """进正文的三条路收成一处：`template` 指内容档、`scenes` 直接点档、`text` 直给。"""
@@ -492,7 +506,7 @@ def build_body(*, text: str = "", template_key: str = "", scenes: dict | None = 
     if not out["ok"]:
         return out
     body = out["body"]
-    cap = int({**WC.default_guards(), **(cfg.get("guards") or {})}.get("max_body_chars") or 1200)
+    cap = body_cap(cfg)
     if not body:
         return {"ok": False, "reason": "内容算出来是空的（这一档今天没取到东西）⇒ 不发空白"}
     if len(body) > cap:

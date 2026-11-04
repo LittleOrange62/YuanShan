@@ -194,8 +194,16 @@ test('11-01 补：一块里不许「标题行一颗按钮 ＋ 正文又一颗」
         if (depth === 0 && k > i) { end = k; break; }
       }
       if (end < 0) continue;
-      const head = lines.slice(i, i + 16).join('\n');
-      const inner = lines.slice(i + 1, end).join('\n');
+      // `note=` 常写在参数列表更下面（`slowHint` / `controls` 那一叠 JSX 之后），只看前 16 行会漏 ——
+      // 11-02「名次稳步前进榜」那颗藏到第 40 行的 note 就是这么溜过去的。
+      // 所以取到正文回调（`{d => …}`）之前那一段当「标题行参数区」。
+      let headEnd = -1;
+      for (let k = i; k < end; k++) {
+        if (/^\s*\{[\w$]+\s*=>/.test(lines[k])) { headEnd = k; break; }
+      }
+      if (headEnd < 0) headEnd = Math.min(i + 40, end);
+      const head = lines.slice(i, headEnd).join('\n');
+      const inner = lines.slice(headEnd, end).join('\n');
       const outlets = (inner.match(/<CaliberFold|<ExplainBox|<DocDrawer/g) || []).length;
       if (/(^|[\s])note=/.test(head) && outlets >= 1) {
         bad.push(`${f.path.split('/').pop()}:${i + 1}（note ＋ 正文 ${outlets} 处）`);

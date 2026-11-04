@@ -22,6 +22,7 @@ import pytest
 
 from app.compute import ambush_setup as A
 from app.compute import breakout_signal as B
+from app.compute import stock_character as CH
 from duanxian import pg, quant
 
 
@@ -132,7 +133,8 @@ def test_缺的读数写进_missing_字符串给界面点名():
 @pytest.fixture
 def amb(monkeypatch):
     """按住左栏读侧的取数：这场有没有数、SQL 交出什么行、聚合交出什么数。"""
-    cap = {'rows': [], 'counts': None, 'tot': {'n': 397, 'strict': 22}, 'one': {}}
+    cap = {'rows': [], 'counts': None, 'tot': {'n': 397, 'strict': 22},
+           'char': {'n': 5586, 'scored': 5376}, 'one': {}}
 
     def _rows(sql, params=()):
         if 'unnest' in sql:
@@ -145,13 +147,22 @@ def amb(monkeypatch):
         cap['params'] = list(params)
         return list(cap['rows'])
 
+    def _one(sql, params=()):
+        # 股性那张表的"整场有没有行"是第二条 `_one`：桩必须按 SQL 分流，
+        # 两边共用一份读数就永远测不出"埋伏有数、股性还没入库"那一种真实状态。
+        if 'stock_character_daily' in sql:
+            cap['char_sql'] = sql
+            cap['char_params'] = tuple(params)
+            return dict(cap['char'])
+        return dict(cap['tot'])
+
     monkeypatch.setattr(pg, "enabled", lambda: True)
     monkeypatch.setattr(quant.pg, "session_has", lambda table, d: True)
     # 桩的签名要跟真函数一致：真的 `_latest(table, spec=None)` 现在带版本条件，
     # 桩只收一个位置参数就会在被调用时 TypeError（本项目钉过的那类"桩与契约分叉"）。
     monkeypatch.setattr(quant, "_latest", lambda table, spec=None: "2026-10-12")
     monkeypatch.setattr(quant, "_rows", _rows)
-    monkeypatch.setattr(quant, "_one", lambda sql, params=(): dict(cap['tot']))
+    monkeypatch.setattr(quant, "_one", _one)
     monkeypatch.setattr(quant, "_coverage", lambda tables: {})
     monkeypatch.setattr(quant, "_comments", lambda table: {})
     monkeypatch.setattr(quant, "_cache_caveat", lambda keys: [])
@@ -159,15 +170,26 @@ def amb(monkeypatch):
     return cap
 
 
-def _amb_row(code='600000.SH', types=('sticky_pull',), strict=True, spread=0.42):
-    return {'code': code, 'name': '测试股', 'board': '主板', 'close_hfq': 10.0,
-            'ma_spread_pct': spread, 'range20_pct': 8.0, 'weekly_ups6': 5, 'weekly_streak': 3,
-            'weekly_bars': 9, 'week_sessions_cur': 3, 'week_partial': True,
-            'shrink_ratio': 0.7, 'box_pos_pct': 55.0, 'trend60_pct': 3.0, 'obv_ratio': 0.1,
-            'days_since_big': None, 'hold_vs_big_pct': None, 'big_day_date': None,
-            'ambush_types': list(types), 'strict_pass': strict, 'ambush_score': 71.0,
-            'bars_60': 90, 'missing': None, 'spec_version': A.SPEC_VERSION,
-            'calculated_at': None}
+def _amb_row(code='600000.SH', types=('sticky_pull',), strict=True, spread=0.42,
+             with_char=True):
+    r = {'code': code, 'name': '测试股', 'board': '主板', 'close_hfq': 10.0,
+         'ma_spread_pct': spread, 'range20_pct': 8.0, 'weekly_ups6': 5, 'weekly_streak': 3,
+         'weekly_bars': 9, 'week_sessions_cur': 3, 'week_partial': True,
+         'shrink_ratio': 0.7, 'box_pos_pct': 55.0, 'trend60_pct': 3.0, 'obv_ratio': 0.1,
+         'days_since_big': None, 'hold_vs_big_pct': None, 'big_day_date': None,
+         'ambush_types': list(types), 'strict_pass': strict, 'ambush_score': 71.0,
+         'bars_60': 90, 'missing': None, 'spec_version': A.SPEC_VERSION,
+         'calculated_at': None,
+         'amp_10': 3.214, 'amp_10_pctile': 55.0, 'char_bars_10': 10,
+         'char_level': 'middle', 'char_level_label': CH.CHAR_LEVEL_LABELS['middle'],
+         'char_mid_pctile': 61.0, 'gene_pctile': 48.0, 'seal_250': 3, 'touch_250': 5,
+         'consec_max_250': 2, 'char_bars_250': 240, 'char_missing': {},
+         'char_spec': CH.SPEC_VERSION}
+    if not with_char:          # 左连接拿不到行：那些键在，值全是 None（不是 0）
+        for k in list(r):
+            if k.startswith(('amp_', 'char_', 'seal_', 'touch_', 'consec_')):
+                r[k] = None
+    return r
 
 
 def test_类型多选拼在limit之前而不是筛完再截断(amb):
@@ -180,8 +202,10 @@ def test_类型多选拼在limit之前而不是筛完再截断(amb):
     assert 'a.ambush_types && %s::text[]' in sql, sql[-400:]
     assert sql.index('a.ambush_types') < sql.index('order by'), "筛在排序之后 = 只是把交出的行删了几条"
     assert sql.index('a.ambush_types') < sql.index('limit'), "筛在 limit 之后 = 上限先砍掉了别的类"
-    assert amb['params'][0] == '2026-10-12'
-    assert amb['params'][1] == ['sticky_pull', 'dragon_back']
+    assert amb['params'][0] == CH.SPEC_VERSION, \
+        '股性表左连接的版本条件是第一个参数（漏了它就会把旧批的股性盖上来）'
+    assert amb['params'][1] == '2026-10-12'
+    assert amb['params'][2] == ['sticky_pull', 'dragon_back']
     assert amb['params'][-1] == 150
     assert out['filter']['types'] == ['sticky_pull', 'dragon_back']
     assert out['filter']['types_rejected'] == []
@@ -236,10 +260,10 @@ def test_严档与周线抬升的筛条件也拼在库里(amb):
     quant.ambush(only_strict=True, min_weekly_ups=5)
     seg = amb['sql'].split('where')[1].split('order by')[0]
     assert 'and a.strict_pass' in seg and 'coalesce(a.weekly_ups6, 0) >= %s' in seg, seg
-    assert amb['params'] == ['2026-10-12', 5, 150], amb['params']
+    assert amb['params'] == [CH.SPEC_VERSION, '2026-10-12', 5, 150], amb['params']
     plain = quant.ambush()
     assert 'and a.strict_pass' not in amb['sql'], "不筛就不该把条件拼进 SQL"
-    assert amb['params'] == ['2026-10-12', 150], amb['params']
+    assert amb['params'] == [CH.SPEC_VERSION, '2026-10-12', 150], amb['params']
     assert plain['day_total'] == 397 and plain['day_strict_total'] == 22
 
 
@@ -411,3 +435,162 @@ def test_真库这场判出来的严档行确实过得了三条阈值():
     for r in out['rows']:
         assert r['ambush_types'], "命中的票至少有一类，否则这行不该存在"
         assert r['ambush_type_labels'] == [A.TYPE_LABELS[t] for t in r['ambush_types']]
+
+
+# ================================================================ ⑤ 股性/振幅那两列（11-04）
+
+def test_那两列是左连接另一张表_带版本条件_且不带进where(amb):
+    """LEFT JOIN 不是 JOIN：股性那一族缺行时埋伏榜照样要交（那是另一张表的一步没跑，
+    不是这些票不存在）。版本条件漏了就会把旧批的股性盖到今天的行上。"""
+    amb['rows'] = [_amb_row()]
+    amb['counts'] = [{'t': 'sticky_pull', 'n': 22}]
+    quant.ambush()
+    sql = amb['sql']
+    assert 'left join analytics.stock_character_daily' in sql, sql[-900:]
+    assert 'c.spec_version = %s' in sql, '左连接漏版本条件 = 旧批盖新批'
+    assert 'c.trade_date = a.trade_date' in sql, '不按同一场连接就是把去年的股性念成今天的'
+    seg = sql.split('where')[1].split('order by')[0]
+    assert 'c.' not in seg, "筛条件里出现 c. 就把左连接变成了内连接（缺股性的票会整行消失）"
+
+
+def test_左连接拿不到行时交null而不是零(amb):
+    """`amp_10=None` 是「没数」，`0` 是「这 10 场一天都没波动过」——后者是真读数。"""
+    amb['rows'] = [_amb_row(with_char=False)]
+    amb['counts'] = [{'t': 'sticky_pull', 'n': 22}]
+    r = quant.ambush()['rows'][0]
+    assert r['amp_10'] is None and r['char_level'] is None and r['char_level_label'] is None
+    assert r['seal_250'] is None and r['consec_max_250'] is None
+    assert r['char_spec'] is None
+
+
+def test_整场没入库时点名的是那一步没跑_而不是每只票判不了(amb):
+    """埋伏有数、股性那一步没跑：这一场 `stockchar` 零行 ⇒ 出一条批级 caveat，
+    界面上那两格是「—」并配一句「这一场的股性还没算」，绝不能让人以为埋伏榜坏了。"""
+    amb['rows'] = [_amb_row()]
+    amb['counts'] = [{'t': 'sticky_pull', 'n': 22}]
+    amb['char'] = {'n': 0, 'scored': 0}
+    out = quant.ambush()
+    assert 'ambush_char_missing_batch' in [c['code'] for c in out['caveats']], out['caveats']
+    txt = next(c['text'] for c in out['caveats'] if c['code'] == 'ambush_char_missing_batch')
+    assert '还没入库' in txt and '不是「振幅 0」' in txt and 'stockchar' in txt, txt
+    assert out['character']['has_rows_on_date'] is False
+    assert out['character']['rows_on_date'] == 0
+    # 那条点名用的聚合也必须带版本条件，否则它会说"有行"（读到旧批）而屏上全是空
+    assert 'spec_version = %s' in amb['char_sql'] and amb['char_params'][1] == CH.SPEC_VERSION
+
+    amb['char'] = {'n': 5586, 'scored': 5376}
+    assert 'ambush_char_missing_batch' not in [c['code'] for c in quant.ambush()['caveats']]
+
+
+def test_股性那两列的阈值与中文档名从写侧现读(amb):
+    """界面不许抄第二份：档位门槛、窗口长度、`股性强/中/弱` 那一串都来自
+    `app/compute/stock_character.py`（改一处就跟着动，同 `thresholds` 一条规矩）。"""
+    amb['rows'] = [_amb_row()]
+    amb['counts'] = [{'t': 'sticky_pull', 'n': 22}]
+    out = quant.ambush()
+    assert out['character']['spec_version'] == CH.SPEC_VERSION
+    assert out['character']['table'] == CH.TABLE
+    assert out['character']['level_labels'] == dict(CH.CHAR_LEVEL_LABELS)
+    assert out['character']['amp_sessions'] == CH.AMP_SESSIONS
+    assert out['character']['amp_min_bars'] == CH.AMP_MIN_BARS
+    assert out['character']['char_sessions'] == CH.CHAR_SESSIONS
+    assert out['character']['strong_min'] == CH.CHAR_STRONG_MIN
+    assert out['character']['middle_min'] == CH.CHAR_MIDDLE_MIN
+    cal = out['caliber']
+    for token in (CH.CHAR_LEVEL_LABELS['strong'], CH.CHAR_LEVEL_LABELS['middle'],
+                  CH.CHAR_LEVEL_LABELS['weak'], str(CH.AMP_MIN_BARS)):
+        assert token in cal, f'口径句里少了 {token}（它是从写侧拼进去的，不是手抄）'
+    assert '事后描述量' in cal and '不进埋伏分' in cal
+    assert '**' not in cal, '口径句要上屏，裸 markdown 星号不许出现'
+
+
+def test_两张表的列注释并交且同名的missing不互相覆盖(amb, monkeypatch):
+    """`missing` 两张表都有：股性那份在这里改叫 `char_missing`。
+    直接 update 会让其中一份注释盖掉另一份，界面悬停就念错表。"""
+    amb['rows'] = [_amb_row()]
+    amb['counts'] = [{'t': 'sticky_pull', 'n': 22}]
+    monkeypatch.setattr(quant, '_comments', lambda table: {
+        'missing': f'{table} 的缺数说明', 'amp_10': '振幅的口径', 'spec_version': '版本'})
+    out = quant.ambush()
+    d = out['definitions']
+    assert d['missing'] == 'ambush_setup 的缺数说明', d['missing']
+    assert d['char_missing'] == 'stock_character_daily 的缺数说明', d['char_missing']
+    assert d['amp_10'] == '振幅的口径'
+
+
+def test_覆盖体检同时交出两张表的起止(amb, monkeypatch):
+    """埋伏榜现在读两张表，`coverage` 只报埋伏那张的话，股性滞后就没人看得见。"""
+    seen = []
+
+    def fake_cov(tables):
+        seen.append(tuple(tables))
+        return {t: {} for t in tables}
+
+    monkeypatch.setattr(quant, '_coverage', fake_cov)
+    amb['rows'] = [_amb_row()]
+    amb['counts'] = [{'t': 'sticky_pull', 'n': 22}]
+    out = quant.ambush()
+    assert seen == [('ambush_setup', 'stock_character_daily')], seen
+    assert 'stock_character_daily' in out['coverage']
+
+
+def test_埋伏榜每一条caveat都带中文label_屏上不许念机器码(amb):
+    """`Caveats` 那颗 chip 取的是 `label ?? code`（`DataPanel.tsx`）——
+    四条埋伏声明（筛空／计数读不到／坏参数／股性整场没入库）都要在 `_CAV_LABEL` 里配好中文。
+    走 `_cav()` 一处构造，别再手写 `{'code':…,'text':…}` 那种没有 label 的形状。"""
+    import re as _re
+
+    amb['rows'] = []                       # 筛空那一条
+    amb['counts'] = None                   # 聚合读不到那一条
+    out = quant.ambush(types='shoupo')     # 认不得的类型那一条
+    amb['char'] = {'n': 0, 'scored': 0}    # 股性整场没入库那一条
+    out2 = quant.ambush(types='shoupo')
+    codes = {c['code'] for c in out['caveats']} | {c['code'] for c in out2['caveats']}
+    assert {'ambush_type_rejected', 'ambush_counts_unread', 'ambush_empty',
+            'ambush_char_missing_batch'} <= codes, codes
+    for c in list(out['caveats']) + list(out2['caveats']):
+        assert c.get('label'), f'{c["code"]} 没配 label —— 屏上那颗 chip 会念机器码'
+        assert _re.search(r'[一-鿿]', c['label']), f'{c["code"]} 的 label 不是中文：{c["label"]}'
+        assert c['label'] != c['code']
+    assert set(quant._CAV_LABEL) >= codes, '埋伏那几条没进注册表（`_cav` 会退回中性词"口径说明"）'
+
+
+# ================================================================ 不打桩：股性列与表里逐只一致
+
+def test_真库交出的股性列与那张表逐只对得上():
+    """左连接最容易悄悄接错的地方是**连到别的场次或别的版本**：
+    这里拿接口交出的每一行回查库，四列逐个比。"""
+    if not pg.enabled():
+        pytest.skip('本机 PG 未就绪')
+    out = quant.ambush(limit=40)
+    if not out.get('available'):
+        pytest.skip(f"这一场没有埋伏行可读：{out.get('reason')}")
+    got = [r for r in out['rows'] if r.get('amp_10') is not None]
+    if not got:
+        pytest.skip('这一场股性表还没有行（回算没铺到、或 stockchar 那一步没跑）')
+    from app.db import engine
+
+    d = out['date']
+    codes = [r['code'] for r in got]
+    ref = {r['security_code']: r for r in (engine.query(
+        "select security_code, amp_10, amp_10_pctile, char_level, char_level_label, "
+        "       gene_pctile, seal_250, consec_max_250 "
+        "  from analytics.stock_character_daily "
+        " where trade_date = %s and spec_version = %s "
+        "   and security_code = any(%s::text[])",
+        (d, CH.SPEC_VERSION, codes), role='reader') or [])}
+    for r in got:
+        x = ref.get(r['code'])
+        assert x is not None, f"{r['code']}：接口说这一场有股性行，库里按 {CH.SPEC_VERSION} 查不到"
+        assert abs(float(x['amp_10']) - r['amp_10']) < 0.001, (r['code'], x['amp_10'], r['amp_10'])
+        assert (x['char_level'] == r['char_level']
+                and x['char_level_label'] == r['char_level_label']), (r['code'], x['char_level'])
+        assert int(x['seal_250'] or 0) == (r['seal_250'] or 0), (r['code'], x['seal_250'])
+        assert r['char_spec'] == CH.SPEC_VERSION
+    # 中文档名是写侧那一份的键值，界面读到的词与库里的枚举必须同源
+    for r in got:
+        if r['char_level'] is not None:
+            assert r['char_level_label'] == CH.CHAR_LEVEL_LABELS[r['char_level']]
+        else:
+            assert r['char_level_label'] is None, '判不了就是 None，不许补一个"股性弱"顶上去'
+

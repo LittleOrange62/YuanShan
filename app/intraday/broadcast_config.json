@@ -6,6 +6,7 @@
   "max_members": 1500,
   "heat_min_n": 3,
   "heat_top": 25,
+  "heat_show_top": 12,
   "yizi_pool_retries": 3,
   "yizi_pool_wait_s": 5
 }

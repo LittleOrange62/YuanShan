@@ -68,12 +68,17 @@ test('首页密度：一屏读到底的那几块全部改为分页（用户 2026
 
 test('foldAll（用户点名把缺数那几条也收）：条数仍然写在 summary 上，框外那份不再出现', () => {
   assert.match(panel, /const held = foldAll \? \[\.\.\.foldable, \.\.\.visible\] : foldable;/);
-  assert.match(panel, /\{!foldAll && <Caveats items=\{visible\} \/>\}/,
-    'foldAll 时框外那份没了 ⇒ 但下面那条必须补上，否则"有东西没读到"这件事就彻底不见了');
+  // 11-03 又多了一型 `compactCaveats`：框外不再是"全文或不出现"，而是**一行计数**（`CaveatTally`）。
+  // 三种形状各自的门必须写死：默认可见全文 / foldAll 只剩 summary 计数 / compact 只剩屏上那行计数。
+  assert.match(panel, /\{!foldAll && \(compact \? <CaveatTally items=\{visible\} \/> : <Caveats items=\{visible\} \/>\)\}/,
+    'foldAll 时框外那份没了 ⇒ 但 compact 那一型必须补上一行计数，否则"有东西没读到"这件事就彻底不见了');
+  assert.match(panel, /compact && visible\.length > 0 && \(/,
+    'compact 的原文那一节要有内容才出现（没有就不摆空节，也不许静默）');
   assert.match(panel, /heldUnhealthy \? `\$\{heldUnhealthy\} 条缺数与告警/,
     'summary 里要按类别报出缺数条数（数字仍在屏上，原句点开看）');
   assert.match(panel, /const heldUnhealthy = foldAll \? visible\.length : 0;/);
-  assert.equal(panel.split('<Caveats items={visible} />').length - 1, 1,
-    '框外那份 visible 只能出现一次，且必须被 `!foldAll` 门住（两处都摆＝同一条 caveat 上屏两次）');
-  assert.match(panel, /\{!foldAll && <Caveats items=\{visible\} \/>\}/);
+  assert.equal(panel.split('<Caveats items={visible} />').length - 1, 2,
+    '一处是屏上默认那一半（非 compact）、一处是 compact 那型的抽屉原文节 —— 两处都被门住，同一条 caveat 不许上屏两次');
+  assert.match(panel, /const guide = \(!foldAll && !compact && visible\.length > 0\)/,
+    '"另有 N 条没有折"那句指路牌只在默认那一型出现；compact 已经有计数行，再念就是两处各说一套');
 });

@@ -173,3 +173,12 @@ test('10-19 夜「描述收缩」自查（自选股新高）· 10-31 搬到标�
   assert.match(after, /<Caveats items=\{cav\.visible\}/, '缺数／截断一族仍摊在屏上');
   assert.ok(after.indexOf('x.popHint') > 0, '弹窗被拦的告警留在说明抽屉外面');
 });
+
+test('11-03 屏上那一行计数不许念机器键：CaveatTally 的兜底写法（用户「界面要专注核心」）', () => {
+  const panel = readFileSync(new URL('../src/components/ui/DataPanel.tsx', import.meta.url), 'utf8');
+  assert.match(panel, /export function CaveatTally/, '一行计数是共用件，逐块各写一份迟早念出 code');
+  assert.match(panel, /\|\| `第 \$\{i \+ 1\} 条（后端没配中文标签：\$\{c\.code \?\? '无 code'\}）`/,
+    '没配 label 时念"第 N 条 + 键名在括号里给对账的人"，不许把裸键名当名字');
+  assert.doesNotMatch(panel, /list\.map\(\(c, i\) => c\.label \?\? c\.code/, '旧写法（label 缺位就直接念 code）不许回来');
+  assert.match(panel, /if \(list\.length === 0\) return null/, '没有内容整行不渲染，不摆「本场没问题」占位');
+});

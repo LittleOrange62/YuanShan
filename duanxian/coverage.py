@@ -72,6 +72,12 @@ def _abnormal_spec() -> str:
     return _s
 
 
+def _stockchar_spec() -> str:
+    """股性那张表的判据版本：同样从写侧现读（理由与上面一条相同）。"""
+    from app.compute.stock_character import SPEC_VERSION as _s
+    return _s
+
+
 FRESHNESS_BASIS = (
     "数据日期（trade_date/dt/published_at）；时间戳列只作辅助展示，"
     "不参与『缺不缺』的判断"
@@ -209,6 +215,16 @@ TARGETS: list[tuple[str, str, str, str, str, Optional[str]]] = [
      "首封/开板次数是本地 1 分钟线自算，分钟线只从 2026-08-14 起（10-20/10-21 两天整天没采到），"
      "更早的场次那两列为 NULL，`seal_basis` 标的是这一格实际用了哪把尺；"
      "封单额与题材串只有同花顺整池给（池不含北交所、基本不含 ST），串空着是「源站不收」不是「没采到」。"),
+    # 股性（11-04 新表，stockchar-1）：一行＝(这只票, 这一场) 的近 10 场日均振幅 + 近 250 场慢变量分位。
+    # 埋伏榜左栏那两列读它，所以它一滞后，那一屏就得说「这一场的股性还没算」而不是给 0。
+    ("stock_character_daily", "analytics.stock_character_daily", "trade_date",
+     f"and spec_version = '{_stockchar_spec()}'",
+     "股性与近 10 场日均振幅（埋伏榜那两列的原料）",
+     "一行＝一只票一场，全场 5,000 多行是**正常**（不是事件表）；"
+     "`char_level` 为 NULL 是这一场的三腿里至少一条判不了（上市不足 120 场、窗口档位缺失、"
+     "涨停池整批没读到），逐行原因在 `missing`，不等于「股性差」；"
+     "`seal_250 = 0` 是真实读数（这 250 场一次都没封住），与 NULL 是两件事；"
+     "分位是**当日横截面**（全场互相比），换一天重算就是另一批数。"),
     # 启动前象限轨迹：一行＝(票, 启动日, cohort, capability_key)（10-17 新表，sqt-1）。日期列用 launch_date。
     ("startup_quadrant_track", "analytics.startup_quadrant_track", "launch_date",
      "and spec_version = 'sqt-1'", "启动前 N 场四维象限轨迹（分数 / 名次 / 象限位置变化）",

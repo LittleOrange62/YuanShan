@@ -605,7 +605,7 @@ def dossier(code: str, date: str = '') -> dict:
     cov_keys = ('score', 'volume_double', 'ambush_setup', 'confluence_daily')
     caveats = _caveats('coverage') + _cache_caveat(tuple(f'coverage:{t}' for t in cov_keys))
     if missing:
-        caveats.append({'code': 'dossier_blocks_missing',
+        caveats.append({'code': 'dossier_blocks_missing', 'label': '这几块没读数',
                         'text': '这几块这一场没有可用读数：'
                                 + '、'.join(f'{labels.get(k, k)}（{blocks[k].get("status", "?")}）'
                                             for k in missing)

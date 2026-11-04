@@ -11,9 +11,9 @@ export const FAIL_LIMIT = 2;
 export const DEFAULT_TIMEOUT_SECONDS = 180;
 export const TIMEOUT_FLOOR = 30;
 export const TIMEOUT_CEILING = 600;
-/** 超时口径（用户 2026-10-27 拍）：连接 10 秒、上游 45 秒不吐字节就断、整条回答默认 180 秒。
+/** 超时口径（用户 10-27 拍、11-03 把首字节从 45 抬到 75）：连接 10 秒、上游 75 秒不吐字节就断、整条回答默认 180 秒。
  *  前两段住在后端 responses_bridge，这一条只说明界面填的是什么，别读成"60 秒一刀切"。 */
-export const TIMEOUT_SEGMENTS = "连接 10 秒 · 上游 45 秒不吐字节就断 · 整条回答默认 180 秒（每条可改 30~600）";
+export const TIMEOUT_SEGMENTS = "连接 10 秒 · 上游 75 秒不吐字节就断 · 整条回答默认 180 秒（每条可改 30~600）";
 export type OrderMode = 'cycle' | 'random';
 
 // 本机保存的多条 AI 来源；列表顺序就是自动切换的优先级。
@@ -182,6 +182,22 @@ function cycleRows(rows: SavedSource[]): SavedSource[] {
   return [...rows.slice(at), ...rows.slice(0, at)];           // 否则从当前那条往后顺位
 }
 
+/** 「判不通」的有效期（分钟）。到点之后不需要人点任何东西：下一次任务会自动再给它一次机会。
+ *
+ * 为什么必须有：10-28 晚上一次 `ReadTimeout` 把唯一那条来源判死，11-03 界面还在念"都不通、
+ * 已停住"—— 一条没有半衰期的持久标记，等于把一次渠道抖动变成要人来救的故障。
+ * 对照 `docs/系统配置工作指南/03`：`enabled=false` 那种开关会一直留着，所以这类状态必须自己过期。 */
+export const DOWN_FORGET_MIN = 45;
+
+/** 这条现在还算不算"已判定不通"。`testedAt` 是浏览器本地时间戳；缺当 0（永远过期）。 */
+function judgedDown(row: SavedSource, now = Date.now()): boolean {
+  if (row.failures < FAIL_LIMIT) return false;
+  return now - (typeof row.testedAt === 'number' ? row.testedAt : 0) < DOWN_FORGET_MIN * 60000;
+}
+function minutesSince(at: number, now = Date.now()): number {
+  return at > 0 ? Math.max(0, Math.round((now - at) / 60000)) : -1;
+}
+
 /** 本次该用哪一条。读的时候不改状态（界面渲染也会调它），所以"本轮试过谁"只由
  *  `reportAgentOutcome()` 在真失败时登记、成功或新任务开始时清零。 */
 export function currentSource(): SavedSource | null {
@@ -190,7 +206,7 @@ export function currentSource(): SavedSource | null {
   const active = rows.find(row => row.id === activeSourceId()) ?? rows[0];
   if (!failoverEnabled()) { servedId = active.id; blocked = ""; return active; }
   const order = cycleRows(rows);
-  const next = order.find(row => row.failures < FAIL_LIMIT);   // 只跳过"已判定不通"的
+  const next = order.find(row => !judgedDown(row));            // 只跳过"还在有效期内判死"的
   if (next) { servedId = next.id; blocked = ""; return next; }
   if (!giveUpAfterCycle()) {
     // 关掉③就退回旧行为：不猜死，挑累计失败最少、最久没被试的那条继续轮转。
@@ -199,10 +215,25 @@ export function currentSource(): SavedSource | null {
     return oldest;
   }
   servedId = "";
-  blocked = `${rows.length} 条来源已各试过一圈，都不通：`
-    + rows.map((row, index) => `第 ${index + 1} 条 ${sourceLabel(row)}（${row.testNote || '连接失败'}）`).join('、')
-    + `。已停住，不再自动重试；请逐条「测试连接」确认地址、密钥与模型，或用「清除测试标记」把某条重新放回轮换。`;
+  const now = Date.now();
+  // 只有一条来源时别说"各试过一圈"——那听起来像一批来源失败了，实际是没有下一条可切。
+  const head = rows.length === 1
+    ? `只配了 1 条来源「${sourceLabel(rows[0])}」。没有下一条可切：`
+    : `${rows.length} 条来源已各试过一圈，都不通：`;
+  blocked = head
+    + rows.map((row, index) => {
+      const when = minutesSince(row.testedAt, now);
+      return `第 ${index + 1} 条 ${sourceLabel(row)}（${row.testNote || '连接失败'}${when >= 0 ? `，${when} 分钟前` : ''}）`;
+    }).join('、')
+    + `。本任务已停住，不发请求；${DOWN_FORGET_MIN} 分钟后会自动再给一次机会，`
+    + `也可以现在逐条「测试连接」确认地址、密钥与模型，或用「清除测试标记」立刻把某条放回轮换。`;
   return null;
+}
+/** 这条现在还算不算"已判定不通"（有效期内才算）。 */
+export function sourceJudgedDown(row: SavedSource, now = Date.now()): boolean { return judgedDown(row, now); }
+/** 上次失败距今多少分钟；没有失败时间时返回 -1，调用方据此别说时间。 */
+export function sourceFailedMinutesAgo(row: SavedSource, now = Date.now()): number {
+  return judgedDown(row, now) ? minutesSince(row.testedAt, now) : -1;
 }
 /** 一圈走完都不通时给人看的那句话；没有停住时是空串。 */
 export function blockedReason(): string { return blocked; }
@@ -223,8 +254,10 @@ export function loadAgentConnection(includeVerification = false): AgentConnectio
 export function servedSourceId() { return servedId; }
 
 // 与 review_agent/runtime.py 的 safe_engine_error()、responses_bridge.status_message()
-// 同步：只有"这个来源本身没服务成功"才算故障；上下文超限、本机存储与后端访问密钥不换来源。
-const SOURCE_FAULT = /(限流|额度|密钥验证失败|网络连接中断|暂时无法访问|接口拒绝了请求|AI 请求失败|渠道不可用|暂时不可用|没有该模型|未提交通过校验|未通过检查|Agent 超时)/;
+// 与 `Runtime.run()` 交回的那句失败同步：**改了后端措辞就要来这张表对一遍**，
+// 认不出来就等于这次失败不计、也不换来源（静默失效比误判更难查）。
+// 只有"这个来源本身没服务成功"才算故障；上下文超限、本机存储与后端访问密钥不换来源。
+const SOURCE_FAULT = /(限流|额度|密钥验证失败|网络连接中断|暂时无法访问|接口拒绝了请求|AI 请求失败|渠道不可用|暂时不可用|没有该模型|没有调用任何工具|未通过校验|未提交通过校验|Agent 超时)/;
 const NOT_SOURCE_FAULT = /(上下文超过模型上限|后端访问密钥|浏览器禁止会话存储|释放存储空间|请求过大|任务已取消|已取消)/;
 
 /** 任务或测试结束回报：来源故障累计一次，成功则清零。 */

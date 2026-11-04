@@ -111,8 +111,7 @@ export function SteadyRankBoard({ state, metric, onMetricChange, limit, onLimitC
             </button>
           )}
         </div>
-      }
-      note="名次不是新算的：每天每票的全市场名次早就写在打分表里（rank_in_market），这一屏只是把相邻两场的名次比个方向。">
+      }>
       {d => {
         const rows = d.rows ?? [];
         const pages = Math.max(1, Math.ceil(rows.length / pageSize));
@@ -159,10 +158,12 @@ export function SteadyRankBoard({ state, metric, onMetricChange, limit, onLimitC
                 进榜门槛、判据原句、怎么点这张表，再往后是声明／字段义／覆盖／出处。
                 `drawerTitle` 用「屏上那块的名字 · 这张榜怎么读」拼出来，
                 按钮文字与抽屉标题就同一处出处（`docLabelFor` 取「·」后那截当小节名）。 */}
-            <CaliberFold caveats={d.caveats} definitions={d.definitions}
+            <CaliberFold caveats={(d.caveats ?? []).filter(c => c.code !== "board_truncated")}
+              definitions={d.definitions}
               coverage={d.coverage} provenance={[d.source, d.series_key, d.labels_source]}
               drawerTitle={`${PANEL_TITLE} · 这张榜怎么读`}
-              notes={[d.universe?.note]}
+              notes={["名次不是新算的：每天每票的全市场名次早就写在打分表里（rank_in_market），这一屏只是把相邻两场的名次比个方向。",
+                d.universe?.note]}
               extra={(
                 <>
                   <DrawerSection heading="看的是哪几天 · 这批的分布读数（不是判据）">

@@ -36,10 +36,12 @@ test('页面确实是左右两栏：左栏埋伏、右栏突破，各一张表',
   assert.match(page, /左栏埋伏票（左侧机会，还没走出来）、右栏突破信号（右侧已确认）/);
 });
 
-test('两栏各 8 列，且每个列头的键都在那一行数据里', () => {
+test('两栏列头（左 10 列 / 右 8 列），且每个列头的键都在那一行数据里', () => {
   const leftKeys = ifaceKeys(board, 'AmbushRow');
   const lk = sortKeysIn(board);
-  assert.equal(lk.length, 8, `左栏要 8 列，实际 ${lk.length}`);
+  // 11-04 左栏加两列（近 N 场日均振幅、股性档位）⇒ 8 变 10。这里钉的是**精确条数**：
+  // 少一列、或有人把键名写错成接口没有的字段，都要当场红（不许改成 >=）。
+  assert.equal(lk.length, 10, `左栏要 10 列，实际 ${lk.length}`);
   for (const k of lk) assert.ok(leftKeys.includes(k), `左栏 sortKey ${k} 不在 AmbushRow 里`);
 
   const rightKeys = ifaceKeys(page, 'RowX');
@@ -94,6 +96,34 @@ test('共享出口 Panel 真的渲染 controls（否则上面两条是空炮）'
   // 10-22 起 Panel 有三条分支（quiet / ready / 其余四型），controls 必须在**任何一条之前**
   assert.ok(ready.indexOf('{controls &&') < ready.indexOf('{quiet'), 'controls 在空态分支之前');
   assert.ok(ready.indexOf('{quiet') < ready.indexOf('ready\n'), '空态分支排在上，有数分支排在下（源码顺序＝渲染顺序）');
+});
+
+test('11-04 新加的两列（日均振幅 / 股性）：键、参数出处、缺数形状一起钉住', () => {
+  const lk = sortKeysIn(board);
+  assert.ok(lk.includes('amp_10') && lk.includes('char_mid_pctile'),
+    `两列的 sortKey 要在（实际：${lk.join()}）—— 那一格显示的就是这两个字段读出来的字`);
+  // 窗口长度、门槛、中文档名一律从后端 `character` 现读；手抄一次"近 250 场"，
+  // 写侧改窗口的那天屏上就会念一个库里没有的数。
+  assert.match(board, /const cg = d\.character \?\? \{\}/);
+  for (const k of ['cg.amp_sessions', 'cg.char_sessions', 'cg.amp_min_bars',
+                   'cg.strong_min', 'cg.middle_min', 'cg.spec_version', 'cg.table',
+                   'lv.strong', 'lv.middle', 'lv.weak']) {
+    assert.ok(board.includes(k), `${k} 没从后端念（这一句是手抄的？）`);
+  }
+  assert.doesNotMatch(board, /近 ?250 ?场|近 ?10 ?场/, '窗口长度不许写死在组件里');
+  assert.doesNotMatch(board, /股性强|股性中|股性弱/, '中文档名只住后端 CHAR_LEVEL_LABELS 一份');
+
+  // 缺数形状：档位那格 null 就是 —；振幅那格走 `cell()`（null→—，0 照旧是 0.00%）
+  assert.match(board, /r\.char_level_label \?\? dash\(null\)/);
+  assert.match(board, /\{cell\(r\.amp_10, 2, "%"\)\}/);
+  assert.match(board, /typeof r\.char_mid_pctile === "number"/,
+    '分位数只在真有数时才念，别跟着档位一起摆个 0.0');
+  // 悬停把砍掉的那几腿说全（封住/触过是两把尺，都要能读到）
+  for (const f of ['r.seal_250', 'r.touch_250', 'r.consec_max_250', 'r.gene_pctile',
+                   'r.char_bars_10', 'r.char_bars_250', 'r.char_missing']) {
+    assert.match(board, new RegExp(f.replace(/\./g, '\\.') + '[^\\w]'), `${f} 要在悬停里读得到`);
+  }
+  assert.match(board, /hover\(r, th, cg\)/, '悬停那两个窗口长度也得从 cg 念');
 });
 
 test('10-19 夜「描述收缩」自查（埋伏榜）：怎么点那句折进说明框，全场数/真筛声明与截断告警留在外面', () => {

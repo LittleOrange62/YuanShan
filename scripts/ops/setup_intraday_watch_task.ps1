@@ -6,7 +6,7 @@
 # 为什么执行形态仍是「每日触发器 + 每 5 分钟重复的单次 --once」：外部 10-23(二) 那次
 # watcher 常驻 loop 在 09:29 建完基线后静默死亡（无 traceback、无日志、任务计划程序还显示
 # "运行中"），盘中 8 轮全瞎 —— 弃常驻之后，调度器本身就是看门狗，卡死由执行时限兜底。
-# 原委记在 `ingest/jobs/zt_watch.py` 开头，别把它改回进程内循环。
+# 原委记在 `ingest/jobs/push/t01_zt_watch.py` 开头，别把它改回进程内循环。
 #
 # 改节奏（推荐走界面：系统配置 →「盘中播报」）：
 #     .venv\Scripts\python.exe -m app.intraday.tasks --set watcher_interval_min=3 --apply

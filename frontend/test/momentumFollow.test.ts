@@ -131,21 +131,37 @@ test('名次与复权规则原文读接口，页面不抄第二份', () => {
   assert.match(board, /d\.rule \? plain\(d\.rule\)/, '母体判据原句也逐字转述');
 });
 
-test('截断声明、— 与 0 的分工、空栏计数在默认可见处；长描述折进说明框', () => {
-  const boxStart = board.indexOf('<ExplainBox');
-  const boxEnd = board.indexOf('</ExplainBox>');
-  assert.ok(boxStart > 0 && boxEnd > boxStart, '这块要有默认收起的说明框');
-  const before = board.slice(0, boxStart);
-  assert.match(before, /parentTruncationSentence\(d\)/, '截断那句默认在屏上（80 行会被读成"全场只有 80 只"）');
-  assert.match(before, /不是 0%、不是 0 分、不是「没进过榜」/, '— 与 0 的分工那句留在框外');
-  assert.match(before, /今日读不到 \{missNext\} 只/, '空栏计数（按已交出行数的分布读数）留在框外');
-  assert.match(before, /近 5 日读不到 \{miss5\} 只/, '两栏各数各的：一栏有数另一栏是 — 是常态');
-  const box = board.slice(boxStart, boxEnd);
-  assert.doesNotMatch(box, /parentTruncationSentence|missNext|popHint|<Caveats/,
-    '截断、计数、告警、caveat 都不许折进框');
-  assert.match(box, /STOCK_ROW_HINT/, '「怎么点」折进框');
-  assert.match(board, /\{x\.popHint && <NoticeBar kind="warning"/,
-    '弹窗被拦的告警渲染在框外');
+test('一模块一颗（11-02）：这块只剩那颗「这块怎么读」，截断／— 与 0／空栏计数仍留屏', () => {
+  // 用户点名与上面那张「名次稳步前进榜」同一个问题：原来这块三处出口（标题行 note、
+  // 这块怎么读那颗 ExplainBox、声明那颗 CaliberFold），现在并成一颗。
+  assert.doesNotMatch(board, /<ExplainBox|note="/, '不许再长第二颗说明按钮');
+  const cf = board.indexOf('<CaliberFold');
+  const table = board.indexOf('<div className="mt-2 overflow-x-auto">');
+  assert.ok(cf > 0 && table > cf, '这块的折叠块与榜都要在');
+  const fold = board.slice(cf, table), outside = board.slice(0, cf);
+  assert.match(outside, /<NoticeBar kind="truncated">\{parentTruncationSentence\(d\)\}<\/NoticeBar>/,
+    '截断那句默认在屏上（80 行会被读成"全场只有 80 只"）');
+  assert.match(outside, /<NoticeBar kind="missing">[\s\S]{0,300}不是 0%、不是 0 分、不是「没进过榜」/,
+    '— 与 0 的分工那句留在按钮之外');
+  assert.match(outside, /今日读不到 \{missNext\} 只/, '空栏计数（按已交出行数的分布读数）留在屏上');
+  assert.match(outside, /近 5 日读不到 \{miss5\} 只/, '两栏各数各的：一栏有数另一栏是 — 是常态');
+  assert.match(board, /\{x\.popHint && <NoticeBar kind="warning"/, '弹窗被拦的告警留屏，且在按钮之前');
+  assert.ok(board.indexOf('x.popHint && <NoticeBar') < cf, '告警不许排在抽屉之后（读的人先看到数、再找到按钮）');
+  assert.doesNotMatch(fold, /parentTruncationSentence|missNext|miss5|popHint|<Caveats/,
+    '截断、计数、告警、caveat 一条都不许在这颗抽屉里');
+  // 进抽屉的分节（措辞原样，只换"点开可见"的分层）
+  assert.match(fold, /drawerTitle=\{`\$\{PANEL_TITLE\} · 这块怎么读`\}/,
+    '抽屉标题由屏上那块名拼出 ⇒ 按钮念「这块怎么读」，两处不许分叉');
+  assert.match(fold, /<DrawerSection heading="看的是哪几天（数字都是接口交的）">[\s\S]{0,40}<p>\{windowSentence\(d\)\}<\/p>/,
+    '「看的是哪几天」原来是屏上一行 `Row`，现在是抽屉里一节');
+  assert.match(fold, /<DrawerSection heading="母体判据原句（后端交出，页面未改写）">[\s\S]{0,120}d\.rule/);
+  assert.match(fold, /<DrawerSection heading="这两栏的尺子：后复权原句">[\s\S]{0,140}d\.pct_rule/);
+  assert.match(fold, /<DrawerSection heading="三把名次尺的分母（各路名次是在哪一批里排的）">[\s\S]{0,120}uni\?\.note/);
+  assert.match(fold, /<DrawerSection heading="这一张表怎么点 · 单击高亮什么 · 双击去哪里">[\s\S]{0,160}STOCK_ROW_HINT/);
+  assert.match(fold, /翻页不重新发请求：一次取数交母体榜前 \{dash\(d\.limit\)\} 名/,
+    '翻页与基准日那句也进同一颗抽屉（屏下那段长小字原来就贴在榜底下）');
+  assert.doesNotMatch(board.slice(table), /翻页不重新发请求/, '榜下面不许再摊一遍');
+  assert.match(board.slice(table), /rows\.length === 0[\s\S]{0,240}empty_board/, '母体交回 0 行那条缺数声明仍留屏');
 });
 
 /* ── ⑨ 2026-10-27 点名的两处改名 ── */

@@ -1,5 +1,5 @@
 import { RefreshCw } from "lucide-react";
-import { Caveats, Definitions, Panel } from "@/components/ui/DataPanel";
+import { CaveatTally, Caveats, Definitions, Panel } from "@/components/ui/DataPanel";
 import { DocDrawer, DrawerSection } from "@/components/ui/DocDrawer";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { SectorLink } from "@/components/ui/SectorLink";
@@ -42,6 +42,15 @@ import {
 
 const toneCls = { up: "text-primary", down: "text-success", flat: "", missing: "text-muted-foreground/60" } as const;
 
+/** 后端那条「只读本机库」的范围声明（`local_only`）：抽屉里念原话，屏上不再摊一遍。 */
+const localScope = (cavs?: { code?: string | null; text?: string | null }[] | null) =>
+  (cavs ?? []).find(c => c.code === "local_only")?.text
+    ? plain((cavs ?? []).find(c => c.code === "local_only")!.text!) : null;
+
+/** 剩下那几条缺数／陈旧类：屏上由 `CaveatTally` 念"有几条、各是哪类"，原文进抽屉那一节。 */
+const leftCaveats = (cavs?: { code?: string | null; label?: string | null; text?: string | null }[] | null) =>
+  (cavs ?? []).filter(c => c.code !== "local_only" && c.text);
+
 export function StockFacts({ code }: { code: string | null }) {
   const [nonce, refresh] = useNonce();
   const state = useProbe<FactsPayload>("/stock/facts", nonce, { code: code ?? "" }, !code);
@@ -81,9 +90,19 @@ export function StockFacts({ code }: { code: string | null }) {
             10-31：这颗按钮与「重新取数」一起收进右侧那一叠，按钮在最前（标题行最右，元信息在后）。 */}
         <span className="ml-auto flex flex-wrap items-center gap-1.5">
           <DocDrawer title="个股信息">
+          <DrawerSection heading="本场要留意的声明（缺数／上限／告警，后端原句）">
+            {/* 11-03 用户定稿「除了主要展示内容，其余的都收缩起来，界面要专注核心」：
+                这一型是**屏上留一行计数（`CaveatTally` 念有几条、各是哪类，用后端中文标签）＋ 原句进这一节**。
+                它与"整段折进抽屉"的区别就是那行计数必须看得见 —— 一条都不念＝屏幕在说"这场没有读不到的地方"。
+                `local_only` 不在这一份里：它早已并到第一节那句范围声明，别在这里念第二遍。 */}
+            <Caveats items={leftCaveats(d?.caveats)} />
+          </DrawerSection>
           <DrawerSection heading="这一块读什么、为什么可能晚一场">
-            <p>
-              全部读本机库（不出网），所以休市也在；比下面「个股研究」那张公开源即时卡可能晚一场。
+            {/* 第一句用后端那条 `local_only` 的原话（11-03：这条是范围声明，不是缺数/截断/告警，
+                所以收进抽屉；屏上那条不再摊一遍）。页面原来自己写的那句同义 paraphrase 撤了 ——
+                同一件事两处各写一套，改一处另一处就变成假话。后端没交时明说没交，不拿旧 paraphrase 顶。 */}
+            <p>{localScope(d?.caveats) ?? '后端这一次没交「这一块只读本机库」那条范围声明（caveats 里没有 `local_only`），页面不替它编一句。'}</p>
+            <p className="mt-1">
               每个格子各带自己的日期：行情按最近一场交易日，档案（主营／员工数／β／历史高低）按它自己的刷新日。
               行情与档案不同日时，右上角两行分开念，不并成一句「今天的信息」。
             </p>
@@ -204,7 +223,7 @@ export function StockFacts({ code }: { code: string | null }) {
 
               {/* 缺数与告警留在块内（红线）：口径原句、字段字典、"为什么没有这四格"都搬进说明抽屉了，
                   这一段不搬 —— 它说的是"这一屏哪里没读到"，收起来等于没写。 */}
-              <Caveats items={d.caveats ?? []} />
+              <CaveatTally items={leftCaveats(d.caveats)} />
             </>
           );
         }}

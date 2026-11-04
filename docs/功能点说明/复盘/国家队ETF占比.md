@@ -237,5 +237,5 @@ python -m ingest.jobs.c26_index_mv --dry-run
 
 - 这一屏挂在哪儿：[复盘报告.md](复盘报告.md)（`/agent/review` 那一整屏的坐标与正文闸门）
 - 落库与链上两步的来由：[../../页面展示工作指南/04-新增页面落地进度.md](../../页面展示工作指南/04-新增页面落地进度.md)
-- 手抄步数的钉：`tests/test_volume_ratio.py`（加工段 44 步，10-28 加 `index_mv` + `national_team`）
+- 手抄步数的钉：`tests/test_volume_ratio.py`（它现读 `len(e1_fill_all.STAGES)`，与两份系统配置指南里每一处「加工 N 步」逐条比对；11-04 加 `stockchar` 后是 46 步）
 - 表的列注释（符号方向、单位、为什么 NULL）：`app/db/sql/56_index_market_value.sql`

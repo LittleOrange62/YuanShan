@@ -128,10 +128,10 @@ def ledger(code: str = '') -> Dict[str, Any]:
             '某一格现在是"有数／判不了／库里没这一列"，要回到那一块本身上屏的话去看，'
             '这张总账不替它下结论。'),
         'caveats': [
-            {'code': 'not_a_second_copy', 'text':
+            {'code': 'not_a_second_copy', 'label': '这里不复制第二份', 'text':
              '没有独立 definitions 字典的块（量化档案 / 趋势量化 / 个股研究 / 多空辩论）'
              '在这里只登记出处与逻辑，字段义留在各接口自己的 payload 里 —— 本表不复制第二份。'},
-            {'code': 'three_state', 'text':
+            {'code': 'three_state', 'label': '三态由各块自己说', 'text':
              '"这一格此刻是有数、判不了、还是库里根本没这一列"由那一块自己上屏；'
              '这张总账只说它出自哪里、怎么算，不替读数下结论。'},
         ],

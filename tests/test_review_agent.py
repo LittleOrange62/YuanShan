@@ -360,8 +360,91 @@ def test_format_correction_is_bounded_and_rereads_evidence(tmp_path, monkeypatch
     assert result["elapsed_seconds"] >= 0
     calls.clear()
     monkeypatch.setattr(runtime, "_invoke", lambda *args: calls.append(1) or "invalid")
-    with pytest.raises(EvidenceError, match="未提交"):
+    with pytest.raises(EvidenceError, match="没有调用任何工具"):
         runtime.run(conv, "问题", "test", "b" * 32, threading.Event(), events.append)
+    assert len(calls) == 2, "零回执只补一发点名要求的重试，第二发仍零回执就如实报失败"
+
+
+def test_zero_tool_calls_are_told_apart_from_a_broken_channel(tmp_path, monkeypatch):
+    """11-03 实测：连接测试被念成"未提交通过校验的回答"，而 `responses_bridge` 同一分钟记的是 ok
+    —— 通道是通的，模型只是没按协议调工具。两种失败必须分得开，否则人会去查一个不存在的网络故障。"""
+    import threading
+    from review_agent.runtime import Runtime
+    save_review(tmp_path, "2026-09-01")
+    bundle = build_bundle(tmp_path, "2026-09-01")
+    runtime = Runtime(tmp_path / "state")
+    calls, stages = [], []
+    monkeypatch.setattr(runtime, "_invoke", lambda *args: calls.append(args) or "")
+    with pytest.raises(EvidenceError) as caught:
+        runtime.run({"bundle": bundle, "source": {}, "turns": []}, "问题", "test", "c" * 32,
+                    threading.Event(), stages.append)
+    assert len(calls) == 2
+    assert "这不是网络问题" in str(caught.value)
+    assert any("再提醒一次" in str(item) for item in stages), "补正那一发要在阶段里看得见"
+    # 补正那一发必须点名协议：第一句只说"用 submit_answer 提交"，第二句要明说先 list_evidence
+    assert "list_evidence" in calls[-1][3]
+    assert calls[1][3].startswith(calls[0][3]), "补正是同一任务的追加提醒，不是另起一次全新提问"
+
+
+def test_the_nudge_may_succeed_and_is_capped_at_one(tmp_path, monkeypatch):
+    """第二发真把答案提交了就算成；且全程只两发，不再往下敲。"""
+    import threading
+    from review_agent.evidence import ToolSession
+    from review_agent.runtime import Runtime
+    save_review(tmp_path, "2026-09-01")
+    bundle = build_bundle(tmp_path, "2026-09-01")
+    runtime = Runtime(tmp_path / "state")
+    calls = []
+    def invoke(run, source, key, prompt, cancel, progress, budget):
+        calls.append(prompt)
+        if len(calls) == 1:
+            return ""                                    # 第一轮：什么都没调
+        tool = ToolSession(bundle, run / "tools.jsonl")
+        assert tool.submit_answer("incomplete", [{"text": "资料缺失", "citations": []}], ["未读取资料"])["accepted"]
+        return "分析完成"
+    monkeypatch.setattr(runtime, "_invoke", invoke)
+    result = runtime.run({"bundle": bundle, "source": {}, "turns": []}, "问题", "test", "d" * 32,
+                         threading.Event(), lambda m: None)
+    assert result["status"] == "incomplete" and result["gaps"] == ["未读取资料"]
+    assert len(calls) == 2, "零回执补一发就到此为止，不再往下敲付费请求"
+
+
+def test_a_rejected_submission_reports_its_own_reason(tmp_path, monkeypatch):
+    """提交过但被拒 ≠ 一次都没提交。错误里要带最后一次拒因，否则没法定位。"""
+    import threading
+    from review_agent.evidence import ToolSession
+    from review_agent.runtime import Runtime
+    save_review(tmp_path, "2026-09-01")
+    bundle = build_bundle(tmp_path, "2026-09-01")
+    runtime = Runtime(tmp_path / "state")
+    def invoke(run, source, key, prompt, cancel, progress, budget):
+        tool = ToolSession(bundle, run / "tools.jsonl")
+        assert not tool.submit_answer("complete", [{"text": "涨停九百家", "citations": []}], [])["accepted"]
+        return "分析完成"
+    monkeypatch.setattr(runtime, "_invoke", invoke)
+    with pytest.raises(EvidenceError, match="未通过校验（共提交 1 次）") as caught:
+        runtime.run({"bundle": bundle, "source": {}, "turns": []}, "问题", "test", "e" * 32,
+                    threading.Event(), lambda m: None)
+    assert len(str(caught.value)) > 40, "要带上具体的拒因，不止一句「未通过校验」"
+
+
+def test_cancelled_turn_is_not_nudged_again(tmp_path, monkeypatch):
+    """用户已经点了取消，就不该再发第二发付费请求。"""
+    import threading
+    from review_agent.runtime import Runtime
+    save_review(tmp_path, "2026-09-01")
+    bundle = build_bundle(tmp_path, "2026-09-01")
+    runtime = Runtime(tmp_path / "state")
+    calls = []
+    cancel = threading.Event()
+    def invoke(*args):
+        calls.append(1)
+        cancel.set()
+        return ""
+    monkeypatch.setattr(runtime, "_invoke", invoke)
+    with pytest.raises(EvidenceError):
+        runtime.run({"bundle": bundle, "source": {}, "turns": []}, "问题", "test", "f" * 32,
+                    cancel, lambda m: None)
     assert len(calls) == 1
 
 

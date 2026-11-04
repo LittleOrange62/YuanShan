@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ArrowDown, ArrowUp, CircleDashed, Radio, ShieldAlert, Trash2, XCircle, CheckCircle2 } from 'lucide-react';
-import { activeSourceId, blockedReason, clearSourceMark, currentSource, DEFAULT_TIMEOUT_SECONDS, FAIL_LIMIT, failoverEnabled, giveUpAfterCycle, moveAgentSource, orderMode, readSources, removeAgentSource, restartEachRun, setActiveSource, setFailoverEnabled, setGiveUpAfterCycle, setOrderMode, setRestartEachRun, setSourceTimeout, TIMEOUT_CEILING, TIMEOUT_FLOOR, TIMEOUT_SEGMENTS, type OrderMode, type SavedSource } from '@/lib/agent-api';
+import { activeSourceId, blockedReason, clearSourceMark, currentSource, DEFAULT_TIMEOUT_SECONDS, DOWN_FORGET_MIN, FAIL_LIMIT, failoverEnabled, giveUpAfterCycle, moveAgentSource, orderMode, readSources, removeAgentSource, restartEachRun, setActiveSource, setFailoverEnabled, setGiveUpAfterCycle, setOrderMode, setRestartEachRun, setSourceTimeout, sourceJudgedDown, TIMEOUT_CEILING, TIMEOUT_FLOOR, TIMEOUT_SEGMENTS, type OrderMode, type SavedSource } from '@/lib/agent-api';
 import { sourceLabel } from '@/lib/ai-access';
 import { toast } from 'sonner';
 
@@ -8,7 +8,8 @@ function timeText(at: number) { return at ? new Date(at).toLocaleString('zh-CN',
 function TestBadge({ row }: { row: SavedSource }) {
   const stamp = timeText(row.testedAt);
   if (row.testState === 'passed') return <span className="inline-flex items-center gap-1 text-xs text-primary"><CheckCircle2 size={14} />测试通过 {stamp}</span>;
-  if (row.testState === 'failed') return <span className="inline-flex items-center gap-1 text-xs" title={row.testNote}><XCircle size={14} />已判定不通（连续 {row.failures} 次）：{row.testNote || '连接失败'} {stamp}</span>;
+  if (sourceJudgedDown(row)) return <span className="inline-flex items-center gap-1 text-xs" title={row.testNote}><XCircle size={14} />已判定不通（连续 {row.failures} 次）：{row.testNote || '连接失败'} {stamp}；{DOWN_FORGET_MIN} 分钟内不会被选中，之后自动再试一次</span>;
+  if (row.failures >= FAIL_LIMIT) return <span className="inline-flex items-center gap-1 text-xs" title={row.testNote}><ShieldAlert size={14} />上次判不通已满 {DOWN_FORGET_MIN} 分钟，下一次任务会自动再试它{row.testNote ? `（${row.testNote}）` : ''}</span>;
   if (row.failures > 0) return <span className="inline-flex items-center gap-1 text-xs" title={row.testNote}><XCircle size={14} />失败 {row.failures} 次，再失败 {FAIL_LIMIT - row.failures} 次才切换到下一条</span>;
   return <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><CircleDashed size={14} />未测试</span>;
 }
@@ -31,7 +32,7 @@ export function SavedSources() {
     window.addEventListener('storage', update);
     return () => { window.removeEventListener('astock-connection-changed', update); window.removeEventListener('storage', update); };
   }, []);
-  const usable = rows.filter(row => row.failures < FAIL_LIMIT).length;
+  const usable = rows.filter(row => !sourceJudgedDown(row)).length;
   /** 改完这一格要按回车或点到别处才落盘；被拒时如实说拒在哪，不静默回到 180。 */
   const commitTimeout = (row: SavedSource) => {
     const raw = (drafts[row.id] ?? String(row.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS)).trim();
@@ -83,7 +84,8 @@ export function SavedSources() {
           aria-label="列表循环一次后提示无法连接" className="mt-1" />
         <span className="min-w-0 flex-1 text-xs leading-6 text-muted-foreground">
           <span className="block text-sm font-medium text-foreground">循环一圈仍不通就提示无法连接（默认开启）</span>
-          每条都试过一圈还不通时<b>停住</b>，把每条的失败原因原样列给你看，不再自动重试（自动重试只会一直烧时间）。
+          每条都试过一圈还不通时<b>停住</b>，把每条的失败原因与"多久前失败的"逐条列给你看，本任务不发请求。
+          停住只管这一次：判不通的标记有 <b>{DOWN_FORGET_MIN} 分钟有效期</b>，过了就自动再给它一次机会，不需要人来点。
           关掉这条则退回旧行为：不清标记，按顺序轮流继续再试。
         </span>
       </label>

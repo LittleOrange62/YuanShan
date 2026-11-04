@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import test from 'node:test';
 import {
   METRIC_BUTTONS, LIMIT_OPTIONS, axisRegression, medianGainPct, nameIsCode, pathMismatch,
-  stepsSentence, truncationSentence, windowSentence, pathNumbers,
+  stepsSentence, truncationNotice, truncationSentence, windowSentence, pathNumbers,
 } from '../src/lib/steadyRank.ts';
 
 /**
@@ -66,6 +66,22 @@ test('截断声明：行数不等于全场符合判据的只数', () => {
   assert.match(truncationSentence({ rows: new Array(40).fill({}) }), /说不清/,
     '没交总数时不能说"共 40 只"，也不能说"没截断"');
   assert.match(truncationSentence({ total_matched: 0, rows: [] }), /0 只/);
+});
+
+test('截断声明的屏上形状：有才显示、全部交出不摆占位（11-02）', () => {
+  // 用户 10-29 定的那条：三型声明「有的时候才显示，没有的时候就不显示」——
+  // 并成一粒按钮之后这句仍在屏上，只是换成公用形状；全部交出时整条不渲染。
+  assert.equal(truncationNotice({ total_matched: 12, limit: 80, rows: new Array(12).fill({}) }), null,
+    '没有截断就不要画一条「没问题」');
+  assert.equal(truncationNotice({ total_matched: 372, limit: 80, rows: new Array(80).fill({}) })!.kind,
+    'truncated', '行数少于只数＝上限截断');
+  assert.equal(truncationNotice({ rows: new Array(40).fill({}) })!.kind, 'missing',
+    '接口没交总数＝说不清有几只，这是缺数不是截断');
+  assert.equal(truncationNotice({ total_matched: 0, rows: [] })!.kind, 'missing',
+    '0 只不是"截断后剩 0"，按缺数念');
+  assert.ok(truncationNotice({ total_matched: 372, limit: 80, rows: new Array(80).fill({}) })!.text
+    .startsWith(truncationSentence({ total_matched: 372, limit: 80, rows: new Array(80).fill({}) }).slice(0, 12)),
+    '文字仍是那一份，不在这里编第二句');
 });
 
 test('xy 档的自检只在真有一轴没前进时出声，总分档一律 null', () => {
@@ -190,45 +206,58 @@ test('门槛与步数一个都不写死：页面读 thresholds 与 window', () =
 test('方向那句（名次越小越靠前）由后端 caveat 承担，页面不另写一遍', () => {
   // caveat 现在随共用折叠块上屏（用户 2026-10-19 夜：「这些内容都默认收缩起来」），
   // 但**句子还是后端那一条**，summary 把条数摆在外面 ⇒ 收起不等于没写。
-  assert.match(comp, /<CaliberFold caveats=\{d\.caveats\}/);
+  assert.match(comp, /<CaliberFold caveats=\{\(d\.caveats \?\? \[\]\)\.filter/);
   assert.match(fixture.caveats.map((c: { code: string; text: string }) => c.text).join('\n'),
     /1 = 全场第一，数字越小越靠前/);
   assert.doesNotMatch(comp, /稳步前进」= 名次/, '页面再写一份就是两处口径，改一处另一处仍亮');
 });
 
-test('截断声明与自检不折进任何折叠框', () => {
-  // 这一屏有两处折叠：`<ExplainBox>`（判据原句）与 `<CaliberFold>`（声明/字段/覆盖/出处）。
-  // 两处都不许带走告警，所以这里取的是**两个块之外**的那段源码。
-  const eb = comp.indexOf('<ExplainBox'), ebEnd = comp.indexOf('</ExplainBox>');
-  const cf = comp.indexOf('<CaliberFold'), cfEnd = comp.indexOf('/>', cf);
-  const outside = comp.slice(0, eb) + comp.slice(ebEnd, cf) + comp.slice(cfEnd);
-  assert.match(outside, /truncationSentence\(d\)/, '「榜被上限截断」这句要在两处折叠之外');
+test('一块一颗（11-02 用户点名）：这块只剩那一颗「这张榜怎么读」，但截断与自检仍留屏', () => {
+  // 原来这块两颗按钮（判据那颗 `ExplainBox` ＋ 声明/字段/覆盖那颗 `CaliberFold`），
+  // 读的人要在同一块里点两次才看全 ⇒ 并成一颗，`drawerTitle` 由屏上那块的名字拼出来。
+  assert.doesNotMatch(comp, /<ExplainBox/, '不许再长第二颗说明按钮');
+  const cf = comp.indexOf('<CaliberFold');
+  const after = comp.indexOf('nameOnly.length > 0');
+  assert.ok(cf > 0 && after > cf, '这块的折叠块与后面的点名数都要在');
+  const fold = comp.slice(cf, after), outside = comp.slice(0, cf) + comp.slice(after);
+
+  // 留屏的几件：动了它们等于让屏幕会说谎，所以一条都不许跟进抽屉
+  assert.match(outside, /truncationNotice\(d\)/, '「榜被上限截断」这句仍走屏上那一条声明');
+  assert.match(outside, /<NoticeBar kind=\{tn\.kind\}>\{tn\.text\}/,
+    '形状走全站那一颗公用声明（有才显示；全部交出时整条不渲染，不摆「没问题」占位）');
+  assert.ok(comp.indexOf('truncationNotice(d)') < cf, '截断声明渲染在折叠块之前＝默认可见位置');
   assert.match(outside, /axisRegression/, '一轴没前进的行数是告警，不许藏');
   assert.match(outside, /pathMismatch/, '路径段数与场数不符也是告警，不许藏');
-  assert.match(outside, /nameOnly\.length > 0/, '名称列里"名字就是代码"要点数，藏在折叠框里等于没人看');
-  assert.match(comp.slice(cf, cfEnd), /notes=\{\[d\.universe\?\.note\]\}/,
-    '母体那句话说的是"这一窗哪些票进得了榜"，属于可收的描述，跟着一起折');
+  assert.match(outside, /x\.popHint && <NoticeBar kind="warning"/, '弹窗被拦的告警留屏');
+  assert.match(outside, /nameOnly\.length > 0/, '名称列里"名字就是代码"的点数不许藏进抽屉');
+  assert.doesNotMatch(fold, /axisRegression|pathMismatch|popHint|truncationNotice/,
+    '告警与截断一条都不许在抽屉里（折起来＝没人看）');
+
+  // 进抽屉的几段：措辞一字未改，只换"点开可见"的分层
+  assert.match(fold, /drawerTitle=\{`\$\{PANEL_TITLE\} · 这张榜怎么读`\}/,
+    '抽屉标题由屏上那块名拼出 ⇒ 按钮念「这张榜怎么读」，两处不许分叉');
+  assert.match(fold, /<DrawerSection heading="看的是哪几天 · 这批的分布读数（不是判据）">/);
+  assert.match(fold, /windowSentence\(d\)/, '「看的是哪几天」现在是抽屉里一节（原来是屏上那一行）');
+  assert.match(fold, /前进幅度的中位是/, '中位读数连带"不是判据、也不是全场的中位"那半句防误读，一起进抽屉');
+  assert.match(fold, /<Row label="这一档排的是"/, '「这一档排的是什么」在抽屉里');
+  assert.match(fold, /<Row label="进榜的门槛"/, '「进榜的门槛」在抽屉里');
+  assert.match(fold, /d\.thresholds\?\.min_better_steps/, '搬进抽屉也逐项读接口 thresholds，一个数都不写死');
+  assert.match(fold, /d\.thresholds\?\.require_both_axes/, '两档差异那句仍读接口，不写死');
+  assert.match(fold, /<DrawerSection heading="判据原句（后端交出，页面未改写）">[\s\S]{0,120}d\.rule/,
+    '判据原句仍是后端原样转述');
+  assert.match(fold, /caveats=\{\(d\.caveats \?\? \[\]\)\.filter\(c => c\.code !== "board_truncated"\)\}/,
+    '后端那条 board_truncated 不再进抽屉 —— 同一件截断事实在屏上那条 `NoticeBar` 已经说了，摆两遍就是两处各说一套');
+  assert.match(fold, /<DrawerSection heading="这一张表怎么点 · 单击高亮什么 · 双击去哪里">[\s\S]{0,160}STOCK_ROW_HINT/,
+    '怎么点这一张表也并成同一颗抽屉里的一节');
+  assert.match(fold, /notes=\{/, '母体那句话与「名次不是新算的」都跟着声明一起折（11-02 撤了标题行那颗 note）');
+  assert.match(fold, /名次不是新算的/, '原 `Panel note` 那句话现在是抽屉的第一段，字没改');
+  assert.doesNotMatch(comp.slice(0, comp.indexOf('<CaliberFold')), /note="名次不是新算的/,
+    '不许标题行一颗、正文又一颗');
 });
 
-/** 用户 2026-10-19 夜：「把选项留出，描述内容都收缩起来」——
- *  这一段判据描述（这一档排的是什么 / 进榜的门槛）收进默认收起的说明框；
- *  读数行与截断声明、中位读数留在外面。措辞一字未改，只换"默认可见 / 点开可见"的分层。 */
-test('判据描述两段折进默认收起的说明框，读数与截断声明留在框外', () => {
-  const boxStart = comp.indexOf('<ExplainBox');
-  const boxEnd = comp.indexOf('</ExplainBox>');
-  assert.ok(boxStart > 0 && boxEnd > boxStart, '这一屏要有说明框（ExplainBox 是原生 details、不带 open ⇒ 默认收起，闸在 explainBox.test.ts）');
-  const box = comp.slice(boxStart, boxEnd);
-  assert.match(box, /<Row label="这一档排的是"/, '「这一档排的是什么」折进框里（点开可见）');
-  assert.match(box, /<Row label="进榜的门槛"/, '「进榜的门槛」折进框里');
-  assert.match(box, /d\.thresholds\?\.min_better_steps/, '折进框里也逐项读接口 thresholds，一个数都不写死');
-  assert.match(box, /d\.thresholds\?\.require_both_axes/, '两档差异那句仍读接口，不写死');
-  assert.match(box, /d\.rule/, '判据原句在框里（后端原样转述，页面不改写）');
-  assert.doesNotMatch(box, /truncationSentence/, '截断声明不许跟着这两段搬进框');
-  const before = comp.slice(0, boxStart);
-  assert.match(before, /windowSentence\(d\)/, '「看的是哪几天」是读数行，默认留在外面');
-  assert.match(before, /truncationSentence\(d\)/, '截断声明渲染在框之前（默认可见位置）');
-  assert.match(before, /前进幅度的中位是/, '中位读数（含"不是判据、也不是全场的中位"那半句防误读）留在外面');
-  assert.match(before, /每页/, '每页行数的档位按钮在控件行里，控件永远默认可见');
+test('每页行数的档位按钮与控件行不受合并影响（控件永远默认可见）', () => {
+  assert.match(comp.slice(0, comp.indexOf('<CaliberFold')), /每页/,
+    '「把选项留出，描述内容都收缩起来」——描述可以进抽屉，控件不许');
 });
 
 test('System 那一格登记了这个端点（能力清单少一行＝以后没人知道有这一屏）', () => {

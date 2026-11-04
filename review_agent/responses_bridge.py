@@ -27,7 +27,7 @@ MAX_SESSIONS = 8
 # 的短问 120 秒不答、上游连回 HTTP 500。一刀切 60 秒会把"慢但通"的来源判死；
 # 不切总时长又会让引擎对着不回话的网关一直等下去，换来源的判据永远等不到那次失败。
 UPSTREAM_CONNECT_SECONDS = 10
-UPSTREAM_FIRST_BYTE_SECONDS = 45
+UPSTREAM_FIRST_BYTE_SECONDS = 75
 UPSTREAM_TOTAL_SECONDS = 180
 UPSTREAM_TIMEOUT = httpx.Timeout(connect=UPSTREAM_CONNECT_SECONDS, read=UPSTREAM_FIRST_BYTE_SECONDS,
                                  write=30, pool=15)

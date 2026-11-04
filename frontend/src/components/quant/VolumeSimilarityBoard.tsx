@@ -141,7 +141,7 @@ export function VolumeSimilarityBoard({ code }: { code: string | null }) {
                   「怎么点」与「相近分怎么算」成了两节），屏上只留一颗按钮。
                   **没跟着折的**：上面那格读数（样本库多少、过了硬过滤多少只）、表里逐行的「缺哪一维」
                   那句 `text-warning`、`it.popHint`（弹窗被拦是告警）；缺数／截断一族的 caveat 由折叠块自己留在屏上。 */}
-              <CaliberFold caveats={p.caveats ?? []} definitions={p.definitions}
+              <CaliberFold caveats={p.caveats ?? []} definitions={p.definitions} compactCaveats
                 notes={[
                   "本票排第一行（深色标出），随后十只按相近分降序；点列头排序只排这十只，第一行不动。",
                   p.caliber ? `取数口径（后端原句，页面未改写）：${p.caliber}` : null,

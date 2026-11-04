@@ -12,7 +12,7 @@ Object.defineProperty(globalThis, 'window', { value: { addEventListener() {}, re
 const { readSources, saveAgentConnection, setActiveSource, activeSourceId, beginRound, blockedReason, currentSource,
   failoverEnabled, setFailoverEnabled, giveUpAfterCycle, setGiveUpAfterCycle, loadAgentConnection, noteSourceResult,
   orderMode, setOrderMode, clearSourceMark, moveAgentSource, removeAgentSource, reportAgentOutcome, restartEachRun,
-  setRestartEachRun, setSourceTimeout, DEFAULT_TIMEOUT_SECONDS, FAIL_LIMIT } =
+  setRestartEachRun, setSourceTimeout, sourceJudgedDown, DEFAULT_TIMEOUT_SECONDS, DOWN_FORGET_MIN, FAIL_LIMIT } =
   await import('../src/lib/agent-sources.ts');
 
 const first = { provider: 'new-api', model: 'allmlmlh', baseURL: 'http://192.168.176.68:3000/v1', apiKey: 'KEY_A' };
@@ -188,4 +188,38 @@ test('每条来源自带总时长闸：默认 180，越界的填法一律不落�
   delete stored[0].timeoutSeconds;
   localStorage.setItem('astock-agent-sources', JSON.stringify(stored));
   assert.equal(readSources()[0].timeoutSeconds, DEFAULT_TIMEOUT_SECONDS);
+});
+
+test('判不通只有 45 分钟有效期：过期后下一次任务自动再试它，不需要人来点', () => {
+  reset();
+  const a = saveAgentConnection(first);
+  const b = saveAgentConnection(second);
+  setActiveSource(a);
+  for (const id of [a, b]) { noteSourceResult(id, false, 'AI 网络连接中断'); noteSourceResult(id, false, 'AI 网络连接中断'); }
+  assert.equal(loadAgentConnection(), null, '刚判死两条：本任务停住');
+  assert.equal(sourceJudgedDown(readSources()[0]), true);
+  // 把两条的失败时间推到 46 分钟前（模拟"10-28 判的、11-03 才想起来"那种间隔）
+  const stored = JSON.parse(localStorage.getItem('astock-agent-sources')!);
+  const past = Date.now() - (DOWN_FORGET_MIN + 1) * 60000;
+  for (const row of stored) row.testedAt = past;
+  localStorage.setItem('astock-agent-sources', JSON.stringify(stored));
+  const rows = readSources();
+  assert.equal(sourceJudgedDown(rows[0]), false, '满 45 分钟就不算"还判着"');
+  assert.notEqual(loadAgentConnection(), null, '下一次任务自动再试，界面上不需要点任何东西');
+  assert.equal(blockedReason(), '', '重新能用之后停住那句要散掉');
+});
+
+test('只有一条来源时停住那句说清「没有下一条可切」，并说清是多久前判的', () => {
+  reset();
+  const a = saveAgentConnection(first);
+  noteSourceResult(a, false, 'AI 网络连接中断');
+  noteSourceResult(a, false, 'AI 网络连接中断');
+  assert.equal(loadAgentConnection(), null);
+  const reason = blockedReason();
+  assert.match(reason, /只配了 1 条来源/);
+  assert.match(reason, /「new-api 网关 API」。/, '名字后面不能带模板串漏出来的花括号');
+  assert.doesNotMatch(reason, /}}/);
+  assert.doesNotMatch(reason, /各试过一圈/, '一条列表不该念成"一批来源都失败"');
+  assert.match(reason, /分钟前/, '要交出"这是什么时候判的"，否则六天前的一次抖动也长得像刚坏');
+  assert.match(reason, new RegExp(`${DOWN_FORGET_MIN} 分钟后会自动再给一次机会`), '要给自动恢复的出口');
 });

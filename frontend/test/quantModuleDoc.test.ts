@@ -202,3 +202,50 @@ test('中文串里不嵌 ASCII 双引号：本轮新写的抽屉小节标题与�
       `${f}：抽屉小节标题里疑似嵌了 ASCII 双引号（该用「」）`);
   }
 });
+
+test('「读数自己会说话」那三条收进抽屉：两块共用同一份名单（11-03 用户点名）', () => {
+  // 判据说的是注释里那句前提，所以要读带注释的原文（`src()` 会把注释剥掉）
+  const kind = fs.readFileSync(new URL('../src/lib/caveatKind.ts', import.meta.url), 'utf8');
+  // ① 名单只住一处，两块都用它（各自拟一份就会分叉，全站栽过三次）
+  assert.match(kind, /export const CELL_MARKED_CODES: ReadonlySet<string> = new Set\(\['stale', 'rank_degenerate', 'rank_coarse'\]\)/);
+  assert.match(kind, /往这里加一条之前先去屏上看那一格自己说不说得清/, "这条判据要写在名单旁边，不然下次有人顺手加");
+  // 白名单与第二道闸不许被这轮改动带偏：`stale` 按名字仍属"库不健康"那一族
+  assert.doesNotMatch(kind.match(/FOLDABLE_CAVEAT_CODES: ReadonlySet<string> = new Set\(\[([^\]]*)\]/)[1], /stale/,
+    '没有把 stale 塞进通用白名单 —— 各块用的是"标记已上屏"这一条具体证据');
+
+  for (const file of ['../src/components/quant/StockDossier.tsx', '../src/components/quant/TrendQuant.tsx']) {
+    const doc = src(file);
+    assert.match(doc, /caveats=\{\(d\.caveats \?\? \[\]\)\.filter\(c => !CELL_MARKED_CODES\.has/,
+      file + '：屏上那份 Caveats 不再摊这三条');
+    assert.match(doc, /CELL_MARKED_CODES\.has\(String\(c\.code \?\? ""\)\)\)\}/, file + '：筛的是 code');
+    assert.match(doc, /\$\{c\.label \?\? code\}：\$\{plain\(c\.text \?\? ""\)\}/,
+      file + '：抽屉里念的是后端原话（带后端给的中文标签），不是页面另写一套');
+  }
+  // ② 前提是行上/格里真有标记 —— 少了它这三条就是唯一出口，不许折
+  const dossier = src('../src/components/quant/StockDossier.tsx');
+  assert.match(dossier, /c\.is_stale === true && \(/, '量化档案那八行有旧值徽标');
+  assert.match(dossier, /上一场的值</, '徽标念中文');
+  assert.match(dossier, /staleRows\(caps\)\.length > 0 && \(/, '整屏还有一条按行数现出的告警（不只靠小徽标）');
+  assert.match(dossier, /const staleRows = \(caps: \{ is_stale\?: boolean \| null \}\[\]\) => caps\.filter\(c => c\.is_stale === true\)/,
+    '只读接口那份布尔，页面不自己判旧不旧');
+  const tq = src('../src/components/quant/TrendQuant.tsx');
+  assert.match(tq, /c\.is_stale === true && <span[^>]*>用的是上一场的值<\/span>/, '八项能力明细每行也有旧值徽标');
+  assert.match(tq, /<RankCell c=\{c\} \/>/, '名次那一格走全站那一份名次件');
+  // ③ 名次那两条靠的是格子里的「名次 —」「并列 N 只」「这项全场 K 个取值」
+  const rank = src('../src/lib/ranking.ts');
+  assert.match(rank, /并列 \$\{groupInt\(tie\)\} 只/, '名次件连并列只数一起念');
+  assert.match(rank, /这项全场 \$\{groupInt\(dv\)\} 个取值/, '名次件念档位个数');
+  // ④ 缓存那条没跟着折（这一块没有第二处说新鲜度）
+  // ④ 缓存那条没跟着折（这一块没有第二处说新鲜度）—— 这条判据写在注释里，要读带注释的原文
+  const tqRaw = fs.readFileSync(new URL('../src/components/quant/TrendQuant.tsx', import.meta.url), 'utf8');
+  assert.match(tqRaw, /`cached_aggregates`（那几个全库级聚合是一小时前实算的缓存/,
+    '注释要点名这条为什么留屏，否则下一次有人顺手把它一起收');
+  assert.doesNotMatch(tqRaw, /cached_aggregates['"]?\)\)/, '没有把 cached_aggregates 加进任何筛掉的名单');
+});
+
+test('八项能力明细那三行「出处」也进同一颗抽屉（11-03）', () => {
+  const tq = src('../src/components/quant/TrendQuant.tsx');
+  assert.match(tq, /<DrawerSection heading="权重与名字出自哪张表（对账、查库都按这三行找）">[\s\S]{0,300}权重出处[\s\S]{0,120}能力名出处[\s\S]{0,120}分量名出处/);
+  assert.doesNotMatch(tq.split('<CaliberFold')[0], /label="权重出处"/,
+    '屏上不许再摊那三行 —— 出处是"哪来的"，不是"能不能信"');
+});

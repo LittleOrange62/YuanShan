@@ -18,6 +18,12 @@ import { NoticeBar } from "@/components/ui/NoticeBar";
  *    "这一类剩 3 行"会被读成"全场只有 3 只"（实测全场 106 只）—— 与倍量榜四维象限同一条规矩；
  * ② 每个类型后面那个数是**全场**的（来自 `type_options.count`），不是"已交出的行里有几只"；
  * ③ 缺数显示 `—`，不当 0：极差 0% 会被读成"完美粘合"，缩量 0 会被读成"极端缩量"，方向正好相反。
+ * ④ 「N 日均振幅」与「股性」两列（用户 2026-11-03 点名）**来自另一张表**
+ *    （`analytics.stock_character_daily`，每日加工链 `stockchar` 步，与埋伏判据无关）：
+ *    读侧左连接它，所以埋伏的票一行都不会因此少掉；它整场没入库时后端出一条
+ *    「股性这一场还没算」的声明（留在屏上、不折），那两格是 `—` 而不是 0。
+ *    窗口长度、档位门槛、三个中文档名全部从后端 `character` 现读，页面不抄第二份；
+ *    档位是**事后描述量**（过去一年活不活跃），不进埋伏分、也不预测涨幅。
  *
  * 阈值与判据都在后端一份（`app/compute/ambush_setup.py`），页面只把 `thresholds` 念出来。
  */
@@ -34,6 +40,13 @@ interface AmbushRow {
   bars_60?: number | null; missing?: string | null; big_day_date?: string | null;
   dev_ma20_pct?: number | null; dev_ma60_pct?: number | null;
   spec_version?: string | null; calculated_at?: string | null;
+  // 下面这一族来自另一张表（`analytics.stock_character_daily`，每日加工链 `stockchar` 步）：
+  // 左连接拿不到行时全是 null ⇒ 界面念 `—`，不许当 0（0 是"这 10 场一天都没波动过"）。
+  amp_10?: number | null; amp_10_pctile?: number | null; char_bars_10?: number | null;
+  char_level?: string | null; char_level_label?: string | null; char_mid_pctile?: number | null;
+  gene_pctile?: number | null; seal_250?: number | null; touch_250?: number | null;
+  consec_max_250?: number | null; char_bars_250?: number | null;
+  char_missing?: Record<string, string> | null; char_spec?: string | null;
 }
 interface AmbushData {
   available?: boolean | null; reason?: string | null; date?: string | null; source?: string | null;
@@ -44,6 +57,14 @@ interface AmbushData {
   type_options?: { value?: string | null; label?: string | null;
                    count?: number | null; meaning?: string | null }[] | null;
   thresholds?: Record<string, number> | null;
+  /** 股性那一族的窗口长度、档位门槛与中文档名（全部从写侧现读，页面不抄第二份） */
+  character?: { spec_version?: string | null; table?: string | null;
+                amp_sessions?: number | null; amp_min_bars?: number | null;
+                char_sessions?: number | null; char_min_bars?: number | null;
+                strong_min?: number | null; middle_min?: number | null;
+                level_labels?: Record<string, string> | null;
+                has_rows_on_date?: boolean | null; rows_on_date?: number | null;
+                scored_on_date?: number | null } | null;
   day_total?: number | null; day_strict_total?: number | null;
   caliber?: string | null; definitions?: Record<string, string> | null;
   coverage?: Record<string, { from?: string | null; to?: string | null; sessions?: number | null }> | null;
@@ -139,6 +160,10 @@ export function AmbushBoard() {
     <Panel title="埋伏票（左侧机会）" state={hits} controls={controls}>
       {d => {
         const all = d.rows ?? [];
+        // 股性那一族的窗口长度、门槛、中文档名全部从后端现读（`character`）：
+        // 写侧把 250 场改成 300 场、把 70 分位改成 75 分位，屏上这两句口径跟着动，不留第二份。
+        const cg = d.character ?? {};
+        const lv = cg.level_labels ?? {};
         return (
           <>
             <Row label="基准交易日" value={dash(d.date)} />
@@ -169,12 +194,17 @@ export function AmbushBoard() {
                     title="近 6 个完整周里重心（周均后复权价）比上一周高的周数。不完整周（节假日周只有 2~4 场）不计入" />
                   <SortHeader label="缩量比" sortKey="shrink_ratio" dir={srt.dirOf("shrink_ratio")} onSort={sortAm}
                     title={`近 5 场（含当日）均量 ÷ 第 6~60 场均量（SQL 里的 v5/v60p，判据只住 app/compute/ambush_setup.py）。<1 是缩量；严档用 ${th.shrink_max ?? "—"} 以下`} />
+                  <SortHeader label={`${cg.amp_sessions ?? "—"}日均振幅`} sortKey="amp_10"
+                    dir={srt.dirOf("amp_10")} onSort={sortAm}
+                    title={`近 ${cg.amp_sessions ?? "—"} 场每天（最高−最低）÷前收 的算术平均，单位 %。这只票真有的行不足 ${cg.amp_min_bars ?? "—"} 天就显示 —（新股或长停牌，不是「不波动」）。来自 ${cg.table ?? "analytics.stock_character_daily"}（判据版本 ${cg.spec_version ?? "—"}），与埋伏分无关、不进合成分`} />
+                  <SortHeader label="股性" sortKey="char_mid_pctile" dir={srt.dirOf("char_mid_pctile")} onSort={sortAm}
+                    title={`近 ${cg.char_sessions ?? "—"} 场三条腿（振幅、换手、涨停封住天数）各自的全场分位取中位数再分档：${cg.strong_min ?? "—"} 及以上＝${lv.strong ?? "—"}，${cg.middle_min ?? "—"}~${cg.strong_min ?? "—"}＝${lv.middle ?? "—"}，更低＝${lv.weak ?? "—"}。点这一列排的是那个中位数分位（格子里念的就是它）。事后描述量：说这只票过去一年活不活跃，不预测涨幅`} />
                   <SortHeader label="埋伏分" sortKey="ambush_score" dir={srt.dirOf("ambush_score")} onSort={sortAm}
                     title="只为排序的合成分（0~100，不是涨跌概率）" />
                 </tr></thead>
                 <tbody>
                   {srt.apply(all).map((r, i) => (
-                    <tr key={`${r.code}-${i}`} {...am.rowProps(i, r.code, "hover:bg-primary/5", hover(r, th))}>
+                    <tr key={`${r.code}-${i}`} {...am.rowProps(i, r.code, "hover:bg-primary/5", hover(r, th, cg))}>
                       <td {...am.cellProps(i, "code", "whitespace-nowrap font-mono")}>
                         <StockLink code={r.code} name={null} className="hover:text-primary" />
                       </td>
@@ -189,6 +219,13 @@ export function AmbushBoard() {
                         {typeof r.weekly_ups6 === "number" ? `${r.weekly_ups6}/6` : dash(null)}
                       </td>
                       <td {...am.cellProps(i, "shrink_ratio", "font-mono tabular-nums")}>{cell(r.shrink_ratio)}</td>
+                      <td {...am.cellProps(i, "amp_10", "font-mono tabular-nums")}>{cell(r.amp_10, 2, "%")}</td>
+                      <td {...am.cellProps(i, "char_mid_pctile", "whitespace-nowrap")}>
+                        {r.char_level_label ?? dash(null)}
+                        {typeof r.char_mid_pctile === "number"
+                          ? <span className="ml-1 font-mono tabular-nums text-muted-foreground"
+                            >{r.char_mid_pctile.toFixed(1)}</span> : null}
+                      </td>
                       <td {...am.cellProps(i, "ambush_score", "font-mono font-semibold tabular-nums")}>{cell(r.ambush_score, 1)}</td>
                     </tr>
                   ))}
@@ -224,8 +261,10 @@ export function AmbushBoard() {
 const busy = (state: { kind?: string }) => state?.kind === "loading";
 
 /** 悬停：把砍掉的那几列（箱体位置、60 日涨幅、距大阳、连升周数、本周场数、缺数）原样说全。
- *  口径句子取后端 `caliber`，前端不自己重写一份。 */
-function hover(r: AmbushRow, th: Record<string, number>) {
+ *  口径句子取后端 `caliber`，前端不自己重写一份。
+ *  股性那一段的两个窗口长度也从后端 `character` 现读（`cg`）：这里手抄一次 10/250，
+ *  写侧改窗口的那天，屏上这段悬停就会念一个库里没有的数。 */
+function hover(r: AmbushRow, th: Record<string, number>, cg: NonNullable<AmbushData["character"]>) {
   const bits = [
     `后复权收盘 ${cell(r.close_hfq, 3)}｜60 日窗口里真有 ${dash(r.bars_60)} 根 K 线`
       + (typeof r.bars_60 === "number" && r.bars_60 < (th.bars_min ?? 60) ? "（不足判据线，本行按不判处理）" : ""),
@@ -237,6 +276,16 @@ function hover(r: AmbushRow, th: Record<string, number>) {
       ? `最近一根放量大阳/涨停：${r.big_day_date ?? "—"}，距今 ${r.days_since_big} 场，现价相对那根收盘 ${cell(r.hold_vs_big_pct, 1)}%`
       : "最近 60 场内没有放量大阳或涨停",
     typeof r.obv_ratio === "number" ? `近 20 日量价背离度 ${cell(r.obv_ratio, 3)}` : "量价背离度没读到",
+    // 股性那一族：两个数都给（封住 / 触过是两把尺），并说清"0 是读数、— 是判不了"
+    `股性（另一张表 ${cg.table ?? "analytics.stock_character_daily"}，版本 ${cg.spec_version ?? "—"}）：`
+      + `近 ${cg.amp_sessions ?? "—"} 场日均振幅 ${cell(r.amp_10, 2, "%")}（这一项全场分位 ${cell(r.amp_10_pctile, 1)}，`
+      + `真有的行 ${dash(r.char_bars_10)} 天）；近 ${cg.char_sessions ?? "—"} 场封住涨停 ${dash(r.seal_250)} 天、`
+      + `盘中触过 ${dash(r.touch_250)} 天、最高的那一轮 ${dash(r.consec_max_250)} 板（涨停基因分位 ${cell(r.gene_pctile, 1)}）；`
+      + `三腿中位分位 ${cell(r.char_mid_pctile, 1)} ⇒ ${r.char_level_label ?? "判不了"}`
+      + `（那一族窗口真有的行 ${dash(r.char_bars_250)} 根）`,
+    r.char_missing && Object.keys(r.char_missing).length > 0
+      ? `股性判不了的那几腿：${Object.entries(r.char_missing).map(([k, v]) => `${k}（${v}）`).join("、")}`
+      : null,
     r.missing ? `缺的读数：${r.missing}（界面显示 —，不当 0）` : "读数齐全",
   ];
   return bits.filter(Boolean).join("\n");

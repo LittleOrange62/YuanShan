@@ -142,17 +142,17 @@ def board(code: str) -> dict:
             age_h = None
 
     caveats = [
-        {'code': 'not_analyst', 'text':
+        {'code': 'not_analyst', 'label': '这三格是本机外推', 'text':
          '这三格是本机按公开历史做的加权外推，不是券商一致预期、不是公司公告、'
          '更不是买卖依据。历史里没出现过的那种变化（政策、大额减值、并表口径调整）外推看不出来。'},
         {'code': 'q4_coarser', 'text':
          '补「当年」时 Q4 单独一档（分母是同年前三季均值，不是 Q3）。理由：很多公司 Q4 就是'
          '「全年减前三季」，且常年含减值与年终费用 —— 用 Q1..Q3 的季节形状外推 Q4 会系统性偏乐观，'
          '所以带 Q4 的那一格比别的粗。'},
-        {'code': 'single_only_two', 'text':
+        {'code': 'single_only_two', 'label': '两法分歧只给两个值', 'text':
          '两法（同比外推 / 季节环比）分歧超过 25% 时不给一个数，只给两法各自的值。'
          '分歧本身就是结论：近季增速与这只票历年这一季的季节形状在打架。'},
-        {'code': 'roe_kind', 'text':
+        {'code': 'roe_kind', 'label': 'ROE 是单季口径', 'text':
          'ROE 逐期那一列用的是单季口径，不能跟年报上的 ROE 比高低；'
          '累计档的 ROE 是年内累计（Q1 的 10% 与全年的 10% 不是一个尺子）。'},
         {'code': 'one_source', 'text':
@@ -160,21 +160,21 @@ def board(code: str) -> dict:
          '屏上按「多久没更新」说，不拿旧值冒充当期。'},
     ]
     if age_h is not None and age_h > 96:
-        caveats.append({'code': 'stale', 'text':
+        caveats.append({'code': 'stale', 'label': '这份财务多天没重采', 'text':
                         f'这份财务已 {age_h / 24:.1f} 天没重采（自选/持仓才每天刷，全市场要显式跑 '
                         f'`--all`）。披露季里这个年龄可能已经跨过一期。'})
     if table.get('suppressed_source_ratios'):
-        caveats.append({'code': 'source_ratio_absurd', 'text':
+        caveats.append({'code': 'source_ratio_absurd', 'label': '源给的比率有越界格', 'text':
                         f'源给的比率里有 {table["suppressed_source_ratios"]} 格超出了这把尺子'
                         '（毛利率/净利率/ROE 的绝对值 >1000%，或源同比 >±1 万%）—— 那是基期接近 0 时的算术，'
                         '不是这只票的读数，屏上按缺数交 null。库里照源存着（`raw` 那列有原文），'
                         '外推用的是我们自己按同季重算的同比，从来没拿这一列。'})
     if len(quarters) < 12:
-        caveats.append({'code': 'thin', 'text':
+        caveats.append({'code': 'thin', 'label': '本机单季不足三年', 'text':
                         f'这只票本机只有 {len(quarters)} 个单季（<12 ⇒ 凑不满 3 年季节性），'
                         '下面凡是靠历史外推的格子都会写「判不了」，不会硬给一个数。'})
     if 'single' not in kinds:
-        caveats.append({'code': 'no_single', 'text':
+        caveats.append({'code': 'no_single', 'label': '没有单季档', 'text':
                         '本机只有累计档、没有单季档（源那一发没拿到）⇒ 环比/季节性全判不了，'
                         '逐季表会是空的，这不是「这只票没季报」。'})
     return jsonable({

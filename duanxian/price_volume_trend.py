@@ -67,10 +67,10 @@ HARD_CAVEATS = (
     {'code': 'adjusted_shape', 'text':
      '图上的价是前复权形状（以最新一场为基准），不是历史名义价：三块里最左那根的绝对价位可能从未真实成交过。'
      '要看当天真成交的价，悬停里那一列是不复权的。'},
-    {'code': 'partial_last', 'text':
+    {'code': 'partial_last', 'label': '最后一根未走完', 'text':
      '最后一根常常是"至今"（本周未收 / 本月未满），图上会单独标注；'
      '它的收盘与量都只到最新一场，拿它跟上一根完整周期比涨跌会偏。'},
-    {'code': 'depth', 'text':
+    {'code': 'depth', 'label': '本机历史不够长', 'text':
      '本机日线最早 2021-08-02 ⇒ 月线最多约 63 根，次新股更少。'
      '哪一块的根数不够，那一块自己报名字与实数，不硬凑成 60 根。'},
 )
@@ -218,7 +218,7 @@ def board(code: str, days: int = DAILY_BARS, weeks: int = WEEKLY_BARS,
         "select coalesce(nullif(name,''), security_code) n from reference_data.security where security_code=%s",
         (code,), role='reader')
     if wser['bars_total'] < MIN_BUCKETS or mser['bars_total'] < MIN_BUCKETS:
-        caveats.append({'code': 'too_few', 'text':
+        caveats.append({'code': 'too_few', 'label': '根数不够，不画线', 'text':
             f'周线 {wser["bars_total"]} 根、月线 {mser["bars_total"]} 根 —— '
             '少于 6 根的那一块不画线（点数太少连线看起来像趋势，那是骗人），只把有的那几根列出来。'})
     return jsonable({

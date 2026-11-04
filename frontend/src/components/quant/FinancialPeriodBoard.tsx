@@ -229,7 +229,7 @@ export function FinancialPeriodBoard({ code }: { code: string | null }) {
                   现在两处文字都并进这一颗抽屉（那句单位与缺数写法成了 notes 的第一段）。
                   **没跟着折的**：上面那四格读数、「这份财务多旧」那句、`kinds` 缺档与 Q4 更粗那两句
                   `text-warning`；缺数／截断一族的 caveat 由折叠块自己留在屏上。 */}
-              <CaliberFold caveats={p.caveats ?? []} definitions={p.definitions}
+              <CaliberFold caveats={p.caveats ?? []} definitions={p.definitions} compactCaveats
                 notes={[
                   "金额一律亿元、比率百分数；缺的格子是「—」并带后端给的原因，不补 0。",
                   p.caliber ? `取数口径（后端原句，页面未改写）：${p.caliber}` : null,

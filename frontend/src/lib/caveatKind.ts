@@ -26,6 +26,16 @@
  *     —— 只差一个 `window_`，白名单认的是全名，别顺手合并。
  */
 
+/**
+ * 「读数自己会说话」那一族 code：这条声明说的内容，**每一格/每一行已经带着标记**
+ * （名次格写着「名次 —」「并列 N 只」「这项全场 K 个取值」——`lib/ranking.ts::scoreRankCell`；
+ * 旧值行行首写着「用的是上一场的值」／「上一场的值」徽标）。
+ * ⇒ 它们的散文是重复一遍，搬进各块的说明抽屉不改变任何事实；白名单那道闸（`FOLDABLE_CAVEAT_CODES`）
+ * 保持不动，`stale` 按名字仍属"库不健康"那一族，各块用的是"标记已上屏"这一条具体证据。
+ * ⚠️ 往这里加一条之前先去屏上看那一格自己说不说得清；说不清就是让屏幕说假话，不许加。
+ */
+export const CELL_MARKED_CODES: ReadonlySet<string> = new Set(['stale', 'rank_degenerate', 'rank_coarse']);
+
 /** 后端已经点过名的"纯口径解释"类 code（逐条对照过文案才放进来）。 */
 export const FOLDABLE_CAVEAT_CODES: ReadonlySet<string> = new Set([
   'quadrant_design', 'entry_quadrant', 'entry_quadrant_null', 'zero_axis', 'sector_breadth',

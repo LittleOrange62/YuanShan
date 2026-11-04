@@ -169,6 +169,12 @@ _CAV_LABEL = {
     'cohort_stale_score': '有些档位是沿用旧场的',
     'cohort_edge': '后 5 场还没到齐',
     'cohort_self_check': '这一块自检没过',
+    # 埋伏票榜那四条（11-04 补齐：屏上那颗 chip 取的是 `label ?? code`，
+    # 没配中文标签就把机器键摆到读者脸上）
+    'ambush_type_rejected': '这几个值没参与筛选',
+    'ambush_counts_unread': '每类实有几只没读到',
+    'ambush_empty': '这一档筛空了',
+    'ambush_char_missing_batch': '股性这一场还没算',
 }
 _CAV_LABEL_FALLBACK = '口径说明'
 
@@ -1250,7 +1256,7 @@ def rank_momentum(metric: str = 'xy', limit: int = 80, date: str = '', refresh: 
                                         f'{covered} 只，所以这多半是这一窗的场次没读全或那天全场都在退，'
                                         '不是页面坏了 —— 带 refresh=1 重算或换一档 metric 再看。'})
     elif matched is not None and matched > len(rows):
-        out['caveats'].append({'code': 'board_truncated',
+        out['caveats'].append({'code': 'board_truncated', 'label': '榜被上限截断',
                               'text': f'符合判据的共 {matched} 只，接口只交前 {lim} 只 —— '
                                       '榜被上限截断过，这一屏的行数不等于「全场稳步前进的票数」。'})
     if _int(stats.get('stale_rows')):
@@ -1609,7 +1615,7 @@ def score_trend(code: str, window: int = 10, sessions: int = 60, refresh: bool =
                                 f'{"、".join(thin[:8])}' + ('…' if len(thin) > 8 else '')})
     nulls = sum(1 for r in rows if r.get('window_entry_quadrant') is None)
     if nulls:
-        caveats.append({'code': 'window_entry_quadrant_null',
+        caveats.append({'code': 'window_entry_quadrant_null', 'label': '入口象限有空场',
                         'text': f'本次交出 {len(rows)} 场，其中 {nulls} 场的入口象限为空（显示 `—`）；'
                                 '为空只说明窗口首日那行没有象限，斜率本身照样算得出'})
     return {'available': True, 'security_code': sec, 'window_days': want,
@@ -3592,9 +3598,17 @@ def ambush(date: str = '', limit: int = 150, types: str = '',
 
     `types` 里认不得的值不参与筛选并当场点名（`filter.types_rejected` + caveat）——
     静默丢掉等于交一份"看着像筛过了"的榜。
+
+    「近 10 场日均振幅」与「股性」两列（用户 2026-11-03 点名）**left join 另一张表**
+    `analytics.stock_character_daily`：那是每日加工链 `stockchar` 步的产出，与埋伏判据无关，
+    所以它一缺行这两列就是 `—`（并出一条 `ambush_char_missing_batch` 点名「整场没入库」），
+    绝不能读成「这只票振幅 0」。窗口口径与档位门槛从 `app/compute/stock_character` 现读，
+    中文档名沿用那份 `CHAR_LEVEL_LABELS`（屏上念的词与库里的键一份出处）。
     """
     from app.compute import ambush_setup as amb
+    from app.compute import stock_character as ch
 
+    ch_spec = ch.SPEC_VERSION
     table = 'analytics.ambush_setup'
     d = _dash(date) or _latest(table) or ''
     if not d or not pg.session_has(table, d):
@@ -3633,21 +3647,31 @@ def ambush(date: str = '', limit: int = 150, types: str = '',
                  a.ambush_types, a.strict_pass, a.ambush_score,
                  a.bars_60, a.missing, a.spec_version, a.calculated_at,
                  a.ma5, a.ma10, a.ma20, a.ma30, a.ma60,
-                 a.dev_ma20_pct, a.dev_ma60_pct, a.big_low_hfq, a.big_close_hfq
+                 a.dev_ma20_pct, a.dev_ma60_pct, a.big_low_hfq, a.big_close_hfq,
+                 c.amp_10, c.amp_10_pctile, c.bars_10 as char_bars_10,
+                 c.char_level, c.char_level_label, c.char_mid_pctile,
+                 c.gene_pctile, c.seal_250, c.touch_250, c.consec_max_250,
+                 c.bars_250 as char_bars_250, c.missing as char_missing,
+                 c.spec_version as char_spec
             from analytics.ambush_setup a
             left join reference_data.security s using (security_code)
+            left join analytics.stock_character_daily c
+                   on c.security_code = a.security_code and c.trade_date = a.trade_date
+                  and c.spec_version = %s
            where a.trade_date = %s{cond}
            order by a.strict_pass desc nulls last, a.ambush_score desc nulls last,
                     a.security_code
-           limit %s""", [d] + params + [lim])
+           limit %s""", [ch_spec, d] + params + [lim])
     for r in (rows or []):
         for k in ('close_hfq', 'ma_spread_pct', 'range20_pct', 'shrink_ratio', 'box_pos_pct',
                   'trend60_pct', 'obv_ratio', 'hold_vs_big_pct', 'ambush_score',
                   'dev_ma20_pct', 'dev_ma60_pct', 'big_low_hfq', 'big_close_hfq',
-                  'ma5', 'ma10', 'ma20', 'ma30', 'ma60'):
+                  'ma5', 'ma10', 'ma20', 'ma30', 'ma60',
+                  'amp_10', 'amp_10_pctile', 'char_mid_pctile', 'gene_pctile'):
             r[k] = _num(r.get(k), 3 if k != 'obv_ratio' else 4)
         for k in ('weekly_ups6', 'weekly_streak', 'weekly_bars', 'week_sessions_cur',
-                  'days_since_big', 'bars_60'):
+                  'days_since_big', 'bars_60', 'char_bars_10', 'char_bars_250',
+                  'seal_250', 'touch_250', 'consec_max_250'):
             r[k] = _int(r.get(k))
         r['strict_pass'] = bool(r.get('strict_pass'))
         r['week_partial'] = None if r.get('week_partial') is None else bool(r.get('week_partial'))
@@ -3669,21 +3693,35 @@ def ambush(date: str = '', limit: int = 150, types: str = '',
     # 从它自己数不出"全场 5,526 只里有多少满窗"，硬数就是一个假数（那一句该由取数侧说）。
     tot = _one("select count(*)::int n, count(*) filter (where strict_pass)::int strict"
                "  from analytics.ambush_setup where trade_date = %s", (d,)) or {}
-    caveats = _caveats('coverage') + _cache_caveat(('coverage:ambush_setup',))
+    # 股性那一族是不是**整场**都没入库：left join 拿不到行时每一格都是 NULL，
+    # 而"这只票判不了"与"这一场还没算"是两句话，界面只能按前者说就不诚实。
+    char_tot = _one("select count(*)::int n, count(*) filter (where char_level is not null)::int scored"
+                    "  from analytics.stock_character_daily where trade_date = %s and spec_version = %s",
+                    (d, ch_spec)) or {}
+    char_present = int(char_tot.get('n') or 0) > 0
+    caveats = _caveats('coverage') + _cache_caveat(('coverage:ambush_setup',
+                                                    'coverage:stock_character_daily'))
+    if not char_present:
+        caveats.append(_cav('ambush_char_missing_batch',
+                            f'这一场（{d}）的股性与近 {ch.AMP_SESSIONS} 场日均振幅还没入库'
+                            f'（analytics.stock_character_daily 里 spec {ch_spec} 零行）——'
+                            '这两列是每日加工链 `stockchar` 步的产出，缺它不影响埋伏判据本身，'
+                            '界面上那两格显示 —，不是「振幅 0」也不是「股性差」。'
+                            '补法：等当晚收盘链，或在系统配置里单跑 `stockchar` 这一步。'))
     if rejected:
-        caveats.append({'code': 'ambush_type_rejected',
-                        'text': '埋伏类型筛选里这些值不是已登记的类型：'
-                                + '、'.join(rejected)
-                                + ' —— 它们没有参与筛选（否则榜看着像筛过了其实没筛）。可用的是 '
-                                + '、'.join(f'{t}（{amb.TYPE_LABELS[t]}）' for t in amb.TYPE_LABELS)})
+        caveats.append(_cav('ambush_type_rejected',
+                            '埋伏类型筛选里这些值不是已登记的类型：'
+                            + '、'.join(rejected)
+                            + ' —— 它们没有参与筛选（否则榜看着像筛过了其实没筛）。可用的是 '
+                            + '、'.join(f'{t}（{amb.TYPE_LABELS[t]}）' for t in amb.TYPE_LABELS)))
     if not counts_ok:
-        caveats.append({'code': 'ambush_counts_unread',
-                        'text': '每一类全场实有几只没读到（那条聚合失败了），界面按"没读到"显示，'
-                                '不拿 0 顶 —— 0 的意思是"这一类今天一只都没有"。'})
+        caveats.append(_cav('ambush_counts_unread',
+                            '每一类全场实有几只没读到（那条聚合失败了），界面按"没读到"显示，'
+                            '不拿 0 顶 —— 0 的意思是"这一类今天一只都没有"。'))
     if not rows:
-        caveats.append({'code': 'ambush_empty',
-                        'text': '这一场在当前筛选条件下没有票（不是库里没有埋伏票：'
-                                f'当天共 {int(tot.get("n") or 0)} 只命中过至少一种形态）。'})
+        caveats.append(_cav('ambush_empty',
+                            '这一场在当前筛选条件下没有票（不是库里没有埋伏票：'
+                            f'当天共 {int(tot.get("n") or 0)} 只命中过至少一种形态）。'))
     return {'available': True, 'date': d, 'source': 'pg',
             'spec_version': amb.SPEC_VERSION,
             'filter': {'types': picked, 'types_rejected': rejected,
@@ -3697,6 +3735,15 @@ def ambush(date: str = '', limit: int = 150, types: str = '',
                            'weekly_ups6_min': amb.WEEKLY_UPS6_MIN,
                            'weekly_min_bars': amb.WEEKLY_MIN_BARS,
                            'shrink_max': amb.SHRINK_MAX, 'bars_min': amb.BARS_MIN},
+            # 股性/振幅那一族的全部参数与门槛从写侧现读（这里不抄第二份），界面按这份说话。
+            'character': {'spec_version': ch_spec, 'table': ch.TABLE,
+                          'amp_sessions': ch.AMP_SESSIONS, 'amp_min_bars': ch.AMP_MIN_BARS,
+                          'char_sessions': ch.CHAR_SESSIONS, 'char_min_bars': ch.CHAR_MIN_BARS,
+                          'strong_min': ch.CHAR_STRONG_MIN, 'middle_min': ch.CHAR_MIDDLE_MIN,
+                          'level_labels': dict(ch.CHAR_LEVEL_LABELS),
+                          'has_rows_on_date': char_present,
+                          'rows_on_date': _int(char_tot.get('n')),
+                          'scored_on_date': _int(char_tot.get('scored'))},
             'day_total': _int(tot.get('n')), 'day_strict_total': _int(tot.get('strict')),
             'caliber': ('埋伏分只为排序（0~100，不是涨跌概率）：紧（均线极差 '
                         + f'{amb.SPREAD_MAX}% 以下最满）{amb.SCORE_WEIGHTS["tight"]:.0f} 分、'
@@ -3705,8 +3752,25 @@ def ambush(date: str = '', limit: int = 150, types: str = '',
                         '箱体位置（贴内而不脱沿）' + f'{amb.SCORE_WEIGHTS["box"]:.0f} 分；'
                         '缺的那一块从分母里剔掉，不按 0 计。'
                         '价格一律后复权（close × adjustment_factor）；'
-                        '周线按 ISO 周分桶，当前周不足 5 个交易日不计入连升（会显示这一周几天）。'),
-            'definitions': _comments('ambush_setup'),
-            'coverage': _coverage(('ambush_setup',)),
+                        '周线按 ISO 周分桶，当前周不足 5 个交易日不计入连升（会显示这一周几天）。'
+                        # 用户 11-03 点名的那两列：它们来自另一张表、另一把尺，且不进埋伏分，
+                        # 所以口径单独说一句，不和上面那四块混在一段里。
+                        + f'另两列来自 {ch.TABLE}（判据版本 {ch_spec}）：'
+                        f'近 {ch.AMP_SESSIONS} 场日均振幅＝逐日（最高−最低）÷前收 的算术平均，'
+                        f'真有的行不足 {ch.AMP_MIN_BARS} 天就整列判不了（新股或长停牌，不是「振幅小」）；'
+                        f'股性档位＝近 {ch.CHAR_SESSIONS} 场三条腿（振幅、换手、涨停封住天数）'
+                        f'各自的全场分位取中位数再分档：'
+                        f'{ch.CHAR_STRONG_MIN:.0f} 及以上＝{ch.CHAR_LEVEL_LABELS["strong"]}，'
+                        f'{ch.CHAR_MIDDLE_MIN:.0f} 到 {ch.CHAR_STRONG_MIN:.0f}＝'
+                        f'{ch.CHAR_LEVEL_LABELS["middle"]}，更低＝{ch.CHAR_LEVEL_LABELS["weak"]}，'
+                        '判不了显示 —（逐行原因在 char_missing）。'
+                        '这两列是事后描述量：只说这只票过去一年活不活跃，不进埋伏分、也不预测涨幅——'
+                        '「缩在箱体内等启动」与「一旦起来能起多高」是两件事，合成一个数就都说不清了。'),
+            # 两张表的列注释一起交（注释本体在 DDL，读侧不重抄）：`missing` 两边同名，
+            # 那张表的这一列在这里叫 `char_missing`，键名跟着改，否则注释会盖掉埋伏那一份。
+            'definitions': {**_comments('ambush_setup'),
+                            **{('char_missing' if k == 'missing' else k): v
+                               for k, v in _comments('stock_character_daily').items()}},
+            'coverage': _coverage(('ambush_setup', 'stock_character_daily')),
             'caveats': caveats,
             'rows': rows or []}

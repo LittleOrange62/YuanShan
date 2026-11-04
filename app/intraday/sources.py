@@ -152,6 +152,39 @@ def sector_counts(codes: list[str], *, max_members: int, sector_top: int,
     return [dict(r) for r in rows], unmapped
 
 
+def sector_groups(codes: list[str], *, max_members: int, min_hits: int = 2,
+                  limit: int = 5) -> tuple[list[dict], int]:
+    """午间复盘要的是**组内成员**（代表股、梯队高度），不只是只数。
+
+    口径与 `sector_counts` 逐字一致（同一个概念类型、同一个成员>max_members 泛标签剔除、
+    同一个 left(code,6)），只是把 `count(*)` 换成 `array_agg` —— 两处若各写一套 SQL，
+    总有一天竞价榜和午间归组对不上，而屏幕上看不出差别。
+    → `([{name, members(list[str]), sector_code}], 未映射家数)`
+    """
+    if not codes:
+        return [], 0
+    rows = engine.query(
+        """
+        with big as (select sector_code from reference_data.sector_member
+                      group by 1 having count(distinct security_code) > %s)
+        select i.name, array_agg(distinct left(m.security_code, 6)) as members,
+               case when count(distinct m.sector_code) = 1 then min(m.sector_code) end sector_code
+          from reference_data.sector_member m
+          join reference_data.sector_info i using (sector_code)
+         where left(m.security_code, 6) = any(%s::text[])
+           and i.sector_type = '概念' and coalesce(i.is_active, true)
+           and m.sector_code not in (select sector_code from big)
+         group by 1
+        having count(distinct left(m.security_code, 6)) >= %s
+         order by count(distinct left(m.security_code, 6)) desc, i.name
+         limit %s
+        """, (max_members, codes, min_hits, limit), role='reader') or []
+    mapped = {r['code6'] for r in (engine.query(
+        "SELECT distinct left(security_code, 6) AS code6 FROM reference_data.sector_member"
+        " WHERE left(security_code, 6) = any(%s::text[])", (codes,), role='reader') or [])}
+    return [dict(r) for r in rows], len(set(codes)) - len(mapped & set(codes))
+
+
 def sector_pcts(names: list[str]) -> dict[str, tuple[float, dt.date]]:
     """
     概念名 → (上一交易日收盘涨跌幅, 那个交易日)。**库里存的就是百分数，不乘 100。**

@@ -451,9 +451,9 @@ test('个股信息的五段说明都进了统一说明抽屉，缺数与告警�
   assert.match(factsComp, /<DocDrawer title="个股信息">/,
     '抽屉标题要与屏上那块标题同一个词，两处不同名会让人不确定他说的是哪一块');
   const drawer = factsComp.slice(factsComp.indexOf('<DocDrawer'), factsComp.indexOf('</DocDrawer>'));
-  assert.equal((drawer.match(/<DrawerSection heading=/g) ?? []).length, 5,
-    '五段说明（口径 / 格子怎么读 / 为什么没有那四格 / 后端原句 / 字段字典）少一段就是没搬完');
-  for (const h of ['这一块读什么、为什么可能晚一场', '屏幕上这些格子怎么读',
+  assert.equal((drawer.match(/<DrawerSection heading=/g) ?? []).length, 6,
+    '六段说明（本场要留意的声明 / 口径 / 格子怎么读 / 为什么没有那四格 / 后端原句 / 字段字典）少一段就是没搬完');
+  for (const h of ['本场要留意的声明（缺数／上限／告警，后端原句）', '这一块读什么、为什么可能晚一场', '屏幕上这些格子怎么读',
     '为什么这一块不显示每股收益、ROE、上市日、总股本', '取数口径（后端原句，页面未改写）',
     '这些字段是什么意思']) {
     assert.ok(drawer.includes(`heading="${h}"`), `抽屉里少了那一段：${h}`);
@@ -463,8 +463,10 @@ test('个股信息的五段说明都进了统一说明抽屉，缺数与告警�
   assert.match(drawer, /<Definitions map=\{d\?\.definitions\} bare \/>/,
     '字段字典仍用那一份共用 markup（bare＝抽屉自己已有标题，不再套一层摘要行）');
   // 红线：`<Caveats>` 必须在抽屉**外面**
-  assert.ok(factsComp.indexOf('</DocDrawer>') < factsComp.indexOf('<Caveats items={d.caveats'),
-    '缺数与告警跟进弹窗＝让屏幕说假话（DocDrawer 顶部第 4 条）');
+  assert.ok(factsComp.indexOf('</DocDrawer>') < factsComp.indexOf('<CaveatTally'),
+    '屏上那一行计数必须在抽屉之外 —— 计数可以短，但不能不出声（11-03 改的是版面，不是诚实）');
+  assert.match(factsComp, /local_only/, '那一条范围声明现在住在抽屉第一节（屏上不再摊）');
+  assert.match(factsComp, /const leftCaveats = /, '屏上计数与抽屉原文用的是同一份名单');
   assert.doesNotMatch(factsComp.slice(factsComp.indexOf('</Panel>')), /Caveats/, 'Panel 之后不该再有第二次 Caveats');
   // 旧的三处裸说明要真的退场，不能新旧两份并存（同一件事两个地方念，迟早分叉）
   assert.doesNotMatch(factsComp, /<Caliber\b|<ExplainBox\b/, '口径问号角标与裸说明框该一起撤掉');
