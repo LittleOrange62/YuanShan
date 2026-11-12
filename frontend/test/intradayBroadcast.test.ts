@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { blockingReason, dirtyPatch, ledgerText, resultCodeText, runAtText, taskPatch } from '../src/lib/intradayBroadcastReads.ts';
+import { blockingReason, bodiesTally, bodyClock, bodyDayCaption, bodyStatusText, dirtyPatch,
+  ledgerText, neighborDay, resultCodeText, runAtText, taskNoBadge, taskPatch } from '../src/lib/intradayBroadcastReads.ts';
 
 /**
  * 系统配置 →「盘中播报」这一屏的几条纪律（用户 11-02 点名要把时点与渠道交进界面，
@@ -9,6 +10,9 @@ import { blockingReason, dirtyPatch, ledgerText, resultCodeText, runAtText, task
  *
  * 前面钉纯函数（交上去的键、脏键比对、拦下来的说法、留痕话术），后面读源码钉结构性的事 ——
  * "页面自己抄一份默认时点"这种退化，跑 tsc 与浏览器实测都看不出来。
+ *
+ * 最后一族是 11-10 的「按日期回看推送正文」（`BroadcastBodyViewer`）：钉的是三种送达说法不许混、
+ * 日子在"真有正文的天"之间跳、默认落点来自接口而不是本机今天、读不出来不许装成没发过。
  */
 
 const panel = readFileSync(new URL('../src/components/IntradayBroadcastPanel.tsx', import.meta.url), 'utf8');
@@ -166,4 +170,124 @@ test('这一整块从系统配置搬进「推送任务」那一屏，且只有�
   assert.match(modules, /个股研究与回测[\s\S]{0,400}\/push-tasks/, '用户点名挂在这个板块下');
   // 每一行给出作业脚本路径：改哪一行去找哪个文件不该靠猜（序号=行序由后端那份在册表给）
   assert.match(panel, /task\.module\.replace/);
+});
+
+test('行首那个圈号读后端那一格 no：号＝行序＝push/tNN 的文件序号', () => {
+  // 用户 11-04 要「给内容点编号」，他提需求时直接说「③盘中变化量」——屏上没号就对不上
+  assert.equal(taskNoBadge(1), '①');
+  assert.equal(taskNoBadge(3), '③');
+  assert.equal(taskNoBadge(9), '⑨');
+  assert.equal(taskNoBadge(10), '⑩', '第 ⑩ 路（明日展望）也该有圈号');
+  assert.equal(taskNoBadge(11), '⑪', '第 ⑪ 路（最强模式，11-06 用户点名）要有圈号，退回 #11 就对不上号');
+  assert.equal(taskNoBadge(20), '⑳');
+  assert.equal(taskNoBadge(21), '#21', '超出圈号表才退回 #N');
+  // 后端没给号（旧版接口／读不到）交空串，屏上不补一个"大概是第几路"的假号
+  for (const bad of [null, undefined, 0, -1, 2.5, '']) {
+    assert.equal(taskNoBadge(bad as number | null | undefined), '', `${String(bad)} 不该发出号`);
+  }
+  assert.match(panel, /taskNoBadge\(task\.no\)/, '没读后端那一格就等于自己数');
+  assert.doesNotMatch(panel, /tasks\.map\(\s*\(\s*\w+\s*,\s*i\s*\)/,
+    '按数组下标编号：有人插一行或排个序，屏上的号就和文件名 tNN 错开');
+  assert.match(reads, /no\?: number \| null/, '类型里没有这一格，tsc 会让它悄悄变成 undefined');
+});
+
+test('每行的"干什么"读后端 BRIEF，前端不写第二句', () => {
+  // 用户 11-06 问「清单有没有做到网页上」——当时屏上只有号与路径，短句只在 md 里。
+  // 现在屏上那一行直接渲染接口的 `brief`；前端自己拼一句就会与 `ingest/jobs/推送任务清单.md` 分叉。
+  assert.match(panel, /\{!!task\.brief\s*&&/, '面板没渲染接口给的那句短句');
+  assert.match(reads, /brief\?: string \| null/, '类型里没有 brief 这一格');
+  // 短句的字面量不许搬进前端（搬进来就等于抄一份，改 BRIEF 时屏上不动）
+  assert.doesNotMatch(panel, /记涨跌停池事件差|竞价额榜与量榜|盘后复盘那一栏/,
+    '前端抄了 BRIEF 的原话，后端改口径时屏上不会跟着变');
+});
+
+// ---------------------------------------------------------------- 按日期回看推送正文（用户 11-10）
+
+const viewer = readFileSync(new URL('../src/components/BroadcastBodyViewer.tsx', import.meta.url), 'utf8');
+
+test('送达、没发成、没有回执是三件事，说法不许混', () => {
+  const r = (over: Record<string, unknown>) => ({
+    at: '2026-11-09 18:18:03', body: 'x', chars: 1, kinds: ['daily_review'], sent: false, ...over,
+  });
+  assert.equal(bodyStatusText(r({ delivered: true, channel_key: 'feishu-main' }) as never), '已送达 · feishu-main');
+  // ⑧微信镜像那种：没有 sent 行，但 delivered=false 且有原话 —— 先看送达，不许说成"只是没回执"
+  assert.equal(bodyStatusText(r({ delivered: false, channel_key: 'wx' }) as never), '没发成 · wx');
+  assert.equal(bodyStatusText(r({ ok: false }) as never), '没发成');
+  assert.equal(bodyStatusText(r({ sent: true }) as never), '发过，回执没说到没到');
+  assert.equal(bodyStatusText(r({}) as never), '只有正文，库里没有发送回执');
+});
+
+test('上一天／下一天在真有正文的日子之间跳，不按日历加减', () => {
+  const days = ['2026-11-09', '2026-11-06', '2026-11-05'];   // 后端给的降序
+  assert.equal(neighborDay(days, '2026-11-06', -1), '2026-11-05');
+  assert.equal(neighborDay(days, '2026-11-06', 1), '2026-11-09');
+  assert.equal(neighborDay(days, '2026-11-09', 1), null, '已经是最近一天就别让按钮还能按');
+  assert.equal(neighborDay(days, '2026-11-05', -1), null);
+  // 手输一个没内容的日子（11-08 是周日）也要跳得动，且跳到的是最近的那一端
+  assert.equal(neighborDay(days, '2026-11-08', -1), '2026-11-06');
+  assert.equal(neighborDay(days, '2026-11-08', 1), '2026-11-09');
+  assert.equal(neighborDay([], '2026-11-08', -1), null);
+});
+
+test('落点是不是最近一天要自己说得出', () => {
+  assert.equal(bodyDayCaption('2026-11-09', '2026-11-09'), '2026-11-09（最近一天）');
+  assert.equal(bodyDayCaption('2026-11-06', '2026-11-09'), '2026-11-06');
+  assert.equal(bodyDayCaption('', '2026-11-09'), '—', '没读到日子不许写成空串让人以为在看今天');
+});
+
+test('钟点取到秒（库里那一格是脚本自己写的，比任务计划程序那两格可信）', () => {
+  assert.equal(bodyClock('2026-11-09 18:18:03'), '18:18:03');
+  assert.equal(bodyClock(''), '');
+  assert.equal(bodyClock(null), '');
+});
+
+test('这一天有几路几条多少字，空的一天也要数得出来', () => {
+  const items = [
+    { task: 'noon', rounds: [{ chars: 846 }, { chars: 0, body: 'ab' }] },
+    { task: 'tomorrow', rounds: [] },
+  ] as never;
+  assert.deepEqual(bodiesTally(items), { routes: 2, rounds: 2, chars: 848 });
+  assert.deepEqual(bodiesTally([]), { routes: 0, rounds: 0, chars: 0 });
+});
+
+test('回看那一块挂在推送任务屏上，日期默认来自接口不是本机今天', () => {
+  assert.match(viewer, /loadBroadcastBodies\(want\)/, '没有把日子交给接口，屏上就跳不动');
+  assert.doesNotMatch(viewer, /new Date\(\)\.toISOString\(\)\.slice\(0,\s*10\)|toLocaleDateString\(.*\).*setValue/,
+    '前端自己算"今天"当默认落点：早上打开时今天还没到点，看着像一条都没发过');
+  assert.match(viewer, /setDay\(r\.day \?\? ""\)/, '落点读接口的 `day`（后端挑的最近一个有正文的日子）');
+  // 只有一处挂它：两处都能看正文，改天一处筛了一路一处没筛
+  assert.equal(panel.match(/<BroadcastBodyViewer/g)?.length, 1, '面板里挂载次数不是 1');
+  assert.match(panel, /<BroadcastBodyViewer tasks=\{tasks\} \/>/, '没把配置表的号与路名交给它');
+  assert.match(io, /export async function loadBroadcastBodies/);
+});
+
+test('回看不许读不出来时装成"那天没发过"', () => {
+  assert.match(io, /if \(!resp\.ok\) \{\s*throw new Error\(body\?\.detail/, '后端原话没往上抛');
+  assert.match(io, /推送正文读不出来/, '连 HTTP 状态都不报就成了一句没有来由的空');
+  assert.match(viewer, /r\.readable === false \? \(r\.reason/, '接口报了不可读就要把原因挂上去');
+  assert.match(viewer, /这一天库里没有这几路的正文/, '真空的一天要说出是哪三种可能之一');
+});
+
+test('号与路名从配置表借，正文按原样渲染不套 markdown', () => {
+  assert.match(viewer, /task\?\.label \?\? item\.task/, '自己写第二份路名就会与在册表分叉');
+  assert.match(viewer, /taskNoBadge\(task\?\.no\)/, '号也要从后端那一格来');
+  assert.match(viewer, /<pre className=\{?"mt-1 whitespace-pre-wrap[\s\S]*?\{r\.body\}/,
+    '正文要走 <pre> 原样出：套 markdown 渲染会把正文里的 * 当语法吃掉');
+  assert.doesNotMatch(viewer, /dangerouslySetInnerHTML/, '正文是库里读出来的原文，不许当 HTML 注入');
+  assert.doesNotMatch(viewer, /plain\(r\.body\)/, '正文里没有星号（库里实测 0 条），不需要出口清洗；包上反而遮住真串');
+  assert.match(viewer, /失败原话：\{plain\(r\.err\)\}/, '失败原话是后端散文，走统一出口');
+});
+
+test('正文还没读回来之前，不许说「这一天库里没有正文」', () => {
+  // 11-10 浏览器实测抓到的：慢的那几秒里屏上同时写着「— · 0 路 0 条正文」和那句"没有正文"，
+  // 而那一刻一次库都还没读到 —— 那是把加载中说成业务事实，与"读不出来不许兜空"同一条纪律。
+  assert.match(viewer, /\{s && s\.readable !== false && !items\.length && !err && /,
+    '那句"没有正文"必须先判 `s` 已经拿到');
+  assert.match(viewer, /正在读库里那一天真发出去的正文/, '加载中要有加载中那一行，不能留一片像结论的空白');
+  const before = viewer.slice(0, viewer.indexOf('现在看的是'));
+  assert.match(before, /\{s && \(/,
+    '「现在看的是 …」那一行也要等接口回来再写（加载中不许先写「— · 0 路 0 条正文」）');
+  // 换一天时先把上一天的正文摘掉：留着就是"日期格已经改了、下面还是昨天的那一串"这种假配对
+  assert.match(viewer, /setDay\(want\); setS\(null\);/, 'pick 没有清空上一次读到的那一份');
+  assert.match(viewer, /if \(DAY_RE\.test\(v\)\) pick\(v\);/, '手输日子也走同一条清空＋重读');
 });

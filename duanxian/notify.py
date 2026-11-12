@@ -479,8 +479,11 @@ def _blk_voldbl(params: dict, day: str) -> str:
         filter_note = (f"，只看 {picked} 这几档"
                        f"（{gate} 的票里分别是 {whole}）" if counts else
                        f"，只看 {picked} 这几档（各档实有几只没读到）")
+    # 这一行的括号**必须自己合上**：勾了象限时 `filter_note` 自带 `）`，没勾（每晚那条定时计划就是这档）
+    # 就只剩开头那个 `（` ⇒ 群里读出来是「倍量形态榜（2026-11-06，近 40 场加权分≥0，不限象限：」，
+    # 一句没合口的话，像截断又像漏字（11-06 用户贴回来的那条就是这么个样子）。
     lines = [f"倍量形态榜（{res.get('date') or day}，近 40 场{gate}"
-             + (filter_note if quadrants else "，不限象限") + "："]
+             + (filter_note if quadrants else "，不限象限）") + "："]
     if not rows:
         lines.append("  这一场没有满足条件的票（不是取数失败，是真没有）。")
     for r in rows[:limit]:
@@ -1119,7 +1122,7 @@ _POST_DEFAULT = _post_json           # 用来认出"测试有没有把这个口�
 
 
 def _bot_target(kind: str, url: str, title: str, body: str,
-                secret: str = "") -> tuple[str | None, dict | None, str | None]:
+                secret: str = "", card: dict | None = None) -> tuple[str | None, dict | None, str | None]:
     """把存下来的地址换成真 HTTP 端点 + 正文载荷（带密钥时按各家口径加签）。
 
     **两种写法都收**（10-16 用户就是卡在这里）：群机器人设置页复制来的完整
@@ -1162,8 +1165,14 @@ def _bot_target(kind: str, url: str, title: str, body: str,
     secret = (secret or query.get("secret") or "").strip()
 
     text = f"{title}\n{body}" if title else body
-    payload: dict = ({"msg_type": "text", "content": {"text": text}} if kind == "feishu"
-                     else {"msgtype": "text", "text": {"content": text}})
+    if kind == "feishu" and card is not None:
+        # 飞书群机器人支持 `msg_type:interactive` 的卡片消息（Markdown 渲染）；
+        # 非飞书渠道没有这套卡片格式，忽略 card 走纯文本，不许把飞书结构硬塞过去。
+        payload = {"msg_type": "interactive", "card": card}
+    elif kind == "feishu":
+        payload = {"msg_type": "text", "content": {"text": text}}
+    else:
+        payload = {"msgtype": "text", "text": {"content": text}}
     if kind == "feishu":
         target = f"{official}{quote_plus(token)}"
         if secret:
@@ -1207,7 +1216,66 @@ def _verdict(kind: str, status: int, raw: bytes) -> tuple[bool, str]:
     return False, f"回体说没收到（code={code}{f'，{msg}' if msg else ''}）"
 
 
-def deliver(targets: list[dict], title: str, body: str) -> dict:
+def build_feishu_card_markdown(body: str) -> str:
+    """把组好的一档正文转成飞书卡片里的 Markdown 内容（**只做格式、不改数**）。
+
+    各档正文里数据行都以两个空格缩进开头、形如 `  名称（代码）…`：
+      · 缩进行 → Markdown 列表项 `- …`；若 `（…）` 里是纯数字股票代码（4~8 位），
+        就把 `名称（代码）` 这段加粗（飞书手机端对齐更清楚）——
+        说明行（"今天没有…"，括号里是文字）不加粗，避免整句被误加粗；
+      · 顶格的标题/说明行 → 原样保留（括号、百分号在 Markdown 里都是安全字符）。
+    只做这些轻整形：不删行、不合并、不重排 —— 票数与顺序必须与纯文本那份**一模一样**，
+    否则卡片与「预览/网站」对不上，就是拿一份假读数替换了另一份。
+    """
+    import re
+    code_prefix = re.compile(r"^(.*?)（(\d{4,8})）")
+    out = []
+    for line in (body or "").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            out.append("")
+            continue
+        if line[:1] == " ":      # 缩进的数据行 → 列表项
+            m = code_prefix.match(stripped)
+            if m:                 # 名称（数字代码）→ 这段加粗
+                out.append(f"- **{m.group(1)}（{m.group(2)}）**{stripped[m.end():]}")
+            else:
+                out.append(f"- {stripped}")
+        else:                       # 顶格行（标题/说明）原样
+            out.append(stripped)
+    text = "\n".join(out).strip()
+    return text or "（这一档没有内容）"
+
+
+def build_feishu_card(title: str, body: str) -> dict:
+    """把「标题 + 正文」包成飞书 interactive 卡片（`msg_type: interactive`，支持 Markdown）。
+
+    只服务飞书群机器人：钉钉/企微不认这套结构，`_bot_target()` 里 `kind != feishu`
+    会自动退回纯文本 —— 所以这张卡片可以放心传给混着飞书/企微的同一批渠道，
+    不会被硬塞给不认它的渠道。
+
+    卡片结构（飞书开放平台 card JSON）：
+      header（彩色标题条，放标题） + markdown（正文） + hr + note（口径尾注）。
+    正文长度仍由调用方（`compose`/`compose_split` 的 `_clip`）按渠道上限切好，
+    这里不再二次截断 —— 卡片与纯文本发的是**同一段**正文，只是换了渲染壳。
+    """
+    return {
+        "config": {"wide_screen_mode": True, "update_multi": True},
+        "header": {
+            "title": {"tag": "plain_text", "content": (title or "推送").strip()},
+            "template": "blue",
+        },
+        "elements": [
+            {"tag": "markdown", "content": build_feishu_card_markdown(body)},
+            {"tag": "hr"},
+            {"tag": "note", "elements": [
+                {"tag": "plain_text",
+                 "content": "— YuanShan 定时推送 · 不打分 不预测 不给买卖建议"}]},
+        ],
+    }
+
+
+def deliver(targets: list[dict], title: str, body: str, card: dict | None = None) -> dict:
     """向若干渠道投递。返回 `{"ok","detail","sent_to"}`，**逐渠道各判一次**。
 
     - 机器人（飞书/钉钉/企微）：自己 POST 并按回体判；
@@ -1225,7 +1293,8 @@ def deliver(targets: list[dict], title: str, body: str) -> dict:
             if kind == "mail":
                 ok, note = _mail_via_apprise(url, title, body)
             else:
-                target, payload, why = _bot_target(kind, url, title, body, t.get("secret") or "")
+                target, payload, why = _bot_target(kind, url, title, body,
+                                                  t.get("secret") or "", card)
                 if target is None:
                     ok, note = False, why
                 else:
@@ -1306,7 +1375,7 @@ def resolve_channels(keys: list | None = None, cfg: dict | None = None) -> tuple
     return usable, problems
 
 
-def send_to(keys: list, title: str, body: str, *, cfg: dict | None = None) -> dict:
+def send_to(keys: list, title: str, body: str, *, cfg: dict | None = None, card: dict | None = None) -> dict:
     """向指定渠道发一条。返回逐渠道的结果，**失败原因带着渠道键**（不带 URL）。
 
     ⚠️ 整体 `ok` 是**所有渠道都确认收到**才真 —— 一条没到就不是"已交付"。
@@ -1314,7 +1383,7 @@ def send_to(keys: list, title: str, body: str, *, cfg: dict | None = None) -> di
     usable, problems = resolve_channels(keys, cfg)
     if not usable:
         return {"ok": False, "sent_to": [], "skipped": problems, "detail": "没有可用渠道，未发送"}
-    res = deliver(usable, title, body)
+    res = deliver(usable, title, body, card)
     return {"ok": res["ok"], "sent_to": res["sent_to"], "skipped": problems,
             "detail": res["detail"], "failed": res.get("failed") or []}
 
@@ -1421,7 +1490,8 @@ def run_plan(plan: dict, *, now: datetime | None = None, force: bool = False,
         if not msgs:
             out.update({"status": "bad_config", "reason": "这条计划没勾选任何内容 ⇒ 分条也就无条可发"})
             return out
-        sends = [deliver(targets, m["title"], m["body"]) for m in msgs]
+        sends = [deliver(targets, m["title"], m["body"],
+                         card=build_feishu_card(m["title"], m["body"])) for m in msgs]
         res = {"ok": all(s["ok"] for s in sends),
                "detail": "；".join(f"「{m['label']}」{s['detail']}"
                                    for m, s in zip(msgs, sends))[:400],
@@ -1435,7 +1505,7 @@ def run_plan(plan: dict, *, now: datetime | None = None, force: bool = False,
     else:
         title, body, meta = compose(plan.get("scenes") or {}, day,
                                     title_prefix=prefix, limit=cap)
-        res = deliver(targets, title, body)
+        res = deliver(targets, title, body, card=build_feishu_card(title, body))
     res["skipped"] = list(blocked) + list(res.get("skipped") or [])
     out.update({"status": "ok" if res["ok"] else "fail", "detail": res["detail"],
                 "sent_to": res["sent_to"], "skipped_channels": res["skipped"],

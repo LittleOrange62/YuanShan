@@ -62,8 +62,8 @@ def test_涨跌家数为0是读数不是缺数():
     """外部那句 `sum(...) or None` 会把"全场只数 0"吞成缺数 —— 搬进来时必须改掉
     （《10-盘中播报与事件流入库》§二.3 点名的三处之一）。"""
     payload = json.dumps({"data": {"diff": [
-        {"f14": "上证指数", "f3": 1.0, "f104": 0, "f105": 1200},
-        {"f14": "深证成指", "f3": 1.2, "f104": 0, "f105": 800}]}})
+        {"f12": "000001", "f14": "上证指数", "f3": 1.0, "f104": 0, "f105": 1200},
+        {"f12": "399001", "f14": "深证成指", "f3": 1.2, "f104": 0, "f105": 800}]}})
     monkey = _patch_get(N, lambda url, enc='utf-8': payload)
     with monkey:
         idx, up, down, src = N.market_stats()
@@ -169,8 +169,20 @@ def _fake_round(monkeypatch, captured: dict):
     monkeypatch.setattr(N, 'concept_groups',
                         lambda rows, labels, **kw: [("人工智能", 3, "60%", "主线候选(家数第一)，梯队最高3板",
                                                      "股0 3天3板", 0.6, 3, "BK0001", 0)])
-    monkeypatch.setattr(N.volume, 'volume_lines',
-                        lambda now, **kw: (["量能：测试行"], "腾讯分钟"))
+    # 量能快照（11-05 改版）：compute 打桩不出网，write_snap 走 store 的假口
+    def _fake_vol(kind, now, **kw):
+        def r(amt, yoy, p, t, lab, miss=None):
+            return {'amount': amt, 'yoy': yoy, 'pctile': p, 'trend': t, 'label': lab,
+                    'missing': miss or {}}
+        idx = {n: r(1e11, 0.58, 0.48, 0.31, '中位上行') for n in ('上证', '深证', '创业板', '科创')}
+        idx['北证'] = r(None, None, 0.24, 0.05, '低位徘徊')
+        return {'kind': 'noon', 'src': '腾讯分钟',
+                'asof': {n: 20261104 for n in list(idx) + ['两市']},
+                'idx': idx, 'tot': r(None, None, 0.48, 0.31, '中位上行'),
+                '_tot_tail': [15.5, 16.7, 17.8, 17.0, 20.4]}
+    monkeypatch.setattr(N.vol_snap, 'compute', _fake_vol)
+    monkeypatch.setattr(N.vol_snap, 'write_snap',
+                        lambda kind, now, **kw: captured.setdefault('volsnap', (kind, now)) and 6)
     monkeypatch.setattr(N.tasks, 'send_channels', lambda ch=None: ["feishu-main"])
 
     def fake_upsert(row):
@@ -197,15 +209,21 @@ def test_整轮落库的午间行宽与列序正确(monkeypatch):
     assert d['limit_up_n'] == 5 and d['limit_down_n'] == 0 and d['unseal_n'] == 0
     assert d['up_count'] == 3000 and d['down_count'] == 1000      # 0 与读数都不吞
     assert d['premium_pos_rate_pct'] == pytest.approx(2 / 3 * 100)
-    assert '人工智能' in d['section_cluster'] and '测试行' in d['body']
+    assert '人工智能' in d['section_cluster'] and '量能 位置' in d['body']
     # 用户 11-03 定的版式：标题不带【】、正文末尾不再挂那句来源说明
     assert d['body'].split('\n')[0] == f"午间复盘 · {d['trade_date']:%m-%d} 上午盘" \
         or d['body'].startswith('午间复盘 · ')
     assert '【' not in d['body'].split('\n')[0], '第一行还带方括号 = 群里标题会重复一遍'
     assert '—东财涨跌停池+腾讯行情' not in d['body']
     assert '量能:腾讯分钟' in d['index_source'], '来源不发了，但必须仍然落在库里（不然事后问"这数哪来的"没人答得上）'
+    assert '量能 同比：' in d['body'], '11-05 版式：量能节＝精简两行（同比 + 位置/判断）'
+    assert '位置48%' in d['body'] and '中位上行' in d['body']
+    assert '北证缺' in d['body'], '北证 50 无分钟源，早间那一格明标缺'
+    assert captured.get('volsnap', (None,))[0] == 'noon', '量能快照 noon 针必须入库（用户 11-05：每天两次入库）'
     assert json.loads(d['missing']) == {}
     assert captured['sent'] and captured['sent'][0][0] == ['feishu-main']
+    assert captured['sent'][0][1] == '', \
+        '用户 11-05：「去掉第一行的"午间复盘"四个字」—— 推送不带标题行，正文第一行自己就是标题'
     buckets = {r[2] for r in captured['concepts']}
     assert buckets == {'noon_zt'}                                  # 与竞价/热度同一张表同一列序
 
@@ -215,3 +233,27 @@ def test_dry_run_一条都不写(monkeypatch):
     _fake_round(monkeypatch, captured)
     assert N.one_round(dry_run=True, send=True, channel=None, force=True) == 0
     assert 'noon_row' not in captured and 'sent' not in captured and 'casts' not in captured
+
+
+def test_池子取不到那一路也是先落正文再发(monkeypatch):
+    """用户 11-10：「5、9、10、11 这些分析的推送任务，都是先入库再推送」，
+    并且要在「推送任务」那一屏按日期回看正文 —— 回看读的就是发送前落的那一串。
+
+    降级那一路（池子取不到，播一句 `noon_fail_notice`）原先只写 err 不写 body，
+    正文全靠**发完之后**那条回执行：发送中途崩掉就一个字都留不下，
+    事后那一屏只能说"这天没有正文"，而群里其实收到过一条。
+    """
+    captured: dict = {}
+    _fake_round(monkeypatch, captured)
+    events: list = []
+    monkeypatch.setattr(store, 'write_broadcast',
+                        lambda *a, **kw: events.append(('log', kw)) or 1)
+    monkeypatch.setattr('duanxian.notify.send_to',
+                        lambda keys, title, body: events.append(('send', body)) or {'ok': True})
+    monkeypatch.setattr(N.zt_watch, 'fetch_pools',
+                        lambda now: (_ for _ in ()).throw(OSError('池子连不上')))
+    assert N.one_round(dry_run=False, send=True, channel=None, force=True) == 1
+    kinds = [e[0] for e in events]
+    assert kinds[:2] == ['log', 'send'], '正文必须先落库，再发（发完还有一条回执行，那是第三笔）'
+    assert events[0][1].get('body'), '降级那一路的留痕里也要有正文（只写 err 就回看不了）'
+    assert events[0][1]['body'] == events[1][1], '落库那一份与真发出去的那一份必须逐字相同'

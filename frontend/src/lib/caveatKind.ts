@@ -45,6 +45,9 @@ export const FOLDABLE_CAVEAT_CODES: ReadonlySet<string> = new Set([
   'universe', 'note', 'vs_sector_card', 'adjusted_shape', 'bj_excluded',
   'local_only', 'index_assumed_zero', 'depth', 'prior_not_law', 'selection_bias',
   'future_function', 'board_link',
+  // 近期倍量表走势分析：这两条在后端只出现在固定散文里（`energy_trend._caveats` 末尾两发，
+  // 不带当场计数），符合上面第③条资格；同族带计数的 short_window/pending/missing/dropped/ties 不在这里。
+  'energy_trend_overlap', 'energy_trend_not_backtest',
 ]);
 
 /** 名字里带"库不健康"语义的那些词根：命中就**不许折**（第二道闸，也兜住"新 code 但名字已经说明问题"） */

@@ -801,6 +801,102 @@ def pids_by_name(name: str) -> list[int]:
     return pids
 
 
+#: 线程快照。判"这个 pid 还活着吗"只认线程数，不认 `tasklist` 列没列它。
+TH32CS_SNAPTHREAD = 0x00000004
+
+
+class _THREADENTRY32(ctypes.Structure):
+    _fields_ = [('dwSize', wintypes.DWORD), ('cntUsage', wintypes.DWORD),
+                ('th32ThreadID', wintypes.DWORD), ('th32OwnerProcessID', wintypes.DWORD),
+                ('tpBasePri', ctypes.c_long), ('tpDeltaPri', ctypes.c_long),
+                ('dwFlags', wintypes.DWORD)]
+
+
+def thread_counts() -> dict[int, int]:
+    """每个 pid 现在有几个线程。**0 线程＝进程已经死了，只是条目还没被回收。**
+
+    2026-11-11 实测到的那一例：`TdxW.exe`(45956) 线程 0、工作集 20 K、顶层窗口 0 个、
+    映像路径读不出来，而 `tasklist` 照样列它一行。只看镜像名的判活于是认定
+    「客户端还在跑」⇒ 每轮都要先关它 ⇒ `taskkill /F /IM` 没有线程可杀、关不掉
+    ⇒ 等 20s 超时判「旧进程关不掉」，而重试时那条按名字杀的命令还把**刚拉起来的
+    新实例**一起杀了（当天 23:50:09 的 [45956, 17880] 就是这么没的）。
+    一整天的日线因此一根都没落（vipdoc 到目标日的文件数 0，前一场 9,531）。
+    """
+    k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+    k32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    k32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    k32.Thread32First.argtypes = [wintypes.HANDLE, ctypes.POINTER(_THREADENTRY32)]
+    k32.Thread32Next.argtypes = [wintypes.HANDLE, ctypes.POINTER(_THREADENTRY32)]
+    snap = k32.CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0)
+    if not snap or snap == wintypes.HANDLE(-1).value:
+        return {}
+    counts: dict[int, int] = {}
+    try:
+        te = _THREADENTRY32()
+        te.dwSize = ctypes.sizeof(_THREADENTRY32)
+        if not k32.Thread32First(snap, ctypes.byref(te)):
+            return {}
+        while True:
+            pid = int(te.th32OwnerProcessID)
+            counts[pid] = counts.get(pid, 0) + 1
+            if not k32.Thread32Next(snap, ctypes.byref(te)):
+                break
+    finally:
+        k32.CloseHandle(snap)
+    return counts
+
+
+def split_live_pids(pids: list[int], *,
+                    counts: dict[int, int] | None = None) -> tuple[list[int], list[int]]:
+    """把一批 pid 分成 `(活着, 残影)`。判据只有这一份，`split_live` 也走它。
+
+    `counts` 可以由调用方传进来复用同一次线程快照（一轮要判好几个镜像名时，
+    没必要每名各拍一次）。判不出线程数时保守当成活着 —— 探不到不等于没有。
+    """
+    if not pids:
+        return [], []
+    if counts is None:
+        counts = thread_counts()
+    if not counts:
+        return list(pids), []
+    live = [p for p in pids if counts.get(p, 0) > 0]
+    return live, [p for p in pids if p not in live]
+
+
+def split_live(name: str) -> tuple[list[int], list[int]]:
+    """`(活着的 pid, 残影 pid)`。残影＝`tasklist` 还列着但已经 0 线程。
+
+    **残影不算「客户端在跑」**：它没有窗口、收不到消息、也杀不掉，
+    拿它当"在跑"只会让每一轮都卡在「先关掉再起」那一步。
+    """
+    return split_live_pids(pids_by_name(name))
+
+
+def live_pids(name: str) -> list[int]:
+    """真正活着的实例（残影条目不算）。判「客户端在不在跑」一律走这里。"""
+    return split_live(name)[0]
+
+
+def ghost_pids(name: str) -> list[int]:
+    """已经死了但条目还在的 pid。只用来记账与说破，不拿它当"在跑"，也不等它消失。"""
+    return split_live(name)[1]
+
+
+def kill_pids(pids: list[int]) -> dict[int, bool]:
+    """按 pid 精确收（带 `/T` 收子树）。**不按镜像名群杀** —— 那会连刚拉起的新实例一起杀。"""
+    out: dict[int, bool] = {}
+    for pid in pids:
+        try:
+            r = subprocess.run(['taskkill', '/F', '/T', '/PID', str(pid)],
+                               capture_output=True, text=True, timeout=30,
+                               encoding='utf-8', errors='replace',
+                               creationflags=NO_WINDOW)
+            out[pid] = r.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            out[pid] = False
+    return out
+
+
 def pids_by_prefix(prefix: str) -> list[tuple[str, int]]:
     """
     按镜像名前缀找进程，返回 `[(镜像名, pid)]`。
@@ -834,18 +930,20 @@ def _tasklist(extra: list[str]) -> str:
 
 
 def process_alive(name: str) -> bool:
-    return bool(pids_by_name(name))
+    """这个名字下**有没有活着的实例**。残影条目（0 线程）不算 —— 见 `split_live`。"""
+    return bool(live_pids(name))
 
 
 def kill(name: str) -> bool:
-    try:
-        r = subprocess.run(['taskkill', '/F', '/IM', name],
-                           capture_output=True, text=True, timeout=30,
-                           encoding='utf-8', errors='replace',
-                           creationflags=NO_WINDOW)
-        return r.returncode == 0
-    except (OSError, subprocess.SubprocessError):
+    """收掉这个名字下**真正活着**的实例（按 pid，带子树）。
+
+    残影条目不杀也不等：它没有线程，`taskkill` 对它无能为力，等它消失就是白等。
+    不按 `/IM` 群杀：那会把这一轮刚拉起来的新实例一起收掉（2026-11-11 实测）。
+    """
+    live = live_pids(name)
+    if not live:
         return False
+    return all(kill_pids(live).values())
 
 
 def screenshot(path) -> bool:

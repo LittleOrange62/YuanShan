@@ -385,8 +385,10 @@ def test_右栏认不得的信号值不参与筛选并点名(bo):
     bo['rows'] = [_bo_row()]
     out = quant.breakout_signal(signal_type='shoupo')
     assert 'v.signal_type = %s' not in bo['sql'], "认不得就不拼进 SQL"
-    # 主查询的参数：日期、判据版本、limit（版本条件在读侧不能漏，见 `where` 那段注释）
-    assert bo['params'] == ['2026-10-12', B.SPEC_VERSION, 150], bo['params']
+    # 主查询的参数：股性判据版本、日期、突破判据版本、limit
+    # （11-05 起右栏也 LEFT JOIN `stock_character_daily`，版本条件排在最前 ——
+    #   两张榜共用 `_character_read` 那份参数，漏掉它就成了"同一天两个版本的行数加在一起"）
+    assert bo['params'] == [CH.SPEC_VERSION, '2026-10-12', B.SPEC_VERSION, 150], bo['params']
     assert out['filter']['signal_type'] == 'all'
     assert out['filter']['signal_type_rejected'] == ['shoupo']
     txt = next(c['text'] for c in out['caveats'] if c['code'] == 'breakout_type_rejected')
@@ -394,7 +396,7 @@ def test_右栏认不得的信号值不参与筛选并点名(bo):
 
     quant.breakout_signal(signal_type='converging')
     assert 'v.signal_type = %s' in bo['sql']
-    assert bo['params'] == ['2026-10-12', B.SPEC_VERSION, 'converging', 150], bo['params']
+    assert bo['params'] == [CH.SPEC_VERSION, '2026-10-12', B.SPEC_VERSION, 'converging', 150], bo['params']
 
 
 def test_右栏计数读不到时交null(bo):
@@ -470,8 +472,11 @@ def test_整场没入库时点名的是那一步没跑_而不是每只票判不�
     amb['counts'] = [{'t': 'sticky_pull', 'n': 22}]
     amb['char'] = {'n': 0, 'scored': 0}
     out = quant.ambush()
-    assert 'ambush_char_missing_batch' in [c['code'] for c in out['caveats']], out['caveats']
-    txt = next(c['text'] for c in out['caveats'] if c['code'] == 'ambush_char_missing_batch')
+    # 机器码 11-05 从 `ambush_char_missing_batch` 改成 `char_missing_batch`：
+    # 这条声明现在由 `_character_read()` 一处产出、埋伏与突破两张榜共用，
+    # 带 `ambush_` 前缀就成了"两屏各写一份"的形状。钉的仍是同一件事。
+    assert 'char_missing_batch' in [c['code'] for c in out['caveats']], out['caveats']
+    txt = next(c['text'] for c in out['caveats'] if c['code'] == 'char_missing_batch')
     assert '还没入库' in txt and '不是「振幅 0」' in txt and 'stockchar' in txt, txt
     assert out['character']['has_rows_on_date'] is False
     assert out['character']['rows_on_date'] == 0
@@ -479,7 +484,7 @@ def test_整场没入库时点名的是那一步没跑_而不是每只票判不�
     assert 'spec_version = %s' in amb['char_sql'] and amb['char_params'][1] == CH.SPEC_VERSION
 
     amb['char'] = {'n': 5586, 'scored': 5376}
-    assert 'ambush_char_missing_batch' not in [c['code'] for c in quant.ambush()['caveats']]
+    assert 'char_missing_batch' not in [c['code'] for c in quant.ambush()['caveats']]
 
 
 def test_股性那两列的阈值与中文档名从写侧现读(amb):
@@ -547,7 +552,7 @@ def test_埋伏榜每一条caveat都带中文label_屏上不许念机器码(amb)
     out2 = quant.ambush(types='shoupo')
     codes = {c['code'] for c in out['caveats']} | {c['code'] for c in out2['caveats']}
     assert {'ambush_type_rejected', 'ambush_counts_unread', 'ambush_empty',
-            'ambush_char_missing_batch'} <= codes, codes
+            'char_missing_batch'} <= codes, codes
     for c in list(out['caveats']) + list(out2['caveats']):
         assert c.get('label'), f'{c["code"]} 没配 label —— 屏上那颗 chip 会念机器码'
         assert _re.search(r'[一-鿿]', c['label']), f'{c["code"]} 的 label 不是中文：{c["label"]}'

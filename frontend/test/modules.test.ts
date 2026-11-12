@@ -89,7 +89,11 @@ test('every navigation entry has a registered route, and every route is reachabl
 });
 
 test('old deep links resolve to their parent, rather than becoming extra primary entries', () => {
-  for (const route of ['/heat','/first-board','/backtest','/agent/review']) assert.equal(moduleFor(route)?.title, '复盘');
+  for (const route of ['/heat','/first-board','/agent/review']) assert.equal(moduleFor(route)?.title, '复盘');
+  // 11-07：`/backtest`（涨停样本统计）整屏搬进「个股研究与回测 · 策略回测」—— 它无一格当日读数，
+  // 主功能点就是回溯。搬完后它和 `/stock-data` 同形状：有跳转、无导航入口（那条不变量在上面）。
+  assert.equal(moduleFor('/backtest'), undefined, '老地址只剩跳转，导航里再留一条入口就是两个说法');
+  assert.equal(moduleFor('/backtest-agent')?.title, '个股研究与回测');
   // 10-15：「个股研究」与「多空辩论」两屏合进 `/stock-review`（用户点名）。老 pathname
   // `/stock-data`、`/agent/deepdive` 不再是页面，只做跳转 —— 它们「有跳转、无导航入口」
   // 由上面那条不变量管（既是跳转又有入口＝合并没做干净），这里查的是新页归在哪一个模块下。

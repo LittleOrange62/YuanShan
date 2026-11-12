@@ -10,7 +10,8 @@
    判据（窗口 STEADY_SESSIONS、三条门槛、名次读 `analytics.score.rank_in_market`）只住那一处，
    这里一个字都不抄（本文件没有第二份名次 SQL）。
 2. **表现窗口** ＝ 「今日涨跌 + 近 5 日涨跌」两栏，不逐日全铺：这张榜每天换人，逐日全铺会出现几百列
-   （逐日那一族屏已有先例 `quant.energy_track`，形状不同、问题不同，不合并）。
+   （按名次分档看后续几场的那一族是 `energy_trend`：每 10 名一档 × 后 1/2/3/5/10 场，
+   形状不同、问题不同，不合并）。
    ⚠️ 2026-10-27 用户点名改的两处措辞与一列换尺：
      · 母体默认是**前一场**那张榜 ⇒ 母体之后的第一场行情**就是今天**，所以这一列在屏上叫
        「今日涨跌」，不叫「次日涨跌」（旧名让人以为要等到明天才有数）。
@@ -37,7 +38,7 @@
 | `abnormal_hit` 异动筛查母体 | `analytics.abnormal_move_daily`（universe_by 中文只引 `abnormal_view.UNIVERSE_LABEL`） | 当日提醒母体行数 |
 | `trend_selected5/10` 趋势股入选 | `analytics.trend_stock_daily` 的两个布尔列 | 当日行数 |
 
-诚实性三条（照 `energy_track` 那一族的写法）：**哪一族的表那天没行，该族整列交 null（界面 —），
+诚实性三条（全站读侧同一套写法）：**哪一族的表那天没行，该族整列交 null（界面 —），
 并点名是「那天这一族没跑/没数」还是「这些票都不在榜」** —— 0 与「否」都是实质读数，不许拿它们顶「没读到」；
 缺任何一边的涨跌幅一律 null 并带原因码（`perf_missing_reason`）；名次规则文案只引
 `duanxian/ranking.py` 的 `RULE_NOTE`/`RULE_NOTE_SHORT`（随 `rank.rule` 交出，本文件不另写一句）。

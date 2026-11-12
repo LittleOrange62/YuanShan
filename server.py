@@ -3244,27 +3244,13 @@ def _tdx_data_stale(hhmm: str, *, now_ts: float | None = None) -> str | None:
 
 
 def _tdx_stuck_reason(st: dict, hhmm: str) -> tuple[str | None, dict]:
-    """客户端**开着但用不了**的原因（假死 / 不再收数），连同读数一起交出去进台账。
+    """客户端**开着、也登录了，但不再收数**的原因，连同读数一起交出去进台账。
 
-    登录框那一档不在这判据里：`_tdx_probe_round` 已经把它当成"不通"，两处各判会打架。
+    假死与登录框那两档不在这判据里：`watchman.probe()` 已经把它们算进 `usable`
+    （`hung` 是三态读数，随探针一起交），这里再枚举一遍窗口就是同一轮两份读数、两处各判。
     """
-    read: dict = {"hung": None}
-    reasons: list[str] = []
-    try:
-        from app.tdx_client import locator, win32
-
-        main = locator.main_window()
-        hung = win32.window_hung(main.hwnd) if main else None
-    except Exception as exc:  # noqa: BLE001  探测工具自己坏了不算客户端坏了
-        hung = None
-        read["hung_error"] = f"{type(exc).__name__}: {str(exc)[:90]}"
-    read["hung"] = hung
-    if hung is True:
-        reasons.append("主窗口消息线程不响应（假死，人点它也没反应）")
-    stale = _tdx_data_stale(hhmm)
-    if stale:
-        reasons.append(stale)
-    return ("；".join(reasons) or None), read
+    read: dict = {"hung": st.get("hung")}
+    return (_tdx_data_stale(hhmm) or None), read
 
 
 def _tdx_keep_alive_restart(detail: dict) -> dict | None:
@@ -3425,7 +3411,8 @@ def _tdx_probe_round() -> tuple[bool, dict]:
     """探测一次，返回 `(是不是"能取数"的状态, 交出去的记录)`。
 
     判"能不能取数"而不是"进程在不在"：**开着但停在登录框上，TQ 那条腿照样取不到数**
-    （收盘链 ③b 要靠已登录的客户端）。所以 `running 且 login_box=False` 才算通。
+    （收盘链 ③b 要靠已登录的客户端）。判据只住 `watchman.probe()` 的 `usable`
+    （活着 + 没停在登录框 + 不是假死；**残影条目不算活着**），这里不另判一次。
     """
     from app.tdx_client import watchman
 
@@ -3435,10 +3422,10 @@ def _tdx_probe_round() -> tuple[bool, dict]:
         return False, {"reason": "探测本身失败：%s: %s" % (type(exc).__name__, str(exc)[:150])}
     running = bool(st.get("running"))
     login_box = bool(st.get("login_box"))
-    ok = running and not login_box
+    ok = bool(st.get("usable"))
     stuck = None
     if ok:
-        # 第三道判据（10-13 新增）：**开着、也登录了，但用不了** —— 假死或不再收数。
+        # 第三道判据（10-13 新增）：**开着、也登录了，但不再收数**。
         # 原来这一格会报"正常·连败 0"，而 TQ 那条腿其实取不到数：那是最坏的一种假绿。
         from duanxian import util as _util
         stuck, stuck_read = _tdx_stuck_reason(st, _util.china_now().strftime("%H:%M"))
@@ -3449,21 +3436,29 @@ def _tdx_probe_round() -> tuple[bool, dict]:
         detail_read = {}
     detail = {"running": running, "pid": st.get("pid"), "login_box": login_box,
               "minimized": st.get("minimized"), "sync": st.get("sync"),
-              "window": st.get("window"), **detail_read,
+              "window": st.get("window"),
+              # 11-11 新增：活着的 pid 与残影条目分开交，页面才说得清"任务管理器里那一行是什么"
+              "live": st.get("live"), "ghost": st.get("ghost"),
+              "state": st.get("state"), "state_label": st.get("state_label"),
+              "usable": st.get("usable"),
+              # 假死是三态读数（None＝判不了），**每一档都要交**：判成不可用时也要看得见
+              # 到底是假死还是别的原因，不然台账上只剩一句结论。
+              "hung": st.get("hung"), **detail_read,
               # `watchman.heal()` 这条老路仍然没接（它会抢前台发键鼠）。
               # 但"没在跑就没人管"已经不是事实：10-06 起，**收盘链 ③b 的前置会自己
               # 拉起并登录**（开关 `tdx_watch.auto_launch`），每一次动作进待人工清单。
               "heal": "watchman.heal 未接；拉起并登录由收盘链 ③b 前置做（tdx_watch.auto_launch）"}
     if not running:
-        detail["reason"] = ("通达信没在跑 —— vipdoc 不会再刷新，收盘链的 ③b（TQ 直取）"
-                            "也要它登录着才有数；到点那条链会自己把它拉起来并登录"
-                            "（不想让它动界面就把 tdx_watch.auto_launch 关掉）")
+        detail["reason"] = (st.get("reason") or "通达信没在跑") + (
+            " —— vipdoc 不会再刷新，收盘链的 ③b（TQ 直取）也要它登录着才有数；"
+            "到点那条链会自己把它拉起来并登录"
+            "（不想让它动界面就把 tdx_watch.auto_launch 关掉）")
     elif login_box:
         detail["reason"] = "客户端开着但停在登录框上（TQ 取数此刻不可用；链会自己补登录）"
-    elif stuck:
-        # 10-13 新增的这一档：**"开着且登录着"不等于"能取数"**。
-        # 假死与"不再往前写"从前都会报成"正常·连败 0"，那是最坏的一种假绿。
-        detail["reason"] = f"客户端开着（pid {st.get('pid')}）但用不了：{stuck}"
+    elif not ok:
+        # 活着、也没停在登录框，但探针判不可用（假死）或盘中不再往前写。
+        detail["reason"] = (f"客户端开着（pid {st.get('pid')}）但用不了："
+                            f"{stuck or st.get('state_label') or '探针判不可用'}")
         detail["stuck"] = True
     else:
         detail["reason"] = "在跑（pid %s）· 同步子进程：%s" % (st.get("pid"), st.get("sync") or "无")
@@ -3767,7 +3762,7 @@ def _close_windows_now(target, *, force: bool = True) -> str:
     from app.tdx_client import win32
     from app.tdx_client.steps import s8_finish
 
-    pids = [p for _n, p in win32.pids_by_name('TdxW.exe')]
+    pids = win32.live_pids('TdxW.exe')
     return s8_finish.cleanup(pids[0] if pids else None, target=target, force=force)
 
 

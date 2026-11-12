@@ -34,6 +34,7 @@ const factsComp = read('../src/components/stock/StockFacts.tsx');
 const finComp = read('../src/components/quant/FinancialPeriodBoard.tsx');
 const simComp = read('../src/components/quant/VolumeSimilarityBoard.tsx');
 const pvComp = read('../src/components/stock/PriceVolumeTrend.tsx');
+const radarComp = read('../src/components/quant/SchemeRadarBoard.tsx');
 const page = read('../src/pages/StockReview.tsx');
 const system = read('../src/pages/System.tsx');
 
@@ -296,7 +297,7 @@ test('涨跌方向缺开或缺收时是「不知道」，不是判成阴线', ()
 test('这一轮新加的五块都挂在个股深度复盘上，且顺序是定下来的那个', () => {
   // 2026-10-28 用户点名「量价走势移动到这只票的量化档案的前面」⇒ pv 从第 5 位提到第 2 位。
   // 块序的另一份真源是 `duanxian/stock_metrics_ledger.py::BLOCKS`，后端那条测试钉它，两处必须一起改。
-  const order = ['StockFacts', 'PriceVolumeTrend', 'StockDossier', 'TrendQuant',
+  const order = ['StockFacts', 'PriceVolumeTrend', 'StockDossier', 'SchemeRadarBoard', 'TrendQuant',
     'FinancialPeriodBoard', 'VolumeSimilarityBoard', 'StockData', 'DeepDive', 'StockMetricsLedger'];
   const pos = order.map(n => page.indexOf(`<${n}`));
   pos.forEach((v, i) => assert.ok(v >= 0, `页面里没有 <${order[i]}，调用点没接上`));
@@ -306,11 +307,83 @@ test('这一轮新加的五块都挂在个股深度复盘上，且顺序是定�
 
 test('五个新接口都登记进了系统自检清单（接口在跑却没人验＝假绿）', () => {
   for (const p of ['/stock/facts?code=', '/stock/fundamentals?code=', '/stock/volume-similarity?code=',
-                 '/stock/metrics-ledger?code=', '/stock/price-volume-trend?code=']) {
+                 '/stock/metrics-ledger?code=', '/stock/price-volume-trend?code=',
+                 '/quant/scheme-radar?code=']) {
     assert.ok(system.includes(p), `System.tsx 的 CAPABILITIES 里没有 ${p}`);
   }
   assert.ok(system.includes('"/stock/volume-similarity?code=600519.SH&k=10"')
     && /slow: true }/.test(system), '量能相似样本第一次约 6 秒，要标 slow');
+  // 新那一块 cold 约 12 秒：不标 slow，自检那一屏会把它算成"接口慢了"
+  assert.match(system, /\/quant\/scheme-radar\?code=000001\.SZ".*slow: true/, 'scheme-radar 没标 slow');
+});
+
+test('近期各方案那一块真的发了那条接口，且「重新取数」把 refresh 发得出去', () => {
+  assert.match(radarComp, /`\/quant\/scheme-radar\?code=\$\{encodeURIComponent\(code\)\}`/,
+    '没有真发那条接口（只写了组件）');
+  assert.match(radarComp, /nonce > 0 \? "&refresh=1"/,
+    '按了「重新取数」却不带 refresh ⇒ 那颗按钮亮着仍交回同一小时缓存');
+  assert.match(radarComp, /probe\.kind === "ok" \? probe\.data : null/,
+    'DataState 是判别联合：不先收窄就读 .data 就是拿 loading 态读数据');
+  // 上下夹与默认值必须读接口回显，界面不写死第二份（同那条「默认值只住一处」的纪律）
+  assert.match(radarComp, /payload\?\.sessions_min \?\? 2/, '场次下限没从接口读');
+  assert.match(radarComp, /payload\?\.sessions_max \?\? 10/, '场次上限没从接口读');
+  // 控件要在永远渲染的 controls 槽里：loading 时它消失了，用户就以为这块不能改参数
+  assert.match(radarComp, /controls=\{<div/, '参数控件没进 Panel 的 controls 槽');
+});
+
+test('带动与斜率那两族列头：sortKey 必须等于格子里真读出来的那个字段', () => {
+  // 死键不报错也不换序，aria-sort 还会照样显示已排序来骗人 ⇒ 只能钉"物化字段"与"排序键"是同一个来源。
+  assert.match(radarComp, /row\[winKey\(w\)\] = /, '斜率那几列没有把字段物化到行上');
+  assert.match(radarComp, /row\[pairKey\(sw, lw\)\] = /, '带动那几列没有把字段物化到行上');
+  assert.match(radarComp, /sortKey=\{winKey\(w\)\}/, '斜率列的 sortKey 不是那个物化字段');
+  assert.match(radarComp, /sortKey=\{pairKey\(sw, lw\)\}/, '带动列的 sortKey 不是那个物化字段');
+});
+
+test('场次矩阵的日期列不许挂排序控件（一格三行数，没有单一可排字段）', () => {
+  assert.match(radarComp, /<th key=\{dt\} className="whitespace-nowrap font-normal font-mono"/,
+    '日期列头不是普通 th —— 换成 SortHeader 就会变成点了不动的假控件');
+});
+
+test('那一块的缺数／算不出留屏、设计规则进抽屉（说明不再逐块各写一份）', () => {
+  assert.match(radarComp, /<NoticeBar kind="missing" when=\{missingTotal > 0\}/, '四态缺数计数没留屏');
+  // 逐态的只数与句子都由后端交：页面自己 filter(state !== "ok") 数一个总数，就是把「没入选」
+  // 这一句事实并进了「没读数」——那条红线正是"不许拿取不到冒充没有"。
+  assert.match(radarComp, /const missing = Object\.entries\(d\.state_counts \?\? \{\}\)/,
+    '缺数只数不是从后端 state_counts 读的');
+  assert.match(radarComp, /d\.cell_states \?\? \{\}/, '四态各自那句解释没读后端描述符');
+  assert.doesNotMatch(radarComp, /cells\.filter\(c => c\.state !== "ok"\)/,
+    '页面不许自己合并四态再数一遍');
+  assert.match(radarComp, /<NoticeBar kind="warning" when=\{unknownCarry > 0\}>/, '带动算不出没留屏');
+  assert.match(radarComp, /\(d\.guide \?\? \[\]\)\.map/, '后端那份 guide（设计规则）没上抽屉');
+  assert.match(radarComp, /\(d\.columns \?\? \[\]\)\.map/, '列名与口径描述符没逐列上屏/抽屉');
+  assert.match(radarComp, /\(d\.rules \?\? \{\}\)\.sessions/, '整块母体句没进折叠说明');
+});
+
+test('带动状态词表以后端为准：配色表必须一档不漏、也不许多一档', () => {
+  // 图例与那句解释都住后端 `CARRY_LABEL`；页面只有一张配色表。后端加一档而前端没配色 ⇒ 那一格静默变白字，
+  // 前端多一档 ⇒ 配色表里留着一个屏上永远不会出现的状态（turned_over 上一版就是这么藏住的）。
+  const py = read('../../duanxian/scheme_radar.py');
+  const legend = py.slice(py.indexOf('CARRY_LABEL = {'), py.indexOf('\n\n', py.indexOf('CARRY_LABEL = {')));
+  const backend = [...legend.matchAll(/^\s+'([a-z_]+)':/gm)].map(m => m[1]);
+  assert.ok(backend.length >= 9, `没从后端读到带动词表（读到 ${backend.length} 档）`);
+  const tone = radarComp.slice(radarComp.indexOf('const CARRY_TONE'),
+    radarComp.indexOf('};', radarComp.indexOf('const CARRY_TONE')));
+  const front = [...tone.matchAll(/^ {2}([a-z_]+):/gm)].map(m => m[1]);
+  assert.deepEqual(front.slice().sort(), backend.slice().sort(),
+    '配色表与后端图例分叉：一边有、另一边没有');
+  assert.match(radarComp, /\[state\] \?\? state/, '屏上那个词不是从后端词表截的，就是页面自造的名字');
+  assert.match(radarComp, /split\("："\)\[0\]/,
+    '那一格没在「：」处截短词：十列宽的表里会贴出整句解释（11-09 浏览器实测就是这个样）');
+});
+
+test('趋势量化那一块把后端的设计规则逐节显示出来（用户 2026-11-09：看不懂那些表达的是什么意思）', () => {
+  const tq = read('../src/components/quant/TrendQuant.tsx');
+  assert.match(tq, /\(d\.explain \?\? \[\]\)\.map/, '加权明细那叠没渲染后端 explain 分节');
+  assert.equal((tq.match(/\(d\.explain \?\? \[\]\)\.map/g) || []).length, 2,
+    'explain 要两块各渲染一次（明细＋窗口趋势）；少一处＝那一屏还是只有旧那三句');
+  // 「值 × 权重 ＝ 贡献，贡献相加 ＝ 分值」这条当场可验的算术必须上屏，且对不上时报出来
+  assert.match(tq, /contrib_matches === false/, '贡献合计对不上分值时没出声');
+  assert.match(tq, /这一项各行的贡献相加/, '那一步加法没摆在数旁边');
 });
 
 test('每一块都真发了那一条接口（不是只写了组件）', () => {

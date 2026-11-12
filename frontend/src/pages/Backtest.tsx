@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { pctColor } from "@/lib/colors";
 import { TrendingDown, Loader2, RefreshCw, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { DocDrawer } from "@/components/ui/DocDrawer";
+import { DocDrawer, DrawerSection, docLabel } from "@/components/ui/DocDrawer";
 import {
   agentFetch, finite, plain, safeArray, safeRecord,
   type BacktestData, type BacktestDay, type BacktestStats,
+  type NoteSection,
   type ArchiveSummary, type ArchiveDrift, type DriftReport, type DriftMetric,
 } from "@/lib/agent";
 
@@ -38,6 +39,16 @@ function tone(v?: number | null): string {
   const n = finite(v);
   if (n === null) return "text-muted-foreground";
   return pctColor(n);
+}
+
+/**
+ * 后端说明分节的唯一渲染出口（用户 2026-11-08：抽屉里只有一句 desc，撑不起理解）。
+ * ⚠️ 措辞全在 `duanxian/backtest.py` 那三份描述符里（`read_guide` / `shared_notes` /
+ * `seal_guide` / 每档的 `notes`），页面只做分节渲染与剥成对星号。在这儿补一句自己的口径，
+ * 改天就会和后端那句分叉成两种说法 —— 同一件事全站通用的一条纪律。
+ */
+function GuideSections({ secs }: { secs: NoteSection[] }) {
+  return <>{secs.map((s) => <DrawerSection key={s.heading} heading={s.heading}>{plain(s.body)}</DrawerSection>)}</>;
 }
 
 /** 分环境一行：同一套打法在不同情绪环境下往往是两回事 */
@@ -232,11 +243,21 @@ export function Backtest() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <TrendingDown className="h-6 w-6 text-primary" /> 历史统计
-          </h1>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <h2 className="flex items-center gap-2 text-xl font-bold">
+              <TrendingDown className="h-6 w-6 text-primary" /> 涨停样本统计 · 历史统计
+            </h2>
+            {/* 整屏读法那一叠说明挂在标题行最右边（全站一条一模块一颗，用户 10-31）；
+                里面是后端 `read_guide` 九节：母体哪来、窗口为什么开不长、样本偏差、
+                收益区间、分环境切法、缓存作废条件、出不了数的三种说法、不能用来做什么。 */}
+            {!!data?.read_guide?.length && (
+              <span className="ml-auto"><DocDrawer title="涨停样本统计">
+                <GuideSections secs={safeArray<NoteSection>(data?.read_guide)} />
+              </DocDrawer></span>
+            )}
+          </div>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            昨日涨停样本在次日的历史表现 · 不是策略回测
+            昨日涨停样本在次日的历史表现 · 只到分布，不逐笔模拟成交
             {data?.available && ` · ${data.date_from} ~ ${data.date_to} · ${data.days_used} 个交易日`}
           </p>
         </div>
@@ -294,17 +315,17 @@ export function Backtest() {
       {/* 封板时间曲线：首板里最强的单一过滤变量，把悬崖位置直接摆出来 */}
       {!!curve.length && (
         <div className="glass rounded-2xl p-5">
-          {/* 说明按钮在标题这一行的最右边（用户 10-31）；句子里的「为什么只统计首板」逐字留着。
-              上方那条 CAVEAT 警告块与本页告警没有跟着搬——三类声明永远在屏上。 */}
+          {/* 说明按钮在标题这一行的最右边（用户 10-31）；正文原来那三句（含「为什么只统计首板」）
+              11-08 整段搬进后端 `seal_guide`，页面不再自己写口径 —— 那句「为什么只统计首板」现在在
+              抽屉第三节里，逐字由后端交出。上方那条 CAVEAT 警告块与本页告警没有跟着搬：
+              三类声明永远在屏上。 */}
           <div className="mb-1 flex flex-wrap items-center gap-1.5">
             <h3 className="text-base font-bold">首板 · 最后封板时间曲线</h3>
-            <span className="ml-auto"><DocDrawer title="首板 · 最后封板时间曲线">
-              <p>
-                同样是首板，什么时候把板<b>最终封住</b>决定了期望是正是负。数据源给的是<b>最后封板时间</b>，
-                所以「晚」同时意味着封得晚、或中途炸开过又回封——两者都指向同一件事：这个板不稳。
-                只统计首板，连板股的封板时间含义不同、混在一起会污染结论。
-              </p>
-            </DocDrawer></span>
+            {!!data?.seal_guide?.length && (
+              <span className="ml-auto"><DocDrawer title="首板 · 最后封板时间曲线" label={docLabel('封板时间曲线')}>
+                <GuideSections secs={safeArray<NoteSection>(data?.seal_guide)} />
+              </DocDrawer></span>
+            )}
           </div>
           <div className="space-y-2">
             {curve.map((b) => {
@@ -343,13 +364,22 @@ export function Backtest() {
           const excess = !isBase && base != null && o.avg != null ? o.avg - base : null;
           return (
             <div key={name} className={cn("glass rounded-2xl p-5", isBase && "border border-dashed border-border")}>
-              {/* 每一张策略卡一颗「这块的说明」，摆在标题这一行的最右边（用户 10-31）：
-                  抽屉里就是后端那句策略描述 `desc` 原文，正文那一行不再摊第二遍；
-                  「基准／超额／样本偏小」是读数与缺数标记，留在屏上。没有 desc 就不长空按钮。 */}
+              {/* 每一张策略卡一颗「这块的说明」，摆在标题这一行的最右边（用户 10-31）。
+                  抽屉里三叠全部是后端原文（用户 11-08 补齐：一句 desc 不足以读懂这一档）：
+                  这一档的原句 → 这一档自己的 `notes` → 所有档共用的 `shared_notes`，页面不补一句口径。
+                  「基准／超额／样本偏小」是读数与缺数标记，留在屏上，没跟着进抽屉。 */}
               <div className="mb-1 flex flex-wrap items-center gap-2">
                 <h3 className="text-base font-bold">{name}</h3>
-                {s.desc && (
-                  <span className="ml-auto"><DocDrawer title={name}>{plain(s.desc)}</DocDrawer></span>
+                {/* 按钮名逐颗交全名（`docLabel` 只补全站那串前缀）：卡名自己带「·」（首板·早封、
+                    首板·尾盘封、首板·涨停数前二行业），默认取法把「·」后面那截切掉，
+                    四张卡连同曲线那张就长出五颗一模一样的「这块的说明 · 首板」——
+                    用户 11-08 点名的正是这一串同名按钮。 */}
+                {(s.desc || s.notes?.length) && (
+                  <span className="ml-auto"><DocDrawer title={name} label={docLabel(name)}>
+                    <DrawerSection heading="这一档的原句">{plain(s.desc)}</DrawerSection>
+                    <GuideSections secs={safeArray<NoteSection>(s.notes)} />
+                    <GuideSections secs={safeArray<NoteSection>(data?.shared_notes)} />
+                  </DocDrawer></span>
                 )}
                 {isBase && <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">基准</span>}
                 {excess != null && (

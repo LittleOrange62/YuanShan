@@ -95,10 +95,13 @@ def main_window(*, timeout: float = 0) -> Win | None:
     报出来的错是"找不到菜单"，跟真实原因（没登录）完全不沾边。
 
     同时排除掉最小化到托盘之后残留的 0×0 隐藏窗口。
+
+    进程侧只认**活着的**实例（`win32.live_pids`）：残影条目（0 线程）没有窗口，
+    把它算进"客户端在跑"是 2026-11-11 那一整天取不到数的根因。
     """
     deadline = time.monotonic() + timeout
     while True:
-        pids = set(win32.pids_by_name(TDX_EXE))
+        pids = set(win32.live_pids(TDX_EXE))
         best: Win | None = None
         for w in win32.top_windows(visible_only=False):
             if pids and w.pid not in pids:

@@ -73,7 +73,10 @@ def test_tick_先探测后决定动手且不开自愈(monkeypatch):
         watchman._DEFAULTS, interval_min=10))
     monkeypatch.setattr(watchman, 'probe', lambda: {
         'at': '2026-10-06 17:18:42', 'running': False, 'pid': None, 'window': None,
-        'minimized': None, 'login_box': False, 'sync': '没有 TPyth* 进程'})
+        'minimized': None, 'login_box': False, 'sync': '没有 TPyth* 进程',
+        'live': [], 'ghost': [], 'hung': None, 'state': 'off',
+        'state_label': watchman.STATE_LABELS['off'], 'usable': False,
+        'reason': '没在跑（进程表里没有 TdxW）'})
     monkeypatch.setattr(watchman, '_load_state', lambda: {})
     monkeypatch.setattr(watchman, '_save_state', lambda st: calls.append(('save', st)))
     import duanxian.jobs as jobs

@@ -298,7 +298,7 @@ def test_交易日判据只有一份_日历读不出来时按周末兜底(monkey
     assert Z.is_trading_day(dt.datetime(2026, 11, 4, 9, 35)) is True
 
 
-def test_九路都走那一份交易日判据():
+def test_每一路都走那一份交易日判据():
     """守卫：谁再在自己脚本里写 `is_trade_day(...) is False`／自己判周末，就又是两份口径。
     读的是 `SPEC` 里那些模块对应的文件 —— 挪目录之后按名去 `ingest/jobs/` 找就已经找不到了。"""
     import inspect
@@ -327,6 +327,11 @@ def test_默认值与出厂节奏一致():
     assert tasks.DEFAULTS['push_times'] == '09:35,09:45,10:10,10:50,11:25,14:00'
     assert tasks.DEFAULTS['noon_times'] == '12:10'
     assert tasks.DEFAULTS['channels'] == 'feishu-main'
+    #: 盘后那三栏（⑨18:18／⑩19:00／⑪19:19）出厂默认都关着：开着它就等于每天真往群里发一条，
+    #: 那一下由人自己在屏上按（⑨⑩ 的正文是要人填的壳，⑪ 的正文虽由判据自动出，同样留这道闸）。
+    assert (tasks.DEFAULTS['daily_review_enabled'], tasks.DEFAULTS['daily_review_times']) == (False, '18:18')
+    assert (tasks.DEFAULTS['tomorrow_enabled'], tasks.DEFAULTS['tomorrow_times']) == (False, '19:00')
+    assert (tasks.DEFAULTS['strong_mode_enabled'], tasks.DEFAULTS['strong_mode_times']) == (False, '19:19')
 
 
 def test_界面行序等于文件名里的序号():
@@ -336,6 +341,73 @@ def test_界面行序等于文件名里的序号():
         assert spec['module'].startswith(f'ingest.jobs.push.t{i:02d}_'), \
             f'第 {i} 行 {key} 的文件序号不是 t{i:02d}：{spec["module"]}'
         assert tasks.module_exists(spec['module']), f'{key} 的执行体找不到（{spec["module"]}）'
+
+
+def test_每一路都有一句不超过20字的短句():
+    """`BRIEF` 是"这一路干什么"的唯一出处：界面上那一行、`ingest/jobs/推送任务清单.md`
+    那张表、看护点名，全读它。缺一句或写得长过 20 字，屏上就会把路径挤到下一行、
+    清单与界面各说一套。"""
+    assert set(tasks.BRIEF) == set(tasks.SPEC)
+    for key, txt in tasks.BRIEF.items():
+        assert txt and len(txt) <= 20, f'{key} 的短句 {len(txt or "")} 字：{txt}'
+        assert '*' not in txt, f'{key} 的短句里不许有 markdown 星号（群里与屏上都是纯文本）'
+
+
+def test_接口那一格_no_就是屏上的圈号(monkeypatch):
+    """用户 11-04 要「给内容点编号」，屏上那个 ①…⑩ 读的是接口给的 `no`，
+    不是前端自己数的 —— 所以后端必须让 `no` 等于在册表行序（也就等于 `push/tNN` 的号）。
+    有人插一行或换了顺序，这条就红。"""
+    monkeypatch.setattr(tasks, 'run_powershell',
+                        lambda script, **kw: (0, '"Name","State","Last","Next","Result","Args","Trig"\r\n', ''))
+    monkeypatch.setattr(tasks, 'load_cfg', lambda: (dict(tasks.DEFAULTS), []))
+    tasks._invalidate()
+    rows = tasks.plan()['tasks']
+    assert [r['no'] for r in rows] == list(range(1, len(tasks.SPEC) + 1))
+    for r in rows:
+        assert r['module'].startswith(f'ingest.jobs.push.t{r["no"]:02d}_'), \
+            f'{r["key"]} 的 no={r["no"]} 与文件序号不一致：{r["module"]}'
+
+
+def test_本地清单与在册表逐行不漂():
+    """`ingest/jobs/推送任务清单.md` 放在脚本旁边，改脚本的人一眼就看得到 ——
+    也正因为它不在界面上，没人会当场发现它写错了。所以这里逐行核：号、任务名、脚本路径、
+    默认时点、层，全部对着 `SPEC`/`DEFAULTS` 现算，多一行少一行都算红。"""
+    import pathlib
+    import re
+
+    md = (pathlib.Path(__file__).resolve().parent.parent
+          / 'ingest' / 'jobs' / '推送任务清单.md').read_text(encoding='utf-8')
+    rows = [line for line in md.splitlines()
+            if re.match(r'^\|\s*[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]', line)]
+    assert len(rows) == len(tasks.SPEC), \
+        f'清单 {len(rows)} 行，在册表 {len(tasks.SPEC)} 路 —— 加了一路没登记'
+    circles = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳'
+    for i, (key, spec) in enumerate(tasks.SPEC.items()):
+        cells = [c.strip() for c in rows[i].strip().strip('|').split('|')]
+        assert len(cells) == 6, f'第 {i + 1} 行不是六列：{cells}'
+        no, name, path, at, layer, what = cells
+        assert no == circles[i], f'第 {i + 1} 行的号是 {no}，应为 {circles[i]}（号=行序=文件名序号）'
+        assert name.strip('`') == spec['task_name'], f'{key} 任务名不匹配：{name}'
+        assert path.strip('`') == spec['module'].replace('.', '/') + '.py', f'{key} 脚本路径不匹配：{path}'
+        assert 0 < len(what) <= 20, f'{key} 的"干什么"要 20 字以内，现在 {len(what)} 字：{what}'
+        # 清单里那句"干什么"必须**逐字等于** `BRIEF` —— 屏上读 BRIEF、清单读这张表，
+        # 两处各写一句就会长成两个说法（用户 11-06 问"清单有没有上屏"就是因为当时屏上没这句）
+        assert what == tasks.BRIEF[key], \
+            f'{key} 的短句与在册表不一致：清单「{what}」/ BRIEF「{tasks.BRIEF[key]}」'
+        if spec.get('mode') == 'record':
+            assert layer == '取数落库' and '不发送' in what, f'{key} 是只落库那一路，层与功能要说清'
+        else:
+            assert layer in ('取数即发', '读库再发'), f'{key} 的层写错了：{layer}'
+        # 时点：这一路自己的那一格（或它跟随的那一格）的现值要出现在表里
+        if key == 'watcher':
+            assert spec and tasks.DEFAULTS['watcher_start'] in at, f'{key} 的起始时刻没登记'
+            assert str(tasks.DEFAULTS['watcher_interval_min']) in at, f'{key} 的间隔没登记'
+        elif spec.get('derived', '').endswith('+10s'):
+            assert '+10 秒' in at, f'{key} 是推导那一路，要说清跟谁 +10 秒'
+        else:
+            owner = 'push_times' if key == 'delta' else f'{key}_times'
+            want = str(tasks.DEFAULTS[owner])
+            assert want in at, f'{key} 的默认时点漂了：表里「{at}」，在册表是 {want}'
 
 
 def test_只落库那一路在屏上要指出去发送归谁(monkeypatch):

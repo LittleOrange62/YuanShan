@@ -93,19 +93,83 @@ def save_conf(conf: dict) -> None:
 
 # ---------------------------------------------------------------- 只读探测
 
+#: 客户端处境的六档。**这是全仓唯一一份「现在能不能拿它取数」的判据**
+#: （收盘链 (a) 要不要先切、看护循环要不要记账红、页面那一格念什么，都读它）。
+#: 用户 2026-11-11 的裁定：「不要每次无脑都强制重启，只有在判断进程不可用的时候，
+#: 再去主动切掉，然后重新开启同步」⇒ 只有 `login`/`hung` 两档才值得先切；
+#: `ghost`/`off` 没有活进程可切，直接起新的；`ok`/`tray` 一律复用。
+STATE_LABELS = {
+    'ok': '可用（活着、已登录、窗口转得动）',
+    'tray': '可用（活着、没看到登录框；主窗口枚举不到，多半缩到托盘了）',
+    'login': '不可用（活着但停在登录框上）',
+    'hung': '不可用（活着但主窗口消息线程不响应＝假死）',
+    'ghost': '不可用（只剩残影条目：0 线程、进程已死，tasklist 还列着）',
+    'off': '没在跑（进程表里没有 TdxW）',
+}
+#: 哪几档算"能取数"。`tray` 算：Min2Tray=1 时主窗口是 0×0 隐藏窗口，
+#: 枚举不到不等于没登录 —— 拿它当不可用就会去切一台好好的客户端。
+USABLE_STATES = ('ok', 'tray')
+
+
 def probe() -> dict:
-    """当前通达信状态。只枚举窗口，不动界面、不写库。"""
-    pids = win32.pids_by_name(s1_launch.EXE_NAME)
+    """当前通达信状态。只枚举进程与窗口，不动界面、不写库。
+
+    **判活只认线程数**（`win32.split_live`）：`tasklist` 还列着但 0 线程的是残影条目，
+    它没有窗口、收不到消息、也杀不掉。2026-11-11 一整天的日线就是被它吃掉的 ——
+    旧判据把残影当"在跑"，于是每轮都先关它、关不掉、判「旧进程关不掉」转人工。
+
+    `hung` 是三态：`None` = 判不了（句柄没了/API 报错），**不当假死**。
+    """
+    live, ghost = win32.split_live(s1_launch.EXE_NAME)
     main = locator.main_window()
-    login = s1_launch._login_box(pids[0]) if pids else None
+    pid = main.pid if main is not None else (live[0] if live else None)
+    login = s1_launch._login_box(pid) if live else None
+    hung = win32.window_hung(main.hwnd) if main is not None else None
     _syncing, who = locator.sync_running()
+    if not live:
+        state = 'ghost' if ghost else 'off'
+    elif login is not None:
+        state = 'login'
+    elif hung is True:
+        state = 'hung'
+    elif main is None:
+        state = 'tray'
+    else:
+        state = 'ok'
     return {'at': _now(),
-            'running': bool(pids),
-            'pid': (pids or [None])[0],
+            'running': bool(live),
+            'live': live,
+            'ghost': ghost,
+            'pid': pid,
             'window': main.text if main else None,
             'minimized': s8_finish._minimized(main) if main else None,
             'login_box': login is not None,
-            'sync': who}
+            'hung': hung,
+            'sync': who,
+            'state': state,
+            'state_label': STATE_LABELS[state],
+            'usable': state in USABLE_STATES,
+            'reason': _reason(state, pid, live, ghost, who)}
+
+
+def _reason(state: str, pid, live: list[int], ghost: list[int], who: str) -> str:
+    """一句话说清现在的处境。**措辞只住这一处**，页面与台账都引它，不各写一份。"""
+    if state == 'ok':
+        return '在跑（pid %s）· 已登录 · 同步子进程：%s' % (pid, who or '无')
+    if state == 'tray':
+        return ('在跑（pid %s）· 没看到登录框，但主窗口枚举不到'
+                '（Min2Tray 缩到托盘时就是这样）→ 按可用处理 · 同步子进程：%s'
+                % (pid, who or '无'))
+    if state == 'login':
+        return ('客户端开着（pid %s）但停在登录框上 —— 没登录，'
+                'TQ 与 vipdoc 此刻都拿不到新数' % pid)
+    if state == 'hung':
+        return ('客户端开着（pid %s）但主窗口消息线程不响应（假死，人点它也没反应）'
+                % pid)
+    if state == 'ghost':
+        return ('通达信只剩残影条目 %s：0 线程、进程已经死了，tasklist 还列着它 —— '
+                '不算在跑，也杀不掉（等它消失就是白等）；起新实例不受它挡' % ghost)
+    return '没在跑（进程表里没有 TdxW）—— vipdoc 不会再刷新，TQ 直取也要它登录着才有数'
 
 
 # ---------------------------------------------------------------- 自愈
@@ -270,10 +334,10 @@ def _tick() -> None:
 
     if not conf['enabled']:
         return                       # 探测照做并留痕，动手要人点头
-    running_logged = p['running'] and not p['login_box']
-    if conf['auto_start'] and not running_logged:
-        heal(reason='定时探测：' + ('未运行' if not p['running'] else '卡在登录框'))
-    elif running_logged and conf['restart_at'] and _restart_due(
+    usable = p['usable']
+    if conf['auto_start'] and not usable:
+        heal(reason='定时探测：' + p['state_label'])
+    elif usable and conf['restart_at'] and _restart_due(
             conf['restart_at'], st.get('last_restart_date')):
         heal(force_restart=True, reason=f'定时重启 {conf["restart_at"]}')
         st['last_restart_date'] = dt.date.today().isoformat()

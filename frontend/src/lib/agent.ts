@@ -636,6 +636,11 @@ export interface ArchiveSummary {
   datasets?: Record<string, number>;
   drift?: Record<string, ArchiveDrift>;
 }
+/**
+ * 后端交出的说明分节（`heading` 小节名 · `body` 正文）。
+ * 措辞只住后端一份描述符，页面逐节渲染 —— 页面自己写一句口径，改天就会和后端那句分叉成两种说法。
+ */
+export interface NoteSection { heading: string; body: string }
 export interface BacktestData {
   available: boolean;
   reason?: string;
@@ -649,6 +654,10 @@ export interface BacktestData {
   corpus?: { days: number; from: string | null; to: string | null };
   /** 首板按封板时间分档的收益曲线——回答「封板时间到底值多少钱」 */
   seal_curve?: ({ bucket: string } & BacktestStats)[];
+  /** 说明分节：措辞只住 `duanxian/backtest.py` 一份，页面逐节渲染、不自己写一句口径 */
+  read_guide?: NoteSection[];
+  shared_notes?: NoteSection[];
+  seal_guide?: NoteSection[];
   strategies?: Record<string, BacktestStrategy>;
   generated_at?: string;
   stale?: boolean;
@@ -686,8 +695,10 @@ export interface DriftReport {
 }
 export interface BacktestStrategy {
   desc: string;
+  /** 这一档的说明分节（筛的是谁 · 容易怎么读错）；公共口径那几节在 `BacktestData.shared_notes` */
+  notes?: NoteSection[];
   overall: BacktestStats;
-  /** 分情绪环境：情绪强 / 情绪中 / 情绪弱 */
+  /** 分情绪环境：情绪强 / 情绪中 / 情绪弱 / 环境未覆盖（缺分或切不出三分位的日子都在这第四行） */
   by_regime: Record<string, BacktestStats>;
   daily: BacktestDay[];
   final_equity: number;

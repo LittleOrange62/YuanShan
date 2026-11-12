@@ -62,11 +62,53 @@ export interface RiskTrend {
   density?: { window?: number; threshold?: number; computable?: number; judged?: number; periods?: number };
 }
 
+/** 后 5 场那一列的列头（label 与说明只住后端 `fwd_columns()` 一份，页面不抄中文列名） */
+export interface RiskFwdColumn {
+  code: string;
+  name: string;
+  full: string;
+  label: string;
+  note: string;
+}
+
+/** 一条极端点位 × 一只指数：后第 1~5 场。`cum` 是主值（相对极端点当日收盘），`day` 只进悬停。
+ *  三种「没有数」在后端就分开了：`pending` 往后还没走完、`missing` 那一场没有这根指数的行、
+ *  `has_base=false` 极端点那天它自己就没有收盘价（整列算不出）。 */
+export interface RiskFwdCol {
+  code: string;
+  cum: (number | null)[];
+  day: (number | null)[];
+  pending: number;
+  missing: number;
+  has_base: boolean;
+}
+
+export interface RiskFwdCell {
+  anchor: string | null;
+  on_axis: boolean;
+  days: (string | null)[];
+  cols: RiskFwdCol[];
+}
+
+export interface RiskForward {
+  horizon?: number;
+  columns?: RiskFwdColumn[];
+  hit_rows?: number;
+  available?: boolean;
+  reason?: string | null;
+  anchor_note?: string | null;
+  axis?: { code?: string; from?: string | null; last?: string | null; sessions?: number };
+}
+
 /** 图上标出来的极端点位（后端 `find_extremes()` 的行，两类共用一个形状） */
 export interface RiskExtremeRow {
   period: string;
   label: string;
   kind: "divergence" | "collapse";
+  /** 往后数场次的那个真日子（按周／按月时＝该期内库里最后一场） */
+  anchor_date?: string | null;
+  /** 清单右边那五列（用户 2026-11-10 点名）；后端读不到指数日线时这个键就不在 */
+  fwd?: RiskFwdCell | null;
   width_pct: number | null;
   amount_share_up?: number | null;
   share_gap?: number | null;
@@ -92,6 +134,8 @@ export interface RiskExtremeRow {
 export interface RiskExtremes {
   divergence?: { matched?: number; dropped_by_cap?: number; rows?: RiskExtremeRow[] };
   collapse?: { matched?: number; dropped_by_cap?: number; rows?: RiskExtremeRow[] };
+  /** 清单右边那五列这一块自己的状态（列头、场次数、读不到时的原因） */
+  forward?: RiskForward;
   thresholds?: Record<string, number>;
   kind_labels?: Record<string, string>;
   skipped_no_gap?: number;
@@ -331,9 +375,56 @@ export function extremeLine(row: RiskExtremeRow): string {
     + `｜涨票吃掉 ${numText(row.amount_share_up, 2)}% 的成交 ⇒ 家数比钱多 ${signedText(row.share_gap, 2)}pp`;
 }
 
-/** 窗口内的极端点位行（背离在前、崩点在后，与图上的两类标记同一顺序）。 */
+/** 清单的整排（用户 2026-11-10 点名：整张表按时间这一列**从近到远**从上到下）。
+ *  `period` 三档都是可字典序比较的键（日＝YYYY-MM-DD、周＝YYYY-Www、月＝YYYY-MM），
+ *  所以这里只比字符串，不按日期解析 —— 两类命中的日期一混，图上标记的位置仍按 period 找，
+ *  排序只影响这一张表的读序。 */
 export function extremeRows(d?: RiskPanel | null): RiskExtremeRow[] {
-  return [...(d?.extremes?.divergence?.rows ?? []), ...(d?.extremes?.collapse?.rows ?? [])];
+  return [...(d?.extremes?.divergence?.rows ?? []), ...(d?.extremes?.collapse?.rows ?? [])]
+    .sort((a, b) => String(b.period ?? "").localeCompare(String(a.period ?? "")));
+}
+
+/** 那一列里的一格：`null` 交 `—`，有数才带百分号（`—%` 是把缺数念成读数）。 */
+export function fwdPctText(v: number | null | undefined): string {
+  const n = fin(v);
+  return n === null ? NULL_TEXT : `${signedText(n, 2)}%`;
+}
+
+/** 按列头那份描述符的顺序取出一行的五列（列顺序由后端定，页面不自己排）。 */
+export function fwdCol(fwd: RiskFwdCell | null | undefined, code: string): RiskFwdCol | null {
+  return fwd?.cols?.find(c => c.code === code) ?? null;
+}
+
+/**
+ * 一个数的悬停：后第几场、哪一天、累计多少、那一场单日多少。
+ *
+ * 三种「没有数」各说各的（11-10 定的口径）：库里还没有那一场 ／ 那一场没有这根指数的行 ／
+ * 极端点那天它自己就没有收盘价。少说一种，那一格就会被读成"平盘"。
+ */
+export function fwdCellTitle(fwd: RiskFwdCell | null | undefined, col: RiskFwdCol | null,
+                             k: number, name: string): string {
+  if (!fwd || !col) return "";
+  const head = `${name} · 极端点 ${fwd.anchor ?? NULL_TEXT} 之后第 ${k} 场`;
+  const day = fwd.days[k - 1];
+  if (!day) return `${head}：库里还没有这一场（往后还没走完）—— 不是没涨没跌`;
+  if (!col.has_base) return `${head}（${day}）：这只指数在极端点那天没有收盘价 ⇒ 整列算不出，不是平盘`;
+  const cum = col.cum[k - 1];
+  if (fin(cum) === null) {
+    return `${head}（${day}）：那一天在库里没有这根指数的行（停牌/没入库），不是平盘`;
+  }
+  const d = fin(col.day[k - 1]);
+  return `${head}（${day}）：累计 ${fwdPctText(cum)}（相对极端点当日收盘）`
+    + (d === null ? "" : `；那一场单日 ${fwdPctText(d)}`);
+}
+
+/** 后面那五列有没有"没走完"的尾巴（有才在屏上说一句，没有就不占行）。 */
+export function fwdPendingRows(d?: RiskPanel | null): number {
+  return extremeRows(d).filter(r => r.fwd?.cols?.some(c => c.pending > 0)).length;
+}
+
+/** 后面那五列有没有"那一场没有这根指数"的缺行（与"没走完"分开数）。 */
+export function fwdMissingRows(d?: RiskPanel | null): number {
+  return extremeRows(d).filter(r => r.fwd?.cols?.some(c => c.missing > 0)).length;
 }
 
 /** 清单里的一行 → 用户 2026-11-01 点名的那五格（指标名／时间／数值／与阈值的比较／结果含义）。

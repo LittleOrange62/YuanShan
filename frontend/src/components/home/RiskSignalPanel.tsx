@@ -10,11 +10,12 @@ import { plain } from "@/lib/agent";
 import { cn } from "@/lib/utils";
 import {
   GROUP_LABELS, NULL_TEXT, caveatText, densityScale, divergenceScale, extremeCellRows, extremeLine,
-  extremeMarks,
-  fin, hoverLine, latestDivergence, levelTextTone, levelTone, numText, optionSources, periodTooltip,
+  extremeMarks, fin, fwdCellTitle, fwdCol, fwdMissingRows, fwdPendingRows, fwdPctText, hoverLine,
+  latestDivergence, levelTextTone, levelTone, numText, optionSources, periodTooltip,
   thresholdsText, trendLine, trendText, turnLine, turnMarks, xTicks,
   type RiskPanel, type RiskPeriod, type RiskTurn,
 } from "@/lib/riskSignal";
+import { FLAT_TEXT, pctColor } from "@/lib/colors";
 
 /**
  * 首页「风险提示」（用户 2026-10-20 夜点名要这么一块，原话"放在首页——盘面数据下面"；
@@ -133,6 +134,12 @@ export function RiskSignalPanel() {
   const colRows = d?.extremes?.collapse?.rows ?? [];
   const cellRows = extremeCellRows(d);
   const eTh = d?.extremes?.thresholds;
+  // 清单右边那五列（用户 2026-11-10 点名）：列头、每格几个数、读不到时的原因，全读后端 extremes.forward
+  const fwd = d?.extremes?.forward;
+  const fwdCols = fwd?.columns ?? [];
+  const fwdDays = fin(fwd?.horizon) ?? 0;
+  const fwdPending = fwdPendingRows(d);
+  const fwdMissing = fwdMissingRows(d);
   const trendRows = d?.trend?.rows ?? [];
   const smooth = fin(d?.trend?.smooth);
   const zig = fin(d?.trend?.zigzag_pp);
@@ -515,7 +522,7 @@ export function RiskSignalPanel() {
           {/* 极端点位清单（判据在外部，这里只列不改）：命中数、被上限挤掉数、判不了期数都在外面 */}
           <div className="mt-1.5 rounded-lg border border-border/50 bg-muted/20 p-2">
             <p className="mb-1 text-[11px] font-semibold text-muted-foreground">
-              窗口内的极端点位（后端判据自动筛，页面不自己挑）· 共 {numText(d.extremes?.periods_in_window, 0)} 期
+              窗口内的极端点位（后端判据自动筛，页面不自己挑）· 共 {numText(d.extremes?.periods_in_window, 0)} 期 · 按时间从近到远
             </p>
             {divRows.length === 0 && colRows.length === 0 ? (
               <p className="text-[11px] leading-relaxed text-muted-foreground">
@@ -528,43 +535,92 @@ export function RiskSignalPanel() {
                  「结果含义」在同一类那几行里是同一句话 ⇒ 由 `extremeCellRows` 算出 `meaningSpan` 合并成一格
                  （六行各复读一遍 70 字的段落＝把说明区搬进表格里）；不设内层滚动窗，
                  因为整排最多 12 行（后端 `max_marks` 各类 6 个），页内再套一层滚动反而更难读。 */
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="text-left text-[10px] text-muted-foreground">
-                    <th className="py-0.5 pr-2 text-left font-normal">时间</th>
-                    <th className="py-0.5 pr-2 text-left font-normal">指标名</th>
-                    <th className="py-0.5 pr-2 text-left font-normal">数值</th>
-                    <th className="py-0.5 pr-2 text-left font-normal">与阈值的比较</th>
-                    <th className="py-0.5 text-left font-normal">结果含义</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cellRows.map(r => (
-                    <tr key={`${r.row.kind}-${r.row.period}`} className="border-t border-border/40 align-top">
-                      <td className="py-1 pr-2">
-                        <button type="button" onClick={() => atPeriod(r.row.period)}
-                          title={`跳到图上这一期：${extremeLine(r.row)}`}
-                          className="underline-offset-2 hover:underline">{r.date}</button>
-                        <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
-                          {plain(r.family)}
-                        </p>
-                      </td>
-                      <td className="py-1 pr-2">{plain(r.metric) || NULL_TEXT}</td>
-                      <td className="py-1 pr-2 tabular-nums">{plain(r.valueText) || NULL_TEXT}</td>
-                      <td className="py-1 pr-2">{plain(r.compareText) || NULL_TEXT}</td>
-                      {r.meaningHead && (
-                        <td className="py-1" rowSpan={r.meaningSpan}>{plain(r.meaningText) || NULL_TEXT}</td>
-                      )}
+              /* 十列一张表：左边五格仍是用户 11-01 点名的那五格，右边五列是 11-10 点名的
+                 「上证／深证／创业／科创／北证 后5日涨跌」。列名与口径说明都由后端那份描述符交
+                 （`extremes.forward.columns`），页面只决定摆哪一列、不抄中文列名；
+                 一格里从左往右是后第 1~5 场的**累计**（相对极端点当日收盘），单日涨跌在悬停里。
+                 涨红跌绿走 `lib/colors.ts` 那一份出口，缺数不上色（落灰）—— 给 — 涂红或涂绿
+                 就是替读者编一个方向。表格比卡片宽，所以整张表横向滚动，字小但不截数据。 */
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="text-left text-[10px] text-muted-foreground">
+                      <th className="py-0.5 pr-2 text-left font-normal">时间</th>
+                      <th className="py-0.5 pr-2 text-left font-normal">指标名</th>
+                      <th className="py-0.5 pr-2 text-left font-normal">数值</th>
+                      <th className="py-0.5 pr-2 text-left font-normal">与阈值的比较</th>
+                      <th className="py-0.5 pr-2 text-left font-normal">结果含义</th>
+                      {fwdCols.map(c => (
+                        <th key={`fhd-${c.code}`} title={plain(c.note)}
+                          className="whitespace-nowrap py-0.5 pr-2 text-left font-normal">{plain(c.label)}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {cellRows.map(r => (
+                      <tr key={`${r.row.kind}-${r.row.period}`} className="border-t border-border/40 align-top">
+                        <td className="py-1 pr-2">
+                          <button type="button" onClick={() => atPeriod(r.row.period)}
+                            title={`跳到图上这一期：${extremeLine(r.row)}`}
+                            className="underline-offset-2 hover:underline">{r.date}</button>
+                          <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+                            {plain(r.family)}
+                          </p>
+                        </td>
+                        <td className="py-1 pr-2">{plain(r.metric) || NULL_TEXT}</td>
+                        <td className="py-1 pr-2 tabular-nums">{plain(r.valueText) || NULL_TEXT}</td>
+                        <td className="py-1 pr-2">{plain(r.compareText) || NULL_TEXT}</td>
+                        {r.meaningHead && (
+                          <td className="py-1" rowSpan={r.meaningSpan}>{plain(r.meaningText) || NULL_TEXT}</td>
+                        )}
+                        {fwdCols.map(c => {
+                          const col = fwdCol(r.row.fwd, c.code);
+                          return (
+                            <td key={`f-${c.code}`}
+                              className="whitespace-nowrap py-1 pr-2 font-mono text-[10px] tabular-nums">
+                              {Array.from({ length: fwdDays }, (_, i) => i + 1).map(k => {
+                                const v = fin(col?.cum[k - 1]);
+                                return (
+                                  <span key={`f-${c.code}-${k}`}
+                                    className={cn("mr-1.5 last:mr-0", v === null ? FLAT_TEXT : pctColor(v))}
+                                    title={fwdCellTitle(r.row.fwd, col, k, c.full)}>
+                                    {fwdPctText(v)}
+                                  </span>
+                                );
+                              })}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
             {cellRows.some(r => r.incomplete) && (
               <p className="mt-1 text-[11px] leading-relaxed text-warning">
                 上面这一排里有格子缺了后端该交的那五样之一（指标名／数值／与阈值的比较／结果含义）——
                 那一格现在是 —，说的是这一格没送到，不是这一期没有读数；原始数仍可在图上悬停读到。
               </p>
+            )}
+            {/* 后面那五列的三种「没有数」分开说：有才显示，文字全取后端原句，页面不自己判是哪种缺。
+                 （11-10 定的规矩：「还没走完」与「那一场没有这根指数」不是一件事，
+                 混成一句就会被读成「后 5 场都是平盘」。） */}
+            {fwd && (fwd.hit_rows ?? 0) > 0 && !fwd.available && (
+              <p className="mt-1 text-[11px] leading-relaxed text-warning">
+                右边那五列这次没读到：{plain(fwd.reason ?? "后端这次没交原因")} —— 那一排摆的是 —，说的是没读到，不是「后 5 场都没涨没跌」。
+              </p>
+            )}
+            {(fwdPending > 0 || fwdMissing > 0) && (
+              <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground/70">
+                右边五列里的 —：{[
+                  fwdPending ? `${fwdPending} 行是往后还没走完` : null,
+                  fwdMissing ? `${fwdMissing} 行有那一场在库里没有这根指数的行` : null,
+                ].filter(Boolean).join("；")}，都不是平盘 —— 差到哪一场，逐格悬停给日期。
+              </p>
+            )}
+            {fwd?.anchor_note && (
+              <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground/70">{plain(fwd.anchor_note)}</p>
             )}
             <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground/70">
               量价背离命中 {numText(d.extremes?.divergence?.matched, 0)} 期（这里列 {divRows.length} 期

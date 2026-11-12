@@ -187,9 +187,9 @@ def one_round(*, dry_run: bool, send: bool, force: bool,
 
 
 def _send(now, text, channel):
-    from duanxian import notify
+    from app.intraday.cards import send_broadcast_with_card
     keys = tasks.send_channels(channel)       # 不给就读系统配置里的盘中播报渠道
-    res = notify.send_to(keys, '竞价速览', text)
+    res = send_broadcast_with_card(keys, '竞价速览', text)
     store.write_broadcast(now, task='auction', what='sent', body=text,
                           ok=bool(res.get('ok')), delivered=bool(res.get('ok')),
                           channel_key=','.join(keys),

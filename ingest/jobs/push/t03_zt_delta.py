@@ -18,6 +18,10 @@
 窗口起点 = 今天上一次本路发送的时刻（`intraday_broadcast` 里 `task='delta' AND what='sent' AND ok`），
 第一针之前没有发送记录 ⇒ 从上午开盘那一针算起。宁缺毋假：库里今天一行都没有 ⇒ 报"未落库"，
 不拿昨天凑、也不发一条"无变化"冒充"看过了"。
+
+版式（用户 11-05：「文字重复了文字标题……将 3 行并成一行」）：推送标题即
+`盘中涨跌停变化量 自 09:35 起`（标题与时间一行，措辞在模板 `delta_header`），
+正文不再重复标题 —— 机器人那一侧是 `标题\n正文` 拼接，正文里再写一遍就是重复。
 """
 from __future__ import annotations
 
@@ -113,12 +117,18 @@ def latest_pool(day: dt.date, hi: dt.datetime) -> tuple[dict | None, dt.datetime
     return ({'zt': row['pool_zt_n'], 'zb': row['pool_zb_n'], 'dt': row['pool_dt_n']}, row['at'])
 
 
+def title_for(lo: dt.datetime) -> str:
+    """推送标题：`盘中涨跌停变化量 自 09:35 起` —— 标题与时间并成一行（用户 11-05）。"""
+    T = json.loads(TPL_FILE.read_text(encoding='utf-8'))
+    return T['delta_header'].format(since=f'{lo:%H:%M}')
+
+
 def render(kind_groups: dict, summary: dict, now: dt.datetime, lo: dt.datetime,
            pool: dict | None, pool_asof) -> str:
+    """正文。**不含标题**：标题由 `title_for` 给（机器人那一侧拼 `标题\n正文`，
+    正文里再写一遍名字就是用户 11-05 指出的"3 行重复"）。"""
     T = json.loads(TPL_FILE.read_text(encoding='utf-8'))
-    t = f'{now:%H:%M:%S}'
-    head = f'{lo:%H:%M}'
-    lines = [T['delta_header'].format(t=t, since=head)]
+    lines: list[str] = []
     for kind in KIND_ORDER:
         rows = kind_groups.get(kind)
         if not rows:
@@ -130,7 +140,7 @@ def render(kind_groups: dict, summary: dict, now: dt.datetime, lo: dt.datetime,
                           for r in rows[:LIST_TOP])
         more = f' 等{len(rows)}只' if len(rows) > LIST_TOP else ''
         lines.append(T['delta_line'].format(kind=label, n=len(rows), names=names, more=more))
-    if len(lines) == 1:
+    if not lines:
         lines.append(T['delta_none'])
     if pool:
         stamp = f'（截至 {pool_asof:%H:%M:%S} 那一针）' if pool_asof and \
@@ -165,6 +175,8 @@ def one_round(*, dry_run: bool, send: bool, force: bool, since: str | None,
         _log(now, 'delta_no_data', err='analytics.intraday_pool_event 当天零行')
         return 1
     text = render(kind_groups, summary, now, lo, pool, pool_asof)
+    title = title_for(lo)
+    print(title)
     print(text)
     if dry_run:
         print('（dry-run：未写账、未发送）')
@@ -173,14 +185,14 @@ def one_round(*, dry_run: bool, send: bool, force: bool, since: str | None,
               'kinds': {KIND_LABELS.get(k, k): len(v) for k, v in kind_groups.items()}}
     _log(now, 'delta', body=text, counts=counts)
     if send:
-        _send(now, text, channel, counts)
+        _send(now, text, channel, counts, title)
     return 0
 
 
-def _send(now, text, channel, counts):
-    from duanxian import notify
+def _send(now, text, channel, counts, title):
+    from app.intraday.cards import send_broadcast_with_card
     keys = tasks.send_channels(channel)
-    res = notify.send_to(keys, '盘中涨跌停变化量', text)
+    res = send_broadcast_with_card(keys, title, text)
     store.write_broadcast(now, task=TASK, what='sent', body=text,
                           ok=bool(res.get('ok')), delivered=bool(res.get('ok')),
                           channel_key=','.join(keys), counts=counts,

@@ -30,6 +30,9 @@ interface TrailItem {
 interface TdxStatus {
   available?: boolean | null; reason?: string | null;
   client_running?: boolean | null; logged_in?: boolean | null;
+  client_ghost?: number[] | null;
+  client_state?: string | null; client_state_label?: string | null;
+  client_usable?: boolean | null;
   login_dialog?: boolean | null; sync?: string | null;
   server_connected?: boolean | null; background_sync?: boolean | null;
   not_probed?: string | null;
@@ -57,7 +60,9 @@ export function Tdx() {
         <Panel title="客户端与连接" state={st}
           note="探测结果必须来自进程与窗口的实际状态，不来自「上次跑过」；`logged_in` 的判据是**没停在登录框上**。"
           contract={<Contract path="GET /api/tdx/status" source="现问探测（只枚举窗口，不动界面）" fields={[
-            ["client_running", "通达信进程在不在"],
+            ["client_running", "有没有活着的实例（判活只认线程数；残影条目不算在跑）"],
+            ["client_ghost", "残影条目 pid：tasklist 还列着但 0 线程 —— 进程已死，杀不掉也不挡新实例启动"],
+            ["client_state_label / client_usable", "六档处境的中文标签与「现在能不能拿它取数」，判据只住后端 watchman.probe()"],
             ["logged_in / login_dialog", "登录态（停在登录框 = 没登录，TQ 取不到数）"],
             ["sync", "`TPyth*` 同步子进程是谁 —— 盘后下载正在进行时它会在"],
             ["tq_ready / tq_reason", "TQ 这条路现在能不能走，走不通是什么原因"],
@@ -67,7 +72,11 @@ export function Tdx() {
             ["trail", "系统自己动界面的记录 + 待人工清单（`duanxian/gui_trail.py`）"],
           ]} />}>
           {d => <>
-            <Row label="进程" value={d.client_running === true ? "在跑" : d.client_running === false ? "没在跑" : "—"} tone={d.client_running === false ? "bad" : undefined} />
+            <Row label="进程" value={d.client_running === true ? "在跑" : d.client_running === false ? "没有活着的实例" : "—"} tone={d.client_running === false ? "bad" : undefined} />
+            <Row label="处境" value={dash(d.client_state_label)} tone={d.client_usable === false ? "bad" : undefined} />
+            <Row label="残影条目" value={d.client_ghost == null ? "—"
+              : d.client_ghost.length ? `${d.client_ghost.join("、")}（进程已死、条目未回收；杀不掉，也不挡新实例启动）`
+              : "没有"} tone={d.client_ghost?.length ? "warn" : undefined} />
             <Row label="已登录" value={d.logged_in === true ? "是" : d.login_dialog === true ? "否（停在登录框）" : d.logged_in === false ? "否" : "—"} tone={d.logged_in === false ? "warn" : undefined} />
             <Row label="同步子进程" value={dash(d.sync)} />
             <Row label="主站连接" value={d.server_connected === true ? "已连上" : d.server_connected === false ? "未连上" : "读不到（不是「没连」）"} />

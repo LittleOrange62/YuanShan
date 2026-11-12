@@ -819,7 +819,7 @@ def tdx_watch(now: dt.datetime | None = None) -> dict:
         note = _text((probe or {}).get("reason")) or (
             "在跑（pid %s）· 同步子进程：%s" % ((probe or {}).get("pid"),
                                               _text((probe or {}).get("sync")) or "没读到")
-            if running else "没在跑（现问探测：进程表里没有 TdxW）")
+            if running else "没在跑（现问探测：没有活着的 TdxW 进程）")
     else:
         # 到这一支时 `probe` 一定是 None（现问探测抛了）。旧记录可以引用，但必须当场说清是旧的。
         old = _text(detail.get("reason"))
@@ -831,6 +831,14 @@ def tdx_watch(now: dt.datetime | None = None) -> dict:
         "loop_alive": "tdx-watch" in alive, "loop_missing": missing,
         "last_probe_at": probe_at, "age_seconds": age,
         "process_running": running, "pid": (probe or {}).get("pid") if probe else detail.get("pid"),
+        # 11-11：判活只认线程数。`live` 是真活着的实例，`ghost` 是 tasklist 还列着但 0 线程的
+        # 残影条目 —— 两者分开交，页面上才解释得了"任务管理器里明明有一行 TdxW，为什么说没在跑"。
+        "live": (probe or {}).get("live") if probe else detail.get("live"),
+        "ghost": (probe or {}).get("ghost") if probe else detail.get("ghost"),
+        "state": _text((probe or {}).get("state") if probe else detail.get("state")) or None,
+        "state_label": _text((probe or {}).get("state_label")
+                             if probe else detail.get("state_label")) or None,
+        "usable": (None if probe is None else bool(probe.get("usable"))),
         "login_dialog": login,
         "window_visible": (None if minimized is None else not minimized),
         "window": _text((probe or {}).get("window") if probe else detail.get("window")),
@@ -888,6 +896,11 @@ def tdx_status(now: dt.datetime | None = None) -> dict:
         "available": True, "reason": None,
         "trail": gui_trail.summary(),
         "client_running": running,
+        # 11-11：残影条目（0 线程、进程已死但 tasklist 还列着）不算在跑，也不参与"等它消失"。
+        "client_ghost": st.get("ghost") or [],
+        "client_state": _text(st.get("state")) or None,
+        "client_state_label": _text(st.get("state_label")) or None,
+        "client_usable": bool(st.get("usable")),
         # "logged_in" 的判据是**没停在登录框上**，不是"窗口标题像登录了"
         "logged_in": (running and not login_box) if running else None,
         "login_dialog": login_box,

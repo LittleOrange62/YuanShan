@@ -64,7 +64,7 @@ test('①-b 同一张卡不许两颗同名：每个文件的 DocDrawer 调用点
     '../src/pages/FirstBoard.tsx': 3,           // 两张类别榜（同一组件两处标题行共用一份 JSX）＋概念榜＋短线情绪大块
     '../src/pages/QdCompare.tsx': 1,            // Section 一处，四块跟着
     '../src/pages/Intel.tsx': 1,                // 一档 tab 一颗，切 tab 跟着换
-    '../src/pages/Backtest.tsx': 2,             // 曲线卡 ＋ 策略卡（每卡一颗，共用 JSX）
+    '../src/pages/Backtest.tsx': 3,             // 整屏读法 ＋ 曲线卡 ＋ 策略卡（每卡一颗，共用 JSX）
     '../src/pages/Journal.tsx': 6,              // 我这套打法／是不是跑了／最近还在状态上吗／看错了还是没执行好／交易费率／自我体检
     '../src/components/review/FirstBoardDeep.tsx': 1,
     '../src/components/review/LimitUpBoard.tsx': 1,
@@ -93,7 +93,7 @@ test('①-c 抽屉标题拿的是屏上那一行字：逐颗都显式交 title=�
 test('①-d 没有说明依据的块不许长出一颗空按钮：条件渲染钉住', () => {
   assert.match(read('../src/components/EmotionMetricsPanel.tsx'), /\{caliber && \(\s*<span className="ml-auto">\s*<DocDrawer/);
   assert.match(read('../src/pages/Intel.tsx'), /\{cur\.desc && <DocDrawer/);
-  assert.match(read('../src/pages/Backtest.tsx'), /\{s\.desc && \(\s*<span className="ml-auto">\s*<DocDrawer/);
+  assert.match(read('../src/pages/Backtest.tsx'), /\{\(s\.desc \|\| s\.notes\?\.length\) && \(\s*<span className="ml-auto">\s*<DocDrawer/);
   // Allocator：六块 Panel 全走 note（标题行那颗），字段字典那块没有 calibers 就整块不渲染
   const alloc = read('../src/pages/Allocator.tsx');
   assert.match(alloc, /Object\.keys\(d0\?\.calibers \?\? \{\}\)\.length > 0 &&/);
@@ -151,8 +151,10 @@ test('③ 缺数声明／截断上限／告警留在屏上：NoticeBar 与 warni
 // ── ④ 中文串与渲染文本的卫生（本轮搬动过的每一段都过一遍） ─────────────────
 test('④ 搬进抽屉的文字：中文串不嵌 ASCII 双引号、渲染处不带 markdown 星号（都走「」与 plain()）', () => {
   const bt = read('../src/pages/Backtest.tsx');
-  assert.match(bt, /所以「晚」同时意味着/, '曲线卡那句改用「」');
-  assert.doesNotMatch(bt.slice(bt.indexOf('DocDrawer'), bt.indexOf('</DocDrawer>')), /"晚"/);
+  // 曲线卡那三句（原来写在页面里）11-08 整段搬进后端 `seal_guide`：页面既不该再出现那句话，
+  // 也不该再自写任何一句口径 —— 留着复写，改天后端与页面就是两种说法。
+  assert.doesNotMatch(bt, /所以「晚」同时意味着|最终封住/, '曲线那句口径已归后端 seal_guide，页面不留复写');
+  assert.match(bt, /GuideSections secs=\{safeArray<NoteSection>\(data\?\.seal_guide\)\}/, '曲线抽屉只渲染后端分节');
   const alloc = read('../src/pages/Allocator.tsx');
   assert.match(alloc, /蓝点 = 落在「收费站」那一格/, '③四象限搬进 note 时把 ASCII 引号换成「」');
   assert.doesNotMatch(alloc, /落在"收费站"/);
@@ -167,4 +169,26 @@ test('④ 搬进抽屉的文字：中文串不嵌 ASCII 双引号、渲染处不
   const up2 = read('../src/components/review/LimitUpBoard.tsx');
   assert.match(up2, /<p className="whitespace-pre-line leading-relaxed">\{plain\(/,
     '母体那段含后端 caliber/seal_rule，过唯一一处 plain');
+});
+
+// ── ⑤ 涨停样本统计：三叠说明全部接上后端描述符（用户 11-08 点名内容太少）──────
+test('⑤ 说明分节真接上线：字段进了类型、每颗抽屉都有对应出口，页面不硬写句子', () => {
+  const bt = read('../src/pages/Backtest.tsx');
+  const agent = read('../src/lib/agent.ts');
+  for (const field of ['read_guide', 'shared_notes', 'seal_guide']) {
+    assert.match(agent, new RegExp(`${field}\\?: NoteSection\\[\\]`), `${field} 没进 BacktestData 类型`);
+    assert.match(bt, new RegExp(`safeArray<NoteSection>\\(data\\?\\.${field}\\)`), `${field} 没有渲染出口`);
+  }
+  assert.match(agent, /notes\?: NoteSection\[\]/, '策略卡的 notes 没进 BacktestStrategy 类型');
+  assert.match(bt, /<DocDrawer title="涨停样本统计">\s*<GuideSections/, '整屏读法那颗只渲染后端分节');
+  assert.match(bt, /<GuideSections secs=\{safeArray<NoteSection>\(s\.notes\)\} \/>/, '卡内后端 notes 那一叠没接上');
+  assert.match(bt, /<DrawerSection heading="这一档的原句">\{plain\(s\.desc\)\}<\/DrawerSection>/,
+    '卡内第一叠仍是后端那句 desc 原文');
+  // 出口数：整屏 1 ＋ 曲线 1 ＋ 每张卡 2（notes 一叠 + shared_notes 一叠）
+  assert.equal((bt.match(/<GuideSections /g) ?? []).length, 4, 'GuideSections 出口数不对');
+  // 同名按钮闸：卡名自己带「·」（首板·早封／首板·尾盘封／首板·涨停数前二行业），默认取法把「·」后那截切掉，
+  // 四张卡连同曲线那张会长出五颗一模一样的「这块的说明 · 首板」（用户 11-08 点名的就是这一串）。
+  assert.match(bt, /<DocDrawer title=\{name\} label=\{docLabel\(name\)\}>/,
+    '策略卡那颗没逐颗交全名按钮 ⇒ 四张「首板·」撞成同名');
+  assert.match(bt, /label=\{docLabel\('封板时间曲线'\)\}/, '曲线那颗没交小节名 ⇒ 与四张卡同名');
 });

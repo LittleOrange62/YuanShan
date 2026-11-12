@@ -305,6 +305,34 @@ def upsert_concept_counts(rows: list[tuple]) -> int:
     return engine.executemany(_CONCEPT, rows, role='etl')
 
 
+_VOLSNAP = """
+INSERT INTO analytics.index_volume_snap (
+    trade_date, snap_kind, index_name, spec_version, asof_date,
+    amount_yuan, yoy_pct, pctile250, trend_5d_pct, label, source, missing, calculated_at)
+VALUES (%s,%s,%s,%s, %s, %s,%s,%s,%s,%s, %s, %s, now())
+ON CONFLICT (trade_date, snap_kind, index_name, spec_version)
+DO UPDATE SET asof_date = EXCLUDED.asof_date, amount_yuan = EXCLUDED.amount_yuan,
+              yoy_pct = EXCLUDED.yoy_pct, pctile250 = EXCLUDED.pctile250,
+              trend_5d_pct = EXCLUDED.trend_5d_pct, label = EXCLUDED.label,
+              source = EXCLUDED.source, missing = EXCLUDED.missing, calculated_at = now()
+"""
+
+
+def upsert_index_volume_snap(rows: list[tuple]) -> int:
+    """五大指数+两市的量能快照，一天两针（noon/close）各六行，幂等 upsert。
+
+    元组顺序同 `_VOLSNAP`（12 值，`calculated_at` 走 now()）：
+    `(trade_date, snap_kind, index_name, spec_version, asof_date, amount_yuan, yoy_pct,
+    pctile250, trend_5d_pct, label, source, missing_json)`。
+    ⚠️ `amount_yuan/yoy_pct/pctile250/trend_5d_pct/label` 一律**取不到就 NULL**（missing 点名），
+    不写 0 —— 0 在这里是"零成交"的真实读数，NULL 才是"这一格判不了"（与 54 号 DDL 同一条纪律）。
+    """
+    _no_test_write('index_volume_snap')
+    if not rows:
+        return 0
+    return engine.executemany(_VOLSNAP, rows, role='etl')
+
+
 def state_summary(day: dt.date) -> dict:
     """当日已落库的针数/事件数/播报数 —— 作业自己回读，别拿"我写了"当"库里有了"。"""
     return engine.query_one(
@@ -333,7 +361,7 @@ def broadcast_ledger(day: dt.date) -> dict[str, dict]:
 def fold_ledger(rows: list[dict]) -> dict[str, dict]:
     """把 `task × what` 的聚合行折成每路一格的读数（纯函数，测试直接喂假行）。
 
-    分类只有这一处：`sent` 算真发出去几条、`digest/heat/delta/auction/noon/mirror/sysentry*` 算打了几针、
+    分类只有这一处：`sent` 算真发出去几条、`digest/heat/delta/auction/noon/mirror/sysentry*/daily_review/tomorrow/strong_mode` 算打了几针、
     `skipped*` 属正常（非时段/休市）、其余一律是缺数与降级 —— 把它们并进 rounds 或 sent
     就是"这一轮没做成"被说成"这一轮发过了"。
     """
@@ -344,7 +372,7 @@ def fold_ledger(rows: list[dict]) -> dict[str, dict]:
                                             'first_at': None, 'last_at': None})
         what = r['what']
         if what in ('digest', 'heat', 'delta', 'auction', 'noon', 'mirror',
-                    'sysentry', 'sysentry_fill', 'daily_review'):
+                    'sysentry', 'sysentry_fill', 'daily_review', 'tomorrow', 'strong_mode'):
             bucket['rounds'] += int(r['n'])
         elif what == 'sent':
             bucket['sent'] += int(r['n'])
@@ -363,4 +391,78 @@ def fold_ledger(rows: list[dict]) -> dict[str, dict]:
             cur = bucket[edge]
             if cur is None or (stamp < cur) == (edge == 'first_at'):
                 bucket[edge] = stamp
+    return out
+
+
+#: 「按日期回看推送正文」读哪几列。`body IS NOT NULL` 是那道筛：只落库的针、
+#: 非时段跳过、取数失败这些行没有正文，混进来就会在屏上变成一条空白推送。
+_BODY_COLS = ('task', 'what', 'at_ts', 'ok', 'delivered', 'channel_key', 'err', 'body')
+
+
+def broadcast_body_days(*, limit: int = 90) -> list[str]:
+    """库里真有推送正文的那些日子（降序，最多 `limit` 天）—— 日期选择器的可选范围。
+
+    只数 `tasks.PUSH_KEYS`（真往外发的那几路）：①⑥只落库，它们的 body 是池摘要，
+    算进来会让"最近一天"变成今天（①每 5 分钟就有一针），而用户要回看的是发出去的那几条。
+    读不出来要**抛**（同 `broadcast_ledger`）：兜成空列表就成了"从来没发过东西"。
+    """
+    from app.intraday.tasks import PUSH_KEYS
+
+    rows = engine.query(
+        'SELECT DISTINCT trade_date FROM analytics.intraday_broadcast'
+        ' WHERE spec_version = %s AND body IS NOT NULL AND task = ANY(%s::text[])'
+        ' ORDER BY trade_date DESC LIMIT %s',
+        (SPEC_VERSION, list(PUSH_KEYS), limit), role='reader') or []
+    return [f"{r['trade_date']:%Y-%m-%d}" for r in rows]
+
+
+def broadcast_bodies(day: dt.date) -> list[dict]:
+    """那一天每一路真发出去的正文（按 `PUSH_KEYS` 的行序，路内按时间升序）。
+
+    读的是**当时落库的那一份**，不重算 —— 重算会拿到另一场数（源站翻页、后续补数），
+    而屏上这一格的用途正是"那天群里收到的到底是什么"。
+    """
+    from app.intraday.tasks import PUSH_KEYS
+
+    rows = engine.query(
+        f"SELECT {', '.join(_BODY_COLS)} FROM analytics.intraday_broadcast"
+        ' WHERE trade_date = %s AND spec_version = %s AND body IS NOT NULL'
+        '   AND task = ANY(%s::text[])'
+        ' ORDER BY task, at_ts, what', (day, SPEC_VERSION, list(PUSH_KEYS)), role='reader') or []
+    folded = fold_bodies(rows)
+    return [{'task': k, 'rounds': folded[k]} for k in PUSH_KEYS if k in folded]
+
+
+def fold_bodies(rows: list[dict]) -> dict[str, list[dict]]:
+    """把正文行折成「一路一条时间线」（纯函数，测试直接喂假行）。
+
+    同一路同一 `at_ts` 通常有两行：发送前落的正文（`what=noon/delta/...`）与发送回执
+    （`what='sent'`）—— 两份正文逐字相同（作业把同一个 `now` 与同一串文本交给两次写）。
+    折成一条、正文取 `sent` 那份（那才是真发出去的），送达与渠道也取回执那一行。
+    没有回执时 `sent=None`，屏上要说「只有正文，没有发送回执」，**不许**说成已发送。
+    """
+    groups: dict[tuple, list[dict]] = {}
+    for r in rows:
+        body = r.get('body')
+        if not body:
+            continue
+        groups.setdefault((r['task'], r['at_ts']), []).append(r)
+    out: dict[str, list[dict]] = {}
+    for (task, at), grp in groups.items():
+        receipt = next((g for g in grp if g['what'] == 'sent'), None)
+        src = receipt or grp[0]
+        stamp = f'{at:%Y-%m-%d %H:%M:%S}' if isinstance(at, dt.datetime) else str(at)[:19]
+        out.setdefault(task, []).append({
+            'at': stamp,
+            'body': str(src['body']),
+            'chars': len(str(src['body'])),
+            'kinds': sorted({str(g['what']) for g in grp}),
+            'sent': receipt is not None,
+            'ok': src.get('ok'),
+            'delivered': src.get('delivered'),
+            'channel_key': src.get('channel_key'),
+            'err': (str(src['err'])[:200] if src.get('err') else None),
+        })
+    for rounds in out.values():
+        rounds.sort(key=lambda x: x['at'])
     return out

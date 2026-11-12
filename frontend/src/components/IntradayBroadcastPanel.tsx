@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { DocDrawer } from "@/components/ui/DocDrawer";
+import { BroadcastBodyViewer } from "@/components/BroadcastBodyViewer";
 import { RefreshCw, Save } from "lucide-react";
-import { blockingReason, dirtyPatch, ledgerText, resultCodeText, runAtText, taskPatch,
+import { blockingReason, dirtyPatch, ledgerText, resultCodeText, runAtText, taskNoBadge, taskPatch,
   type BroadcastConfig, type BroadcastState, type BroadcastTask } from "@/lib/intradayBroadcastReads";
 import { loadBroadcast, saveBroadcast } from "@/lib/intradayBroadcast";
 import { cn } from "@/lib/utils";
@@ -62,6 +63,7 @@ export function IntradayBroadcastPanel() {
   };
 
   return (
+    <>
     <GlassCard>
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-semibold">盘中播报（时点、渠道与微信镜像）</h2>
@@ -90,28 +92,33 @@ export function IntradayBroadcastPanel() {
             </p>
             <p className="mt-1">
               时点与渠道落在作业配置 <code>jobs/config.json</code> 的 <code>intraday_broadcast</code>；
-              判据与正文不在这儿（住 <code>ingest/jobs/*.py</code> 与 <code>app/intraday/templates.json</code>）。
+              判据与正文不在这儿（住 <code>ingest/jobs/push/tNN_*.py</code> 与 <code>app/intraday/templates.json</code>）。
               渠道候选来自「消息推送」那一屏登记的渠道；要加群机器人先去那里加。
+            </p>
+            <p className="mt-1">
+              行首那个 <b className="font-medium">①…⑪</b> 就是这几路的编号：它等于行序，也等于行末那条路径里
+              <code>tNN</code> 的号（后端在册表给，前端不自己数）。以后说"改第几路"直接报号，
+              对着屏幕就能找到那一行和那个文件。
             </p>
             <p className="mt-1">
               每行右边两格是不同的事：<b className="font-medium">任务</b>是机器上真注册成什么状态，
               <b className="font-medium">今天</b>是库里 <code>analytics.intraday_broadcast</code> 的留痕
-              （打了几针、真发出去几条）。针数比发出条数多属正常 —— 事件差那一炉要攒够变化才播一次。
+              （打了几针、真发出去几条）。针数比发出条数多属正常 —— ①那一炉要攒够变化才播一次。
               「上次 / 下次」那两格只到<b className="font-medium">分钟</b>：任务计划程序回的时间秒位不可信
               （本机实测它把秒印成分钟），要精确到秒看行末「今天 … 最后 …」那一格，那是脚本自己写进库的。
             </p>
             <p className="mt-1">
               <b className="font-medium">取数与推送是两层</b>（用户 11-03 定）：
-              「涨跌停池事件差」那一行<b className="font-medium">只落库、不发送</b>，盘中每 5 分钟一针把事件差写进
-              <code>analytics.intraday_pool_event</code>；到点发送归「盘中涨跌停变化量」那一行，它一次源站都不碰，
+              <b className="font-medium">①</b>「涨跌停池事件差」那一行<b className="font-medium">只落库、不发送</b>，盘中每 5 分钟一针把事件差写进
+              <code>analytics.intraday_pool_event</code>；到点发送归<b className="font-medium">③</b>「盘中涨跌停变化量」那一行，它一次源站都不碰，
               只读库里的事件差汇总 —— 所以六点里任何一次都能事后重跑（<code>--since HH:MM</code> 补发），
-              重跑拿到的数与当时一致。概念热度跟这六个时点走（各自 +10 秒，等事件差先落库），
+              重跑拿到的数与当时一致。<b className="font-medium">④</b>概念热度跟③这六个时点走（各自 +10 秒，等①先落库），
               界面上它只有开关、没有自己的时点格。
             </p>
             <p className="mt-1">
-              同一层分法也用在<b className="font-medium">交易体系榜</b>上：<code>14:39</code> 那一行取历史日线 +
+              同一层分法也用在<b className="font-medium">交易体系榜</b>上：<b className="font-medium">⑥</b> <code>14:39</code> 那一行取历史日线 +
               盘中快照、按 <code>sys-1</code> 判完逐票落 <code>analytics.intraday_sysentry</code>（不发东西）；
-              <code>14:40:30</code> 那一行只读那张表排版再发。库里今天没有行时它播一句「行情未就绪」并写清为什么，
+              <b className="font-medium">⑦</b> <code>14:40:30</code> 那一行只读那张表排版再发。库里今天没有行时它播一句「行情未就绪」并写清为什么，
               <b className="font-medium">绝不把昨天的行当今天的榜</b>。这一对是 11-03 从外部
               <code>intraday_sysentry/</code> 收编进来的 —— 外部那条 <code>Guanlan-SysEntry1440</code> 是一次性触发，
               自 10-30 起就再没排过期（屏上"Ready"但下次时间为空），这里改成每日触发并已把它停用。
@@ -187,6 +194,10 @@ export function IntradayBroadcastPanel() {
         </p>
       )}
     </GlassCard>
+    {/* 用户 11-10：这一屏还要能按日期回看真发出去的正文。挂在这里而不是页上，
+        是为了借这张表已经读回来的 `no`/`label`（同一份号与路名，不另抄一套）。 */}
+    <BroadcastBodyViewer tasks={tasks} />
+    </>
   );
 }
 
@@ -216,12 +227,19 @@ function TaskRow({ task, cfg, saved, setCfg, busy, onSave, day }: {
       <div className="flex flex-wrap items-baseline gap-2">
         <label className="flex items-center gap-1 text-xs font-medium">
           <input type="checkbox" checked={on} disabled={busy !== ""}
-            aria-label={`${task.label} 开关`}
+            aria-label={`${taskNoBadge(task.no)} ${task.label} 开关`}
             onChange={e => setCfg(c => ({ ...c, [enabledName]: e.target.checked }))} />
+          {/* 号由后端那一格 `no` 给（在册表行序 = push/tNN 文件序号），前端不自己数：
+              前端一数，屏上的号和文件名就会在有人插一行之后错开。 */}
+          {taskNoBadge(task.no) &&
+            <span className="text-sm leading-none text-primary">{taskNoBadge(task.no)}</span>}
           {task.label}
         </label>
         <code className="text-[10px] text-muted-foreground">{task.task_name}</code>
         <code className="text-[10px] text-muted-foreground" title="作业脚本（序号=本表行序）">{task.module.replace(/\./g, "/") + ".py"}</code>
+        {/* "干什么"那一短句由后端 `BRIEF` 给（与 `ingest/jobs/推送任务清单.md` 同一串）；
+            前端不写第二句，否则清单与屏上迟早一个说法。 */}
+        {!!task.brief && <span className="text-[11px] text-muted-foreground">{task.brief}</span>}
         {!task.available && (
           <span className="rounded bg-warning/15 px-1 py-0.5 text-[10px] text-warning">
             执行体不在仓库（{task.module}）—— 保存会拒注册
@@ -246,10 +264,25 @@ function TaskRow({ task, cfg, saved, setCfg, busy, onSave, day }: {
             <Field cfg={cfg} setCfg={setCfg} name="watcher_duration_h" label="时长小时" busy={busy} mono />
           </>
         ) : timesName ? (
-          <input value={String(cfg[timesName] ?? "")} disabled={busy !== "" || !task.editable}
-            aria-label={`${task.label} 时点`}
-            onChange={e => setCfg(c => ({ ...c, [timesName]: e.target.value }))}
-            className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2 py-1 font-mono text-[11px]" />
+          <>
+            <input value={String(cfg[timesName] ?? "")} disabled={busy !== "" || !task.editable}
+              aria-label={`${task.label} 时点`}
+              onChange={e => setCfg(c => ({ ...c, [timesName]: e.target.value }))}
+              className={cn("rounded-lg border border-border bg-background px-2 py-1 font-mono text-[11px]",
+                // ⑦ 那行还要并排放「卡片末尾提示词」那一格，时点格让出宽度（它只有一个时点）
+                task.key === 'sysentry' ? "w-32" : "min-w-0 flex-1")} />
+            {/* ⑦ 多一格：卡片末尾 @所有人 后面跟的那句提示词（用户 11-10）。
+                留空保存＝删键回出厂默认，屏上不另抄一份默认值抄错口径。 */}
+            {task.key === 'sysentry' && (
+              <label className="flex min-w-0 flex-1 items-center gap-1 text-[11px] text-muted-foreground">
+                卡片末尾
+                <input value={String(cfg.sysentry_at_prompt ?? "")} disabled={busy !== "" || !task.editable}
+                  aria-label="交易体系榜卡片末尾 @所有人 后面的提示词"
+                  onChange={e => setCfg(c => ({ ...c, sysentry_at_prompt: e.target.value }))}
+                  className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px]" />
+              </label>
+            )}
+          </>
         ) : (
           <span className="text-[11px] text-muted-foreground">
             这一行没有自己的时点格：<b className="font-medium">{task.schedule}</b>
@@ -267,6 +300,13 @@ function TaskRow({ task, cfg, saved, setCfg, busy, onSave, day }: {
           多个时点用逗号分隔，写成 <code>HH:MM</code> 或 <code>HH:MM:SS</code>；现在生效的是 {task.schedule}
           {timesName !== `${task.key}_times` &&
             <> —— 这一格（<code>{timesName}</code>）是六点共用的，概念热度跟着它各自 +10 秒</>}
+        </p>
+      )}
+      {task.key === 'sysentry' && (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          「卡片末尾」格：14:40 那榜改发飞书卡片（用户 11-10），@所有人挪到卡片最后、后面跟这一句提示词
+          （留空保存＝回出厂默认，默认值跟后端走，屏上不另抄）；榜超过 30 只自动分卡，
+          @所有人+提示词只落在最后一张卡的最后。纯文本版照旧做留痕正文与兜底。
         </p>
       )}
 

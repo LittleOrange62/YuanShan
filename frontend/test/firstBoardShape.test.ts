@@ -14,7 +14,7 @@ import {
  */
 
 const row = (o: Partial<FbRow>): FbRow => ({ label: "Q1", n: 100, ...o }) as FbRow;
-const page = readFileSync(new URL("../src/pages/VolumeDouble.tsx", import.meta.url), "utf8");
+const page = readFileSync(new URL("../src/pages/StrategyBacktest.tsx", import.meta.url), "utf8");
 const comp = readFileSync(new URL("../src/components/quant/FirstBoardShapeBoard.tsx", import.meta.url), "utf8");
 const system = readFileSync(new URL("../src/pages/System.tsx", import.meta.url), "utf-8");
 
@@ -117,7 +117,7 @@ test("表头每一列的 sortKey 都等于格子里读到的字段名", () => {
     || k === "win5" || k === "seg2_rate" || k === "seg3_rate" || k === "seg4_rate" || k === "seg5_rate", k);
 });
 
-test("这一块真挂在倍量形态页上，并且登记进了系统自检清单", () => {
+test("这一块真挂在策略回测屏上，并且登记进了系统自检清单", () => {
   assert.ok(page.includes('<FirstBoardShapeBoard />'), "调用点没接上");
   assert.ok(comp.includes('useProbe<FbPayload>("/quant/first-board-shape"'), "组件没发那条请求");
   assert.ok(system.includes('"/quant/first-board-shape"'), "System.tsx 的 CAPABILITIES 里没有这条");

@@ -35,7 +35,7 @@ import { ratioText as sqRatioText, rateText as sqRateText } from "../src/lib/qua
 
 const lib = readFileSync(new URL("../src/lib/spikeDays.ts", import.meta.url), "utf8");
 const comp = readFileSync(new URL("../src/components/quant/StartupSpikeDaysBoard.tsx", import.meta.url), "utf8");
-const page = readFileSync(new URL("../src/pages/VolumeDouble.tsx", import.meta.url), "utf8");
+const page = readFileSync(new URL("../src/pages/StrategyBacktest.tsx", import.meta.url), "utf8");
 const system = readFileSync(new URL("../src/pages/System.tsx", import.meta.url), "utf-8");
 const features = readFileSync(new URL("../src/lib/workspace/features.ts", import.meta.url), "utf-8");
 const ledger = readFileSync(new URL("../docs/公用组件：一份实现多处调用的读数块清单.md", import.meta.url), "utf-8");
@@ -480,7 +480,7 @@ test("日线代理那句话把事实钉死：一天一个数、分钟线没做�
 
 // ============================================ 十、接线与呈现纪律（漏一处就是哑卡片）
 
-test("这一块真挂在倍量形态页上、接在象限轨迹之后，并登记进系统自检清单", () => {
+test("这一块真挂在策略回测屏上、接在象限轨迹之后，并登记进系统自检清单", () => {
   assert.ok(page.includes("<StartupSpikeDaysBoard />"), "调用点没接上");
   assert.ok(page.indexOf("<StartupSpikeDaysBoard />") > page.indexOf("<StartupQuadrantTrackBoard />"),
     "必须接在 StartupQuadrantTrackBoard 之后");
@@ -488,7 +488,8 @@ test("这一块真挂在倍量形态页上、接在象限轨迹之后，并登�
   assert.ok(!comp.includes('useProbe<SsdPayload>("/api'), "页面里绝不写 /api（useProbe 自己补前缀）");
   assert.ok(system.includes('"/quant/startup-spike-days"'), "System.tsx 的 CAPABILITIES 里没有这条");
   assert.match(system, /path: "\/quant\/startup-spike-days".*slow: true \}/, "慢接口要标 slow");
-  assert.match(system, /启动前爆量与突然拉高.*where: "\/volume-double"/);
+  assert.match(system, /启动前爆量与突然拉高.*where: "\/backtest-agent"/,
+    '自检清单里的落点要跟着这块搬：11-07 起它在策略回测屏，不在倍量形态那一屏');
   assert.doesNotMatch(features, /三类母体/, "副标题不许还写着三类母体");
   assert.match(features, /爆量/, "新屏要进那一句副标题");
 });

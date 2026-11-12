@@ -8,6 +8,7 @@ import { probe } from "@/lib/probe";
 import { usePageCrumb } from "@/lib/workspace/pageCrumb";
 import { StockDossier } from "@/components/quant/StockDossier";
 import { TrendQuant } from "@/components/quant/TrendQuant";
+import { SchemeRadarBoard } from "@/components/quant/SchemeRadarBoard";
 import { FinancialPeriodBoard } from "@/components/quant/FinancialPeriodBoard";
 import { VolumeSimilarityBoard } from "@/components/quant/VolumeSimilarityBoard";
 import { StockFacts } from "@/components/stock/StockFacts";
@@ -188,6 +189,10 @@ export function StockReview() {
           （总账那一屏按它复述），两份由两条测试各钉一遍，挪一块必须同时挪两处。 */}
       <PriceVolumeTrend code={code || null} />
       <StockDossier code={code || null} date={undefined} />
+      {/* 用户 2026-11-09 点名新增，且指定「在这个模块（该支票的趋势量化计算）上方」：
+          近几场各套方案的名次 ＋ 2/5/10/30/60 场趋势谁在带动谁。它排在加权明细前面是有道理的：
+          先看"这几场它在各套方案里各排到哪、哪一族的线在带着另一族走"，再看"这一场的分是怎么加出来的"。 */}
+      <SchemeRadarBoard code={code || null} />
       <TrendQuant code={code || null} />
       <FinancialPeriodBoard code={code || null} />
       <VolumeSimilarityBoard code={code || null} />

@@ -65,7 +65,7 @@ export function FirstBoardShapeBoard() {
     months: p.months, bucket: p.bucket, buckets: p.nBuckets, metric: p.metric, board: p.board,
     complete_only: String(p.completeOnly), exclude_locked: String(p.excludeLocked), min_bars: 20 });
   const { toggle, dirOf, apply } = useTableSort();
-  const { openReview, popHint } = useStockRowInteraction("倍量形态·首板形状预示");
+  const { openReview, popHint } = useStockRowInteraction("策略回测·首板形状预示");
 
   const data = state.kind === "ok" ? state.data : null;
   const opts = data?.options;

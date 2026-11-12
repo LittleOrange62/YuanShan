@@ -80,8 +80,9 @@ def last_fill_reason(day: dt.date) -> str:
     return f"{row['what']}：{str(row.get('err') or '')[:120]}"
 
 
-def fmt_stock(r: dict, i: int, t: dict) -> str:
-    """一行票。缺的那一格显式写"缺数"，不填空、不拿 0 顶。"""
+def stock_fields(r: dict) -> dict:
+    """一只票的全部格子（**文本版与卡片版共用这一份计算**）。缺的那格显式写"缺数"，
+    不填空、不拿 0 顶 —— 两个版本分开算迟早会算出两个数。"""
     af = S._f(r.get('adjustment_factor') or 0) or 1.0
     stop = (S._f(r['stop_ref_hfq']) / af) if r.get('stop_ref_hfq') else None
     close, pre = S._f(r.get('close')), S._f(r.get('pre_close'))
@@ -89,18 +90,24 @@ def fmt_stock(r: dict, i: int, t: dict) -> str:
     stop_dist = (100.0 * (S._f(r['stop_ref_hfq']) / (close * af) - 1.0)
                  if stop and close else None)
     gap_date = r.get('gap_date')
-    return t['sysentry_row'].format(
-        i=i, name=r.get('security_name') or '', code=r['security_code'],
-        price=f'{close:.2f}', pct=f'{pct:+.2f}%' if pct is not None else '涨幅缺数',
-        gap_date=f'{gap_date:%m-%d}' if gap_date else '缺数',
-        gap_pct=f"{S._f(r.get('gap_pct')):.2f}"
-        if r.get('gap_pct') is not None else '缺数',
-        unfilled=r.get('gap_unfilled') if r.get('gap_unfilled') is not None else '缺数',
-        pb_ratio=(f"{S._f(r['pullback_max_vol_ratio']):.3f}"
-                  if r.get('pullback_max_vol_ratio') is not None else '缺数'),
-        pb_down=r.get('pullback_down_cnt') if r.get('pullback_down_cnt') is not None else '缺数',
-        stop=f'{stop:.2f}' if stop else '缺数',
-        stop_dist=(f'{stop_dist:+.1f}' if stop_dist is not None else '缺数'))
+    return {
+        'name': r.get('security_name') or '', 'code': r['security_code'],
+        'price': f'{close:.2f}',
+        'pct': f'{pct:+.2f}%' if pct is not None else '涨幅缺数',
+        'gap_date': f'{gap_date:%m-%d}' if gap_date else '缺数',
+        'gap_pct': f"{S._f(r.get('gap_pct')):.2f}" if r.get('gap_pct') is not None else '缺数',
+        'unfilled': r.get('gap_unfilled') if r.get('gap_unfilled') is not None else '缺数',
+        'pb_ratio': (f"{S._f(r['pullback_max_vol_ratio']):.3f}"
+                    if r.get('pullback_max_vol_ratio') is not None else '缺数'),
+        'pb_down': r.get('pullback_down_cnt') if r.get('pullback_down_cnt') is not None else '缺数',
+        'stop': f'{stop:.2f}' if stop else '缺数',
+        'stop_dist': f'{stop_dist:+.1f}' if stop_dist is not None else '缺数',
+    }
+
+
+def fmt_stock(r: dict, i: int, t: dict) -> str:
+    """一行票（纯文本版，留痕正文用）。"""
+    return t['sysentry_row'].format(i=i, **stock_fields(r))
 
 
 def build_message(rows: dict, summary: dict | None, run: dict, now: dt.datetime,
@@ -138,6 +145,85 @@ def build_message(rows: dict, summary: dict | None, run: dict, now: dt.datetime,
         src=run.get('quote_source') or '缺数',
         proven=s.get('proven') or s.get('last_day') or '缺数', t=stamp, note=note))
     return '\n'.join(lines)
+
+
+def build_cards(rows: dict, summary: dict | None, run: dict, now: dt.datetime,
+                cfg: dict, *, at_all: bool | None = None) -> list[dict]:
+    """飞书卡片版（用户 11-10：⑦ 改发 interactive 卡片，@所有人挪到卡片最后，
+    后面跟一句**可配置的提示词**——存 `intraday_broadcast.sysentry_at_prompt`，
+    「推送任务」⑦ 那一行可改，留空回出厂默认）。
+
+    纯文本版 `build_message` 一个字不动：它继续当留痕正文与非飞书渠道的兜底。
+    榜超过 `sysentry_max_rows` 就分卡（每卡至多那么多只）：续卡带「续 x~y（共 N 只）」，
+    统计行与口径脚注只在首卡，**@所有人+提示词只在最后一张卡的最后** ——
+    发一整串卡再各带一次 @，等于在群里连拍好几个人。
+    """
+    T, s = tpl(), (summary or {})
+    entry, watch = rows.get('entry') or [], rows.get('watch') or []
+    stamp = f'{now:%H:%M:%S}'
+    max_rows = int(cfg.get('sysentry_max_rows') or 30)
+    total = len(entry)
+    n_parts = max(1, -(-total // max_rows)) if total else 1
+    at_all_on = bool(cfg.get('sysentry_at_all') if at_all is None else at_all)
+    prompt = str(cfg.get('sysentry_at_prompt') or '').strip() \
+        or str(tasks.DEFAULTS['sysentry_at_prompt'])
+    note = ('离线：今日那根取的是库里已落的日线，不是实时快照'
+            if '库内日线' in str(run.get('quote_source') or '') else '盘中未收盘，收盘数以15:59收盘链为准')
+    footer = T['sysentry_footer'].format(
+        spec=S.SPEC_VERSION, last_day=s.get('last_day') or str(run.get('quote_day') or '缺数'),
+        src=run.get('quote_source') or '缺数',
+        proven=s.get('proven') or s.get('last_day') or '缺数', t=stamp, note=note)
+    extra = []
+    for label, key in (('停牌/无报价未判', 'no_quote'), ('除权基不符未判', 'exright'),
+                       ('涨停价与东财池不一致', 'mismatch')):
+        n = s.get(key)
+        if n:                                           # 0 与 None 都不念：没发生的事不占一行
+            extra.append(f'{label}{n}只' + ('（见留痕）' if key == 'mismatch' else ''))
+    if cfg.get('sysentry_watch_list') and watch:
+        extra.append('观察池：' + '、'.join(r['security_code'] for r in watch[:40]))
+    if not summary:
+        extra.append('摘要缺数：A 那一针的留痕行没读到，未判只数不能当成 0')
+
+    cards: list[dict] = []
+    for part_i in range(n_parts):
+        part = entry[part_i * max_rows:(part_i + 1) * max_rows]
+        first, last = (part_i == 0), (part_i == n_parts - 1)
+        els: list[dict] = []
+        if first:
+            els.append({'tag': 'markdown',
+                        'content': T['sysentry_card_stats'].format(n=total, m=len(watch))})
+        else:
+            els.append({'tag': 'markdown',
+                        'content': T['sysentry_card_cont'].format(
+                            start=part_i * max_rows + 1, end=part_i * max_rows + len(part),
+                            total=total)})
+        if part:
+            stock_els = []
+            for i, r in enumerate(part, part_i * max_rows + 1):
+                f = stock_fields(r)
+                stock_els.append('\n'.join([T['sysentry_card_row1'].format(i=i, **f),
+                                             T['sysentry_card_row2'].format(**f),
+                                             T['sysentry_card_row3'].format(**f)]))
+            els.append({'tag': 'markdown', 'content': '\n\n'.join(stock_els)})
+        else:
+            els.append({'tag': 'markdown',
+                        'content': T['sysentry_card_none'].format(m=len(watch))})
+        if first and extra:
+            els.append({'tag': 'markdown', 'content': '；'.join(extra)})
+        if last:
+            els.append({'tag': 'markdown', 'content': footer})
+            if at_all_on:
+                els.append({'tag': 'markdown',
+                            'content': T['sysentry_card_atall'] + '\n' + prompt})
+        cards.append({
+            'config': {'wide_screen_mode': True},
+            'header': {'template': 'blue',
+                       'title': {'tag': 'plain_text',
+                                 'content': T['sysentry_card_title'].format(t=stamp)
+                                 + (f'（{part_i + 1}/{n_parts}）' if n_parts > 1 else '')}},
+            'elements': els,
+        })
+    return cards
 
 
 def one_round(*, dry_run: bool, send: bool, force: bool, channel: str | None,
@@ -180,41 +266,52 @@ def one_round(*, dry_run: bool, send: bool, force: bool, channel: str | None,
     rows = store.sysentry_rows(day, run['captured_at'])
     summary = store.sysentry_fill_summary(day, run['captured_at'])
     text = build_message(rows, summary, run, now, cfg)
+    cards = build_cards(rows, summary, run, now, cfg)
     asof = f"{run['captured_at']:%H:%M:%S}"
     print(f'[{now:%H:%M:%S}] 榜取 {asof} 那一针 · '
-          f"三条全过 {len(rows.get('entry') or [])} · 观察池 {len(rows.get('watch') or [])}")
+          f"三条全过 {len(rows.get('entry') or [])} · 观察池 {len(rows.get('watch') or [])}"
+          f" · 卡片 {len(cards)} 张")
     print(text)
     counts = {'asof': asof, 'entry_n': len(rows.get('entry') or []),
               'watch_n': len(rows.get('watch') or []), 'src': run.get('quote_source'),
-              'summary_found': bool(summary)}
+              'summary_found': bool(summary), 'cards': len(cards)}
     if dry_run:
         print('（dry-run：未写账、未发送）')
+        print('—— 卡片版（第 1 张 JSON）——')
+        print(json.dumps(cards[0], ensure_ascii=False, indent=2))
         return 0
     _log(now, 'sysentry', body=text, counts=counts)
     if send:
         keys = tasks.send_channels(channel)
-        _send(now, text, keys, counts=counts)
+        _send(now, text, keys, counts=counts, cards=cards)
     return 0
 
 
-def _send(now, text, keys, *, counts):
+def _send(now, text, keys, *, counts, cards: list[dict] | None = None):
     """发渠道。**只发一次**：没确认就记失败并写清下一步，不自动降级重发。
 
     带 @所有人 的那一版如果被群拒收，自动去@重发会在"其实已经收到"的情况下撞出两条榜
     （外部那份就是这么做的，代价是偶发双发）。这里改成留一句人话让人决定：
     把 `sysentry_at_all` 关掉再手工补发（`--send --force`），判定权交回给人。
+
+    `cards` 是 14:40 主榜的飞书卡片（用户 11-10）：超 30 只分出的多张卡**按序各发一次**，
+    任一卡没确认就是整笔失败（"三张里到了一张"不能写成"已发送"）；留痕正文仍是纯文本版。
+    `cards=None`（如"行情未就绪"那一句）走原来的纯文本。
     """
+    from app.intraday.cards import send_broadcast_with_card
     from duanxian import notify
-    res = notify.send_to(keys, '盘中交易体系榜', text)
-    ok = bool(res.get('ok'))
-    err = None if ok else str(res.get('detail'))[:300]
+    res_list = [notify.send_to(keys, '盘中交易体系榜', text, card=c) for c in cards] \
+        if cards else [send_broadcast_with_card(keys, '盘中交易体系榜', text)]
+    ok = all(bool(r.get('ok')) for r in res_list)
+    err = None if ok else '；'.join(str(r.get('detail'))[:160] for r in res_list
+                                   if not r.get('ok'))[:300]
     if not ok:
         err += '（带@所有人发的这一条没确认；若群没开@所有人，请把 sysentry_at_all 关掉后手工 ' \
                '`python -m ingest.jobs.push.t07_sysentry_report --send --force` 补发）'
     store.write_broadcast(now, task=TASK, what='sent', body=text, ok=ok, delivered=ok,
                           channel_key=','.join(keys), counts=counts, err=err)
-    verdict = '已确认' if ok else f'未确认：{str(res.get("detail"))[:160]}（判据是渠道业务码，不是 HTTP 200）'
-    print(f'  发送 → {",".join(keys)}：{verdict}')
+    verdict = '已确认' if ok else f'未确认：{err}（判据是渠道业务码，不是 HTTP 200）'
+    print(f'  发送 → {",".join(keys)}（{len(res_list)} 张）：{verdict}')
 
 
 def main(argv=None) -> int:

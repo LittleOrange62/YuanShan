@@ -84,7 +84,11 @@ def available() -> tuple[bool, str]:
     if not dll.is_file():
         return False, f'没有 {dll}'
     from app.tdx_client import win32
-    if not win32.pids_by_name('TdxW.exe'):
+    live, ghost = win32.split_live('TdxW.exe')
+    if not live:
+        if ghost:
+            return False, (f'通达信只剩残影条目 {ghost}（0 线程、进程已死）—— '
+                           'TQ 接口要求客户端真的登录着')
         return False, '通达信没在运行（TQ 接口要求客户端已登录）'
     return True, f'{TQCENTER.parent} 就绪'
 

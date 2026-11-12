@@ -21,7 +21,7 @@ test('没点过名的 code 一律留在屏上', () => {
 test('缺数／截断／失败／陈旧那一族，绝不折', () => {
   for (const code of ['board_truncated', 'pool_truncated', 'truncated', 'empty_board',
     'ambush_counts_unread', 'dossier_blocks_missing', 'concept_failed', 'labels_fallback',
-    'stale_ranks', 'is_st', 'caliber_break', 'no_snapshot', 'partial_last', 'energy_track_censored',
+    'stale_ranks', 'is_st', 'caliber_break', 'no_snapshot', 'partial_last', 'energy_trend_missing',
     'confluence_source_absent', 'resumed_gap', 'weight_mismatch', 'system_entry_filtered_out',
     'spike_not_computed', 'quadrant_bad_token'])
     assert.equal(caveatFoldable(code), false, `${code} 是"库不健康"类，必须留在屏上`);

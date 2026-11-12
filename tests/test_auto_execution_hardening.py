@@ -152,12 +152,20 @@ def test_探测判的是能不能取数不是进程在不在(monkeypatch):
 
     monkeypatch.setattr(watchman, 'probe',
                         lambda: {'running': True, 'pid': 1, 'login_box': True,
-                                 'minimized': False, 'sync': None, 'window': '通达信'})
+                                 'minimized': False, 'sync': None, 'window': '通达信',
+                                 'live': [1], 'ghost': [], 'hung': False,
+                                 'state': 'login', 'state_label': '不可用（停在登录框上）',
+                                 'usable': False, 'reason': '客户端开着但停在登录框上'})
     ok, detail = server._tdx_probe_round()
     assert ok is False, '开着但停在登录框上 = TQ 那条腿取不到数，不能报成"能取数"'
     assert '登录框' in detail['reason']
 
-    monkeypatch.setattr(watchman, 'probe', lambda: {'running': False})
+    monkeypatch.setattr(watchman, 'probe',
+                        lambda: {'running': False, 'pid': None, 'login_box': False,
+                                 'minimized': None, 'sync': None, 'window': None,
+                                 'live': [], 'ghost': [], 'hung': None,
+                                 'state': 'off', 'state_label': '没在跑',
+                                 'usable': False, 'reason': '没在跑（进程表里没有 TdxW）'})
     ok, detail = server._tdx_probe_round()
     assert ok is False and 'vipdoc' in detail['reason']
 

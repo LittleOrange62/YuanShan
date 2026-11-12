@@ -8,7 +8,8 @@ import {
   thresholdsText, yiText, extremeCells, extremeCellRows, extremeRows, hoverLine, NULL_TEXT,
   extremeLine, extremeMarks, optionSources, xTicks,
   caveatText, densityScale, divergenceScale, trendLine, trendText, turnLine, turnMarks,
-  type RiskExtremeRow, type RiskPanel, type RiskPeriod, type RiskTurn,
+  fwdCellTitle, fwdCol, fwdMissingRows, fwdPendingRows, fwdPctText,
+  type RiskExtremeRow, type RiskFwdCell, type RiskFwdCol, type RiskPanel, type RiskPeriod, type RiskTurn,
 } from '../src/lib/riskSignal.ts';
 
 /**
@@ -235,24 +236,26 @@ test('极端点位清单摆成用户 11-01 点名的那五格：四格文字全�
   assert.equal(extremeCells(div, undefined).family, NULL_TEXT, 'kind_labels 没交就念 —，不自己写中文');
   assert.equal(extremeCells(div, {}).family, NULL_TEXT);
 
-  // 两类合成一排（背离在前、崩点在后），清单只认这一份
+  // 两类合成一排，清单按**时间从近到远**排（用户 2026-11-10 点名「整个表格按照时间这列，
+  // 从近到远的从上到下排序」）—— 原来那条「背离在前、崩点在后」的钉子搬到新读法，不是放宽。
   const col = { ...div, period: '2026-10-09', label: '10-09', kind: 'collapse' as const,
     alert_type: '风险提示', meaning_text: '上一期宽度还很宽、这一期直接掉下一大截' };
   const d2 = { available: true, extremes: {
     divergence: { rows: [div, { ...div, period: '2026-09-25', label: '09-25' }] },
     collapse: { rows: [col] },
   } } as unknown as RiskPanel;
-  assert.deepEqual(extremeRows(d2).map(r => r.period), ['2026-09-21', '2026-09-25', '2026-10-09']);
-  // 同一类那几行的「结果含义」是同一句话 ⇒ 只在第一行摆那一格，其余行由它 rowSpan 盖住
+  assert.deepEqual(extremeRows(d2).map(r => r.period), ['2026-10-09', '2026-09-25', '2026-09-21']);
+  // 共用那一格的合并**在新读序上现算**：日期一混，两行背离挨到了末尾，格子跟着挪到那两行
   const merged = extremeCellRows(d2);
-  assert.deepEqual(merged.map(r => r.meaningSpan), [2, 1, 1], '两行背离共用一格，第三行自己一格');
-  assert.deepEqual(merged.map(r => r.meaningHead), [true, false, true]);
+  assert.deepEqual(merged.map(r => r.meaningSpan), [1, 2, 1], '末两行同为背离 ⇒ 共用那一格从 09-25 起盖住 09-21');
+  assert.deepEqual(merged.map(r => r.meaningHead), [true, true, false]);
   // 含义那一格没交（空串）时不合并：那种行各摆各的 —，缺没缺一眼分得清
   const bare2 = { available: true, extremes: { divergence: {
     rows: [{ ...div, meaning_text: undefined }, { ...div, period: '2026-09-25', label: '09-25' }] },
     collapse: { rows: [] } } } as unknown as RiskPanel;
   assert.deepEqual(extremeCellRows(bare2).map(r => r.meaningSpan), [1, 1]);
-  assert.deepEqual(extremeCellRows(bare2).map(r => r.incomplete), [true, false]);
+  // 新读序（从近到远）把 09-25 排到了前面 ⇒ 缺含义的那一行（09-21）落在第二位
+  assert.deepEqual(extremeCellRows(bare2).map(r => r.incomplete), [false, true]);
 
   // 组件那一侧：五列齐全、四格过 plain、缺格那句黄字在
   for (const f of ['r.metric', 'r.valueText', 'r.compareText', 'r.meaningText']) {
@@ -266,6 +269,94 @@ test('极端点位清单摆成用户 11-01 点名的那五格：四格文字全�
   assert.match(comp, /缺了后端该交的那五样之一/, '某一格没送到时当场说破（不是"这一期没有读数"）');
   assert.doesNotMatch(comp.replace(/\/\*[\s\S]*?\*\//g, ''), /家数占比比钱多|≥ 阈值/,
     '判据句不住组件：组件里出现这两句就是页面自己拼了一份后端措辞');
+});
+
+test('后 5 日那五列：一格五个数、涨红跌绿而缺数不上色，三种「没有数」各说各的（2026-11-10 点名）', () => {
+  const COLS = [
+    { code: '000001.SH', name: '上证', full: '上证指数', label: '上证后5日涨跌', note: '第 k 场收盘 ÷ 极端点当日收盘 − 1' },
+    { code: '399001.SZ', name: '深证', full: '深证成指', label: '深证后5日涨跌', note: '同上' },
+    { code: '399006.SZ', name: '创业', full: '创业板指', label: '创业后5日涨跌', note: '同上' },
+    { code: '000688.SH', name: '科创', full: '科创50', label: '科创后5日涨跌', note: '同上' },
+    { code: '899050.BJ', name: '北证', full: '北证50', label: '北证后5日涨跌', note: '同上' },
+  ];
+  const mk = (code: string, cum: (number | null)[], day: (number | null)[],
+    o: { pending?: number; missing?: number; has_base?: boolean } = {}): RiskFwdCol => ({
+    code, cum, day, pending: o.pending ?? 0, missing: o.missing ?? 0, has_base: o.has_base ?? true,
+  });
+  // 假数据按真契约摆：`pending` 是**轴**的属性 ⇒ 同一行五列的 pending 一定相同；
+  // `missing` 与 `has_base` 才是每列自己的事。轴只到后第 3 场，所以第 4、5 场五列一起是 —。
+  const cell: RiskFwdCell = {
+    anchor: '2026-09-21', on_axis: true,
+    days: ['2026-09-22', '2026-09-23', '2026-09-24', null, null],
+    cols: [
+      mk('000001.SH', [0.06, -0.34, -1.56, null, null], [0.06, -0.39, -1.22, null, null], { pending: 2 }),
+      mk('399001.SZ', [-0.05, -0.68, -3.01, null, null], [-0.05, -0.64, -2.34, null, null], { pending: 2 }),
+      mk('399006.SZ', [0, 0, 0, null, null], [0, 0, 0, null, null], { pending: 2 }),
+      mk('000688.SH', [null, null, null, null, null], [null, null, null, null, null],
+        { pending: 2, has_base: false }),
+      mk('899050.BJ', [-1.08, null, -0.23, null, null], [-1.08, null, -1.7, null, null],
+        { pending: 2, missing: 1 }),
+    ],
+  };
+  const row = (period: string, o: Partial<RiskExtremeRow> = {}): RiskExtremeRow => ({
+    period, label: period.slice(5), kind: 'divergence', width_pct: 81.62, severity: 10,
+    metric: 'm', alert_type: '风险提示', value_text: 'v', compare_text: 'c', meaning_text: 's',
+    fwd: cell, ...o,
+  });
+  const d = {
+    available: true,
+    extremes: {
+      forward: { horizon: 5, columns: COLS, hit_rows: 1, available: true, reason: null,
+        anchor_note: null, axis: { code: '000001.SH', from: '2026-08-10', last: '2026-09-28', sessions: 30 } },
+      divergence: { rows: [row('2026-09-21')] }, collapse: { rows: [] },
+    },
+  } as unknown as RiskPanel;
+
+  // 取列只按后端那份 code，页面不自己排顺序
+  assert.equal(fwdCol(cell, '000688.SH')?.has_base, false);
+  assert.equal(fwdCol(cell, '999999.XX'), null);
+  assert.equal(fwdCol(null, '000001.SH'), null);
+
+  // 一个数的写法：有数才带百分号 —— 「—%」是把缺数念成读数
+  assert.equal(fwdPctText(null), NULL_TEXT);
+  assert.equal(fwdPctText(0), '0%', '平盘走全站那一份 signedText：0 就是 0%，不带正负号也不上色');
+  assert.equal(fwdPctText(-1.56), '-1.56%');
+  assert.equal(fwdPctText(0.06), '+0.06%');
+
+  // 三种「没有数」在悬停里各是一句话，谁也不许被写成"平盘"
+  const t1 = fwdCellTitle(cell, fwdCol(cell, '000001.SH'), 4, '上证指数');
+  assert.match(t1, /还没走完/, t1);
+  assert.doesNotMatch(t1, /累计/, '还没走完那一格不该被算出一个累计数');
+  const t2 = fwdCellTitle(cell, fwdCol(cell, '000688.SH'), 1, '科创50');
+  assert.match(t2, /没有收盘价/, t2);
+  const t3 = fwdCellTitle(cell, fwdCol(cell, '899050.BJ'), 2, '北证50');
+  assert.match(t3, /没有这根指数的行/, t3);
+  assert.match(t3, /2026-09-23/, t3);
+  const t4 = fwdCellTitle(cell, fwdCol(cell, '399001.SZ'), 2, '深证成指');
+  assert.match(t4, /2026-09-23/, t4);
+  assert.match(t4, /累计 -0\.68%/, t4);
+  assert.match(t4, /单日 -0\.64%/, '累计是主值、单日只进悬停 —— 两个数都要给，读者才知道自己在看哪一个');
+  assert.equal(fwdCellTitle(null, null, 1, '上证'), '');
+
+  // 留屏那两句「有才显示」：pending 与 missing 分开数，不是并成一个"有几个空格"
+  assert.equal(fwdPendingRows(d), 1);
+  assert.equal(fwdMissingRows(d), 1);
+  assert.equal(fwdPendingRows({ available: true, extremes: { divergence: { rows: [] }, collapse: { rows: [] } } } as unknown as RiskPanel), 0);
+
+  // 组件那一侧：五列的列名与说明全从后端 columns 来，配色只走 lib/colors 那一份出口
+  const noCols = comp.replace(/\/\*[\s\S]*?\*\//g, '');
+  ['上证后5日涨跌', '深证后5日涨跌', '创业后5日涨跌', '科创后5日涨跌', '北证后5日涨跌'].forEach(t =>
+    assert.doesNotMatch(noCols, new RegExp(t), `中文列名写死在组件里了：${t}`));
+  assert.match(comp, /fwdCols\.map\(c =>/, '列头按后端 columns 的顺序渲染');
+  assert.match(comp, /title=\{plain\(c\.note\)\}/, '列头悬停读后端那份口径说明');
+  assert.match(comp, /v === null \? FLAT_TEXT : pctColor\(v\)/,
+    '涨红跌绿走 lib/colors 那一份；缺数落灰不上色（涂红涂绿都是在替读者编方向）');
+  assert.equal((noCols.match(/pctColor\(v\)/g) ?? []).length, 1,
+    '上色只有这一处：出现第二处就是同一屏两套涨跌配色');
+  assert.match(comp, /Array\.from\(\{ length: fwdDays \}/, '一格里的个数由后端 horizon 定，页面不写死 5');
+  assert.match(comp, /extremes\?\.forward/, '五列的状态读 extremes.forward，不在组件里另取一份');
+  assert.ok(comp.includes('overflow-x-auto'), '十列比卡片宽，整张表要能横向滚（滚的是表，不截数据）');
+  assert.match(comp, /右边五列里的 —|那五列这次没读到/, '缺数那两句留屏（有才显示，不进抽屉）');
 });
 
 test('窗口/聚合档的按钮读后端 month_options；没交时兜底也要在屏上说清是兜底', () => {

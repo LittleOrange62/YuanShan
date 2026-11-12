@@ -16,12 +16,14 @@ import { NO_RANK_RULE_TEXT, NO_UNIVERSE_TEXT, rankText, rankTitle, trimNum } fro
 
 const ranking = readFileSync(new URL('../src/lib/ranking.ts', import.meta.url), 'utf8');
 const vd = readFileSync(new URL('../src/pages/VolumeDouble.tsx', import.meta.url), 'utf8');
-const track = readFileSync(new URL('../src/components/quant/EnergyTrackBoard.tsx', import.meta.url), 'utf8');
 const panel = readFileSync(new URL('../src/components/VolumeEnergyPanel.tsx', import.meta.url), 'utf8');
 // 第三处调用（10-19）：个股量化档案里那块「倍量形态」，名次与小数显示也必须走同一把尺。
 const dossierSrc = readFileSync(new URL('../src/components/quant/StockDossier.tsx', import.meta.url), 'utf8');
 // 第五处调用（2026-10-26）：分组整体分析「近 N 场排名」那一列（组之间的名次，不是票）。
 const groupBoardSrc = readFileSync(new URL('../src/components/quant/GroupAnalyticsBoard.tsx', import.meta.url), 'utf8');
+// 2026-11-08：原「逐日块」被推翻重做成「近期倍量表走势分析」，行是名次档不是票 ⇒ 没有当日名次那一格，
+// 但名次规则与档位区间文本仍然只准转述后端那一份（`ranking.RULE_NOTE` / `bucket_label`）。
+const trendSrc = readFileSync(new URL('../src/components/quant/EnergyTrendBoard.tsx', import.meta.url), 'utf8');
 
 const srcFiles = (dir: string, out: string[] = []): string[] => {
   for (const e of readdirSync(new URL(dir, import.meta.url), { withFileTypes: true })) {
@@ -84,11 +86,10 @@ test('rankTitle：规则原文逐字用接口那份，分母是哪一批一起�
   assert.match(none, /这一格没有名次/);
 });
 
-test('名次实现全站只有一份：三个屏都调它，组件里不许自造规则那句话', () => {
-  // 倍量榜（名次列）、逐日块（今日名次列）、个股量化档案（倍量那一块）都从 `lib/ranking.ts` 取
+test('名次实现全站只有一份：各屏都调它，组件里不许自造规则那句话', () => {
+  // 倍量榜（名次列）、个股量化档案（倍量那一块）都从 `lib/ranking.ts` 取
   assert.match(vd, /import \{ rankText, rankTitle, trimNum \} from "@\/lib\/ranking"/);
-  assert.match(track, /import \{ rankText, rankTitle, trimNum \} from "@\/lib\/ranking"/);
-  for (const [name, code] of [["倍量榜", vd], ["逐日块", track]] as const) {
+  for (const [name, code] of [["倍量榜", vd]] as const) {
     assert.ok(code.includes("rankText(r.rank_in_day)"), `${name} 的名次那一格没走公用件`);
     assert.ok(code.includes("rankTitle("), `${name} 的名次悬停没走公用件`);
     // 规则那句话只住后端（随接口交出），组件源码里一个都不许出现
@@ -102,6 +103,14 @@ test('名次实现全站只有一份：三个屏都调它，组件里不许自�
   assert.match(panel, /cfg\?\.rank_rule/, '配置卡读接口 rank_rule');
   assert.match(panel, /plain\(cfg\.rank_rule\)/);
   assert.match(panel, /后端没交 rank_rule/);
+
+  // 走势分析那一块（11-08 重做）：规则原句进抽屉，档位区间文本直接用后端交的 label
+  assert.match(trendSrc, /notes=\{\[plain\(d\.rank\?\.rule \?\? ""\)\]\}/,
+    '名次规则要转述接口 rank.rule，不许这块自己写一句');
+  assert.doesNotMatch(trendSrc, /同分同名|按位置顺延|不占号/, '走势分析里自己写了一句名次规则');
+  assert.match(trendSrc, /flatRow\(String\(b\.label \?\? ""\)/, '档位那一列念后端交的 label');
+  assert.doesNotMatch(trendSrc, /\$\{[^}]*rank_(lo|hi)/,
+    '档位区间文本不许前端自己拼（每 10 名一档这件事只住后端 bucket_label）');
 
   // 第三处调用（2026-10-19）：个股量化档案里那块「倍量形态」的名次必须与倍量榜同一条规则，
   // 所以它也只准转述接口那一份 —— 同一个名字在两个屏上必须是一个数（后端 SQL 也已改成同分同名）。
@@ -159,21 +168,8 @@ test('倍量榜的名次列：sortKey 就是格子读的那个字段，两个方
   assert.match(vd, /排的是 \$\{dash\(d\.rank\?\.by\)\}/, '这一列排的是哪一字段要念接口给的，不自己写 dbl_energy');
 });
 
-test('逐日块的今日名次：进固定列的清单，且母体只数按 rows_capped 说清', () => {
-  const head = track.slice(track.indexOf('<thead>'), track.indexOf('</thead>'));
-  assert.match(head, /label="今日名次" sortKey="rank_in_day" dir=\{sort\.dirOf\("rank_in_day"\)\} onSort=\{sortBy\}/);
-  assert.match(track, /cellProps\(gi, "rank_in_day"/);
-  assert.match(track, /rank_in_day\?: number \| null;/, 'TrackRow 上得登记，不然点了不换序');
-  // 母体是"前 N 名"这个上限，边界并列一起进来 ⇒ 只数可以多于 N
-  assert.match(track, /N 是上限，不是恰好 N 只/);
-  assert.match(track, /rows_capped === true/);
-  assert.match(track, /只数可以比 N 多几只/);
-  assert.doesNotMatch(track, /当日前 \$\{dash\(d\.top_n\)\} 名（同分并列一起进来，所以实际只数略多于这个数）/,
-    '旧那句含糊的"略多于"不许复活（要说清 N 是上限并给出实际只数）');
-});
-
 test('去尾零这一把尺接到的地方：scale／distribution／dbl_energy／dbl_step_gap 全走 trimNum', () => {
-  for (const [name, code] of [["倍量榜", vd], ["逐日块", track], ["配置卡", panel]] as const) {
+  for (const [name, code] of [["倍量榜", vd], ["配置卡", panel]] as const) {
     for (const m of code.matchAll(/num\(([^)]*)\)/g)) {
       const arg = m[1];
       assert.doesNotMatch(arg, /scale|max_score|max_per_day|p50|p90|p99|dbl_energy|dbl_step_gap/,
@@ -184,18 +180,17 @@ test('去尾零这一把尺接到的地方：scale／distribution／dbl_energy�
   assert.match(vd, /p50 \$\{trimNum\(d\.energy\?\.distribution\?\.p50\)\}/);
   assert.match(vd, /加权分 \$\{trimNum\(r\.dbl_energy\)\}/);
   assert.match(vd, /\{trimNum\(r\.dbl_step_gap\)\}/, '分段差那一格也走去尾零');
-  assert.match(track, /<span className="font-semibold">\{trimNum\(r\.dbl_energy\)\}<\/span>/);
   assert.match(panel, /trimNum\(cfg\?\.scale\?\.max_score\)/);
   assert.match(panel, /trimNum\(dist\?\.p50\)/);
   assert.ok(vd.includes('import { rankText, rankTitle, trimNum } from "@/lib/ranking"')
     || panel.includes('import { trimNum } from "@/lib/ranking"'), '去尾零那把尺没接到配置卡');
 });
 
-test('公用件自己：中文串不嵌 ASCII 双引号、渲染文本没有裸 **（四个用它的文件一起查）', () => {
+test('公用件自己：中文串不嵌 ASCII 双引号、渲染文本没有裸 **（用它的几个文件一起查）', () => {
   const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\r\n]*/g, '');
   // 2026-10-19：个股量化档案那一块也接了这把尺（名次与加权分与倍量榜同一条规则），所以一起查。
   for (const [name, src0] of [["ranking", ranking], ["VolumeDouble", vd],
-                              ["EnergyTrackBoard", track], ["VolumeEnergyPanel", panel],
+                              ["VolumeEnergyPanel", panel],
                               ["StockDossier", dossierSrc]] as const) {
     const code = strip(src0);
     const hits = code.match(/[^\s]\*\*|\*\*[^\s]/g) ?? [];

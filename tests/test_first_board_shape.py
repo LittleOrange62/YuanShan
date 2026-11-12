@@ -30,7 +30,9 @@ CHAIN = ROOT / 'ingest' / 'jobs' / 'e1_fill_all.py'
 COVERAGE = ROOT / 'duanxian' / 'coverage.py'
 VR = ROOT / 'vr' / 'app.py'
 FE_LIB = ROOT / 'frontend' / 'src' / 'lib' / 'firstBoardShape.ts'
-PAGE = ROOT / 'frontend' / 'src' / 'pages' / 'VolumeDouble.tsx'
+# 2026-11-07：这块（与启动那一族四块一起）搬进「个股研究与回测 · 策略回测」，
+# 挂载点的钉子跟着搬到宿主屏 —— 判据、接口、组件都没动（用户点名「主功能点是回溯的都归到策略回测」）。
+PAGE = ROOT / 'frontend' / 'src' / 'pages' / 'StrategyBacktest.tsx'
 COMPONENT = ROOT / 'frontend' / 'src' / 'components' / 'quant' / 'FirstBoardShapeBoard.tsx'
 
 
@@ -443,7 +445,7 @@ def test_前端把切点与稳定判定念出来而不是自己算():
         assert tok in lib, f'判读层少了 {tok}：组件又会自己重算一遍口径'
     assert '=== 0' not in lib or 'agreeText' in lib
     page = PAGE.read_text(encoding='utf-8')
-    assert 'FirstBoardShapeBoard' in page, '这块没挂上 /volume-double，等于没交付'
+    assert 'FirstBoardShapeBoard' in page, '这块没挂上 /backtest-agent（策略回测屏），等于没交付'
     comp = COMPONENT.read_text(encoding='utf-8')
     assert 'useProbe' in comp and 'first-board-shape' in comp
     assert 'year_agree' in comp and 'cuts' not in comp.split('useMemo')[0][:400], \

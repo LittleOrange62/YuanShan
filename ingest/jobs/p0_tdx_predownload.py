@@ -362,6 +362,12 @@ def main(argv: list[str] | None = None) -> int:
     alive = reset.snapshot()
     print('  当前通达信相关进程：%s'
           % ('、'.join(f'{n}({p})' for n, p in alive) or '无'), flush=True)
+    ghosts = reset.ghosts()
+    if ghosts:
+        # 残影＝0 线程、进程已死但 tasklist 还列着。不报出来的话，下一行「无」
+        # 会与任务管理器里那一行 TdxW.exe 对不上，人就要去查一个不存在的故障。
+        print('  另有残影条目（已死、收不掉也不挡启动）：%s'
+              % '、'.join(f'{n}({p})' for n, p in ghosts), flush=True)
 
     if args.check:
         print('\n%s 日线%s；分钟线%s（--check 未动界面）'

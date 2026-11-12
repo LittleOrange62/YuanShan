@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """N1 · 交易日 12:10 午间复盘 —— 外部 `intraday_zt/noon_review.py`（2026-10-30 定版）迁入。
 
+版式（用户 11-05：「标题也重复了，去掉第一行的"午间复盘"四个字」）：推送不带标题行
+—— 正文第一行 `午间复盘 · {md} 上午盘` 自己就是标题。
+
 三段正文（判读＝阈值规则贴标签，**不是预测、不含买卖建议**）：
   一、情绪温度：涨跌停/炸板率/连板梯队「X天Y板」/三大指数/几大指数量能/涨跌家数/昨日涨停今日溢价
   二、涨停方向聚集：概念归组（家数占比贴主线/辅线/点状，代表股取连板高·封单大前 3）
@@ -33,7 +36,7 @@ except Exception:  # noqa: BLE001
     pass
 
 from app.db import engine                                           # noqa: E402
-from app.intraday import sources, store, tasks, volume               # noqa: E402
+from app.intraday import sources, store, tasks, vol_snap           # noqa: E402
 from app.intraday.pool_events import SPEC_VERSION, money_text, normalize   # noqa: E402
 from ingest.jobs.push import t01_zt_watch as zt_watch                                    # noqa: E402  池子出口只有一份
 
@@ -44,6 +47,8 @@ UA = {"User-Agent": "Mozilla/5.0", "Referer": "https://quote.eastmoney.com/"}
 LIMIT_TOL = 0.005
 #: 连板梯队回算窗口（外部定版：近 9 场，够判到 8 天 8 板）
 LADDER_LOOKBACK = 9
+#: 五大指数简称（用户 11-05：小屏用简称、不用全称；推送核心要义）。代码→简称，两源共用。
+IDX_SHORT = {'000001': '上证', '399001': '深证', '399006': '创业板', '000688': '科创', '899050': '北证'}
 
 
 def _get(url: str, enc: str = 'utf-8') -> str:
@@ -69,7 +74,8 @@ def _log(now, what, **kw):
 
 # ---------------------------------------------------------------- 行情
 def market_stats() -> tuple[dict, int | None, int | None, str]:
-    """三大指数涨跌幅 + 全市场涨跌家数。东财 ulist 一发拿齐，挂了退腾讯（只有指数）。
+    """五大指数涨跌幅（简称：上证/深证/创业板/科创/北证）+ 全市场涨跌家数。
+    东财 ulist 一发拿齐，挂了退腾讯（只有指数）。
 
     ⚠️ 家数那一格**0 是真实读数**：`sum(...) or None` 会把"全场只数 0"吞成缺数，
     这是外部搬入时点名要改的三处之一（见《10-盘中播报与事件流入库》§二.3），别再写回去。
@@ -78,9 +84,10 @@ def market_stats() -> tuple[dict, int | None, int | None, str]:
     for attempt in (1, 2):
         try:
             u = ("https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&invt=2"
-                 "&fields=f2,f3,f12,f14,f104,f105,f106&secids=1.000001,0.399001,0.899050")
+                 "&fields=f2,f3,f12,f14,f104,f105,f106&secids=1.000001,0.399001,0.399006,1.000688,0.899050")
             diff = (json.loads(_get(u)).get("data") or {}).get("diff") or []
-            idx = {it["f14"]: it["f3"] for it in diff if isinstance(it.get("f3"), (int, float))}
+            idx = {IDX_SHORT.get(str(it["f12"]), it["f14"]): it["f3"]
+                   for it in diff if isinstance(it.get("f3"), (int, float))}
             ups = [it["f104"] for it in diff if isinstance(it.get("f104"), (int, float))]
             dns = [it["f105"] for it in diff if isinstance(it.get("f105"), (int, float))]
             if idx:
@@ -92,11 +99,11 @@ def market_stats() -> tuple[dict, int | None, int | None, str]:
                 time.sleep(8)
     idx = {}
     try:
-        txt = _get("https://qt.gtimg.cn/q=sh000001,sz399001,bj899050", 'gbk')
+        txt = _get("https://qt.gtimg.cn/q=sh000001,sz399001,sz399006,sh000688,bj899050", 'gbk')
         for line in txt.split(";"):
             p = line.split("~")
             if len(p) > 32:
-                idx[p[1]] = float(p[32])
+                idx[IDX_SHORT.get(p[2], p[1])] = float(p[32])
         return idx, None, None, "tencent_qq(涨跌家数缺)"
     except Exception as exc:  # noqa: BLE001
         _log(dt.datetime.now(), 'noon_tx_fail', err=str(exc)[:150])
@@ -262,7 +269,8 @@ def one_round(*, dry_run: bool, send: bool, channel: str | None, force: bool = F
     except Exception as exc:  # noqa: BLE001
         text = TPL['noon_fail_notice'].format(t=f'{now:%H:%M:%S}', why=f'池子取不到 {type(exc).__name__}')
         print(text)
-        _log(now, 'noon_stale', err=str(exc)[:200])
+        # 正文也落这一份：按日期回看读的是发送前那一份，只写 err 的话发送中途崩了就一个字都留不下
+        _log(now, 'noon_stale', body=text, err=str(exc)[:200])
         if send and not dry_run:
             _send(now, text, channel)
         return 1
@@ -289,20 +297,21 @@ def one_round(*, dry_run: bool, send: bool, channel: str | None, force: bool = F
     if b2:
         names = "、".join(r['name'] for r in b2[:8]) + ("…" if len(b2) > 8 else "")
         L.append(f"{len(b2)}只二板：{names}")
-    L.append("指数：" + (" ".join(f"{k}{v:+.2f}%" for k, v in idx.items()) or "指数缺数"))
-    # 出处不再拼进正文（用户 11-03：最后的来源说明不用发送）—— 它进留痕表的
-    # `index_source` 与 `body`，事后要查"这一节的数是哪来的"仍然查得到，只是不占群里一行。
-    vol_lines, vol_src = volume.volume_lines(now, note=lambda w, kw: _log(now, w, **kw))
+    L.append("指数：" + (" ".join(f"{k}{v:+.1f}%" for k, v in idx.items()) or "指数缺数"))
+    # 量能节（用户 11-05：小屏要精炼 —— 同比只留百分比、不堆绝对亿值；位置＝250 日加权分位，
+    # 判断＝位置×趋势九宫；数据同时入 `analytics.index_volume_snap`，一天两针）。
+    vol = vol_snap.compute('noon', now, note=lambda w, kw: _log(now, w, **kw))
+    vol_lines = vol_snap.render_lines(vol, tpl=TPL)
     L.extend(vol_lines)
+    vol_src = vol['src']
     if up is None or down is None:
-        L.append(f"涨跌家数缺数〔{src}〕")
+        L.append("涨跌家数 缺数")
     else:
-        L.append(f"涨跌家数：涨{up}/跌{down}（{f'{up / down:.0%}' if down else '跌家数为0'}）〔{src}〕")
+        L.append(f"涨跌家数 {up}:{down}")
     if prem.get("quotes"):
-        L.append(f"昨日({prem['date']:%m-%d})涨停{prem['n']}只：今日正溢价{prem['pos']}只"
-                 f"({prem['pos_rate']:.1%}) 平均{prem['avg']:+.2f}%")
+        L.append(f"昨日涨停{prem['n']}只 今正溢价{prem['pos']}({prem['pos_rate']:.0%}) {prem['avg']:+.1f}%")
     elif prem.get("n"):
-        L.append(f"昨日({prem['date']:%m-%d})涨停{prem['n']}只：今日行情未取到，溢价缺数")
+        L.append(f"昨日涨停{prem['n']}只：今日行情未取到，溢价缺数")
     else:
         L.append("昨日涨停名单缺数（PG未更新）")
     L.append(f"判读：{mood_txt}")
@@ -358,8 +367,8 @@ def one_round(*, dry_run: bool, send: bool, channel: str | None, force: bool = F
         'max_board_text': (labels.get(tops[0]['code']) if tops else None),
         'max_board_count': (tops[0].get('board_count') if tops else None),
         'board2_codes': "、".join(r['name'] for r in b2[:8]) if b2 else None,
-        'idx_sh_pct': _idx_pct(idx, "上证指数"), 'idx_sz_pct': _idx_pct(idx, "深证成指"),
-        'idx_bj_pct': _idx_pct(idx, "北证50"),
+        'idx_sh_pct': _idx_pct(idx, "上证"), 'idx_sz_pct': _idx_pct(idx, "深证"),
+        'idx_bj_pct': _idx_pct(idx, "北证"),
         'up_count': up, 'down_count': down,
         'premium_n': prem.get("n"), 'premium_pos_n': prem.get("pos"),
         'premium_pos_rate_pct': (prem['pos_rate'] * 100) if prem.get("pos_rate") is not None else None,
@@ -373,6 +382,10 @@ def one_round(*, dry_run: bool, send: bool, channel: str | None, force: bool = F
         'missing': json.dumps(missing, ensure_ascii=False),
     })
     store.upsert_noon(noon_row)
+    try:
+        vol_snap.write_snap('noon', now, data=vol)      # 量能快照 noon 针（用户 11-05：每天两次入库）
+    except Exception as exc:  # noqa: BLE001  量能快照失败不拖累午间推送（正文已落库）
+        _log(now, 'vol_snap_noon_fail', err=f'{type(exc).__name__}: {str(exc)[:180]}')
     _upsert_noon_concepts(now, groups)
     store.write_broadcast(now, task='noon', what='noon', body=text,
                           counts={'zt_n': len(zt), 'dt_n': len(dt_rows), 'zb_n': len(zb),
@@ -406,9 +419,13 @@ def _upsert_noon_concepts(now: dt.datetime, groups: list[tuple]) -> None:
 
 
 def _send(now, text, channel):
-    from duanxian import notify
+    from app.intraday.cards import send_broadcast_with_card
     keys = tasks.send_channels(channel)
-    res = notify.send_to(keys, '午间复盘', text)
+    # 用户 11-05：「标题也重复了，去掉第一行的"午间复盘"四个字」——正文第一行已是
+    # `午间复盘 · {md} 上午盘`，推送不再另带标题行。
+    # 11-10 卡片化：卡头用固定类别名（用户 11-05 要的是"正文里别再拼一行标题"；
+    # 卡头是 UI 栏位不算正文行，不与第一行 `午间复盘 · {md} 上午盘` 重复）。
+    res = send_broadcast_with_card(keys, '午间复盘', text)
     store.write_broadcast(now, task='noon', what='sent', body=text,
                           ok=bool(res.get('ok')), delivered=bool(res.get('ok')),
                           channel_key=','.join(keys),

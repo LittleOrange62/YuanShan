@@ -692,6 +692,27 @@ def quant_score_trend(code: str = Query(..., min_length=6, max_length=16),
         raise HTTPException(502, f"评分趋势取数异常：{e}") from e
 
 
+@app.get("/api/quant/scheme-radar")
+def quant_scheme_radar(code: str = Query(..., min_length=6, max_length=16),
+                       sessions: int = Query(5, ge=2, le=10),
+                       refresh: bool = Query(default=False)):
+    """近期各量化方案的得分与名次 ＋ 五档窗口趋势的带动对照（个股深度复盘页）。
+
+    四族出自四张已落库的表（八项能力 / XY 合计名次 / 倍量档表 / 埋伏入选），
+    **名次的母体是三把不同的尺**：每格都带 `universe`，第 62 名在 179 只里与在 5,529 只里不是同一句话。
+    这一块不预测股价、不给买卖点，也不把四族合成一个总分（不同母体的尺合成一个数就是假数）。
+
+    斜率与带动是读侧现算（不落表：场次与窗口是界面用来对照看的探索参数）。
+    cold 一趟 ~12 秒 ⇒ TTL 缓存一小时，`refresh` 只清这一组参数的缓存。
+    """
+    from duanxian import scheme_radar
+
+    try:
+        return {"data": scheme_radar.board(code, sessions=sessions, refresh=refresh)}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"各方案得分与趋势带动取数异常：{e}") from e
+
+
 @app.get("/api/quant/rank-stability")
 def quant_rank_stability(days: int = Query(7, ge=2, le=20),
                          limit: int = Query(50, ge=5, le=200),
@@ -757,7 +778,8 @@ def quant_momentum_follow(metric: str = Query('xy', max_length=8),
     今日＝母体之后的**第一场**（键名 `chg_next_day`；母体默认是前一场 ⇒ 那一场就是今天，
     10-27 用户点名把旧列名「次日涨跌」改过来）；近 5 日＝读至日往前 5 个市场场次的累计
     （`chg_5d`，**不以母体日为起点** ⇒ 两列不许相减；旧「至今累计」在母体=前一场时与今日是同一个数，已撤下）。
-    **不逐日全铺**——这张榜每天换人，逐日铺会是几百列；逐日那一族看 `/api/quant/energy-track`。
+    **不逐日全铺**——这张榜每天换人，逐日铺会是几百列；按名次分档看后续几场的那一族看
+    `/api/quant/energy-trend`（每 10 名一档 × 后 1/2/3/5/10 场，带全市场基准）。
     各路名次/在榜：综合分全场名次与象限、倍量加权分全场名次（`dbl_rank`）、突破信号类型、
     埋伏**榜内**名次（这张表只落命中的票，与全场名次不是同一把尺，列名已分开卖）、
     异动筛查母体、趋势股 5/10 入选；名次规则原文随 `rank.rule` 交出（`duanxian/ranking.py` 那一份）。
@@ -871,41 +893,45 @@ def quant_volume_double(date: str = "", limit: int = Query(150, ge=1, le=800),
         raise HTTPException(502, f"倍量形态取数异常：{e}") from e
 
 
-@app.get("/api/quant/energy-track")
-def quant_energy_track(date: str = "",
+@app.get("/api/quant/energy-trend")
+def quant_energy_trend(date: str = "",
+                       window: int | None = Query(
+                           None, ge=10, le=250,
+                           description='回看几场（每一场各取一次前 N 名）；不给＝后端默认 120。'
+                                       '上下夹只住 duanxian/energy_trend.py 的 MIN/MAX_WINDOW'),
                        top_n: int | None = Query(
                            None, ge=10, le=500,
-                           description='母体＝当日得分前 N 名；不给＝用后端默认 '
-                                       'thresholds.top_n_default（120）'),
+                           description='每一场取加权分前 N 名（上限，不是恰好 N 只：边界同分并列一起进来）；'
+                                       '不给＝后端默认 thresholds.top_n_default（120）'),
                        refresh: bool = Query(
-                           False, description='清掉本接口这一场这一批的一小时缓存重算；'
-                                              '刚回算完倍量分时用它立刻看新数')):
-    """倍量**加权分进榜后的逐日涨跌幅**（用户 2026-10-19 点名的第二块）。
+                           False, description='只清这一组参数（基准日＋窗口＋名次上限＋档表指纹）的'
+                                              '一小时缓存重算；刚回算完倍量分时用它立刻看新数')):
+    """近期倍量表股票走势分析：加权分名次每 10 名一档，看各档在名次日之后几场的涨跌趋势。
 
-    母体＝基准日这一场**得分前 N 名**（`top_n`，默认 120；同分并列一起进来，只数可略多）；
-    每只票的起算日是它全史里**第一次排进前 N 名**那一场；格子＝起算日到今天的**每一场**当日涨跌幅（后复权，
-    判据只住 `duanxian/day_returns.py`，与倍量榜那两列同一把尺）。
-    默认按「整体涨跌幅」从低到高排（`rows` 已排好，页面不必再排一次才能对上悬停）。
+    用户 2026-11-08 推翻上一版（`/api/quant/energy-track` 那张逐票热力表）后定的形状，原话：
+    「针对倍量方法计算出来的票，分析前面一段时间，加权把名次的后几天涨跌趋势变化；
+    1-10名、11-20，每10个名次汇总分析，加权计算每10名后几天涨跌的趋势变化。」
+    旧版被推翻的两条实测理由写在 `duanxian/energy_trend.py` 的模块 docstring 里
+    （名次筛参写进了 rank 窗口内部 ⇒ 首次进榜日是假的；每票各铺各的日历、无基准、母体是今天还在榜的票）。
 
-    ⚠️ **列数不定、一直铺到今天**（用户点名不限行数、分页 60 在前端；`page_size` 随体交出）：
-    `rows[i].series` 长度可以差到 200 场，`max_series_len` 是这批里最深的一条，
-    界面按它开列，起算日不同的票在同一列上代表**各自的后第 N 场**（不是同一个日历日）。
-    ⚠️ `first_censored=true` 说明这只票的首次进榜日落在/紧贴库里最早那一场，
-    真正的首次**可能更早、看不到** —— 界面要念「不晚于该日」，不许念成「就是该日」。
-    ⚠️ `chg_cum=null` 是算不出整体涨跌幅（起算日前一天没有行），显示 —，**不是 0%**。
-    ⚠️ 取数按「这一场 ＋ 倍量配置指纹 ＋ 名次线」缓存一小时（10-26 实测：整发 13.1 秒里
-    8.1 秒在母体那条名次 SQL、3.5 秒在逐日涨幅那条扫遍 12 个年度分区的 SQL，两处都改了。
-    同一条链路改后 2.5 秒：名次那条 8,087→39 毫秒、逐日那条 3,503→996 毫秒，
-    行数与加权分合计逐位不变；界面上冷发 12.5 秒→3.07 秒、热发 11.8 秒→0.69 秒，
-    那 0.69 秒是 1.88 MB 出体加 gzip，库里一件没跑）：
-    配置一改指纹就换、键跟着换，旧键不会把上一批的数顶给这一批；刚回算完要看新数就带 `refresh=1`。
+    事件研究：回看窗口内**每一场**各取当日加权分前 N 名 → 每 10 名一档 →
+    各档在名次日之后第 1/2/3/5/10 场的累计后复权涨跌幅，按**名次日那天的加权分**加权
+    （`Σ(涨幅×分)/Σ(分)`，等权均值并排），与同窗全市场等权基准并排给超额与每场增量。
+    判据、中文口径、列头描述符只住 `duanxian/energy_trend.py` 一处，本端点不另写一句。
+
+    ⚠️ 三种「没有数」分开交：`pending`＝还没走到第 k 场（窗口右端贴着基准日）、
+    `missing`＝走到了但那天它没有行或名次日缺基期、`ok` 才进分子分母。两类都不是 0%。
+    ⚠️ 加权分母为 0 ⇒ 加权值交 null，**不悄悄退回等权**；样本是「票 × 名次日」，
+    同一只票多天在榜会重复计入 ⇒ `n` 不是独立样本数（每档另交 `codes`）。
+    ⚠️ 冷发实测 15.9 秒（价格窗 72.9 万行 ＋ 事件 1.4 万行），一小时内同参数热发 3 毫秒；
+    缓存自己声明自己：`generated_at` / `cached` / `cache_age_seconds`。
     """
-    from duanxian import quant
+    from duanxian import energy_trend
 
     try:
-        return {"data": quant.energy_track(date, top_n=top_n, refresh=refresh)}
+        return {"data": energy_trend.board(date, window=window, top_n=top_n, refresh=refresh)}
     except Exception as e:  # noqa: BLE001
-        raise HTTPException(502, f"加权分进榜后的逐日走势取数异常：{e}") from e
+        raise HTTPException(502, f"近期倍量表走势分析取数异常：{e}") from e
 
 
 @app.get("/api/config/volume-energy")
@@ -1010,6 +1036,51 @@ def quant_confluence_history(code: str = Query(..., min_length=6, max_length=16)
         return {"data": confluence_view.history(code, date=date, sessions=sessions)}
     except Exception as e:  # noqa: BLE001
         raise HTTPException(502, f"交叉命中历史取数异常：{e}") from e
+
+
+@app.get("/api/quant/tomorrow-outlook")
+def quant_tomorrow_outlook(date: str = "",
+                           expand: bool = Query(default=True,
+                                                description='false=只交两张榜，不摊每只票的全部指标'),
+                           refresh: bool = Query(default=False)):
+    """明日展望（用户 2026-11-05 点名：「在量化选股中增加一个明日展望，把任务推送 ⑩ 里面的内容
+    展示出来，并针对提到的个股把这些个股的各类指标全部展示出来」）。
+
+    两张榜的判据只住 `duanxian/tomorrow_outlook.py` 一处，19:00 那一炉
+    （`ingest/jobs/push/t10_tomorrow_outlook.py`）import 的是同一份 —— 于是"屏上这一张榜"
+    与"群里那一条"不可能是两把尺。参数读 `app/intraday/broadcast_config.json` 的那 8 个 `t10_*` 键，
+    随 `params` 原样交出去（读不到时用代码默认值并当场点名，不静默换尺）。
+    `stocks` 是两榜并集里每只票当日**全部**技术指标（35 项值；其中能跨票比的那 19 项带全场名次，
+    绝对价格那 15 项只给值 —— 理由写在读侧文件抬头）。
+    `pushed` 是今天真正发出去的那一条原文与发送结果（只读 `analytics.intraday_broadcast`，不重算）。
+    """
+    from duanxian import tomorrow_outlook
+
+    try:
+        return {"data": tomorrow_outlook.view(date, expand=expand, refresh=refresh)}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"明日展望取数异常：{e}") from e
+
+
+@app.get("/api/quant/tomorrow-outlook/backtest")
+def quant_tomorrow_outlook_backtest(refresh: bool = Query(default=False)):
+    """「⑩ 明日展望」6 个月回溯（用户 2026-11-05 点名：策略最近 6 个月每天算出的个股，
+    往后 1/2/3 个交易日涨跌、冲高率、整体高点涨幅，算整体平均值看策略有效性）。
+
+    数据住 `analytics.outlook_pick_daily` / `analytics.outlook_baseline_daily`
+    （写侧 `app/compute/outlook_backtest.py`，import 的判据与本接口同一份）。这里懒回填：
+    库里最新信号场次落后于"已有隔日"的最新场次就只补中间差的那天（一天约 10 秒）；
+    空表才从头补全窗（约 8 分钟，冷启动）。汇总按榜（多指标靠前／趋势最正／两榜都进）
+    × 指标（1/2/3 日收、3 日内高点、冲高率）出均值/中位/胜率/±3% 占比，
+    并排全市场等权基线（没有对照那几个数没有意义）；`days` 是逐场逐票明细（含每只票
+    自己的 1/2/3 日数）。缺数一律 NULL（—，不是 0%）。
+    """
+    from duanxian import tomorrow_outlook
+
+    try:
+        return {"data": tomorrow_outlook.backtest_view(refresh=refresh)}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"明日展望回溯取数异常：{e}") from e
 
 
 @app.get("/api/quant/intraday-spike")
@@ -2742,6 +2813,41 @@ def intraday_broadcast_update(payload: IntradayBroadcastPatch, request: Request)
     else:
         data["apply_note"] = f"配置已保存，{len(rows)} 路计划任务已按新配置重注册"
     return {"data": data, "reason": data["apply_note"]}
+
+
+@app.get("/api/intraday/broadcast/bodies")
+def intraday_broadcast_bodies(day: str | None = None):
+    """推送任务 →「按日期回看推送正文」：那一天真发出去的原文（只读库，一律不重算）。
+
+    用户 11-10：「5、9、10、11 这些分析的推送任务，都是先入库再推送……可以选择日期查看
+    推送具体内容，默认都显示最近一天的数据」。那四路的正文确实在发送前就落进了
+    `analytics.intraday_broadcast.body`（⑤另有一份 `analytics.noon_review`），所以这里读到的
+    就是当时那一串 —— 事后源站翻页或补数都不会让屏上改口。
+
+    `day` 缺省 = 库里**最近一个有正文的日子**，不是"今天"：今天那几路可能还没到点，
+    默认今天会在早上打开时看起来像"一条都没发过"。读不出来要出声（`readable=false`），
+    不许兜成空列表 —— 那等于把观测层故障说成"那天没发东西"。
+    """
+    import datetime as dt
+
+    from app.intraday import store
+
+    want = None
+    if day:
+        try:
+            want = dt.date.fromisoformat(day)
+        except ValueError:
+            raise HTTPException(400, f"日期要写成 YYYY-MM-DD（例如 2026-11-09），收到的是「{day[:40]}」")
+    try:
+        days = store.broadcast_body_days()
+        picked = f"{want:%Y-%m-%d}" if want else (days[0] if days else f"{dt.date.today():%Y-%m-%d}")
+        items = store.broadcast_bodies(want or dt.date.fromisoformat(picked))
+    except Exception as exc:  # noqa: BLE001
+        return {"data": {"day": day, "days": [], "latest": None, "items": [], "readable": False,
+                         "reason": f"推送正文读不出来：{type(exc).__name__}: {str(exc)[:180]}"}}
+    return {"data": {"day": picked, "days": days, "latest": days[0] if days else None,
+                     "items": items, "readable": True, "reason": None,
+                     "generated_at": dt.datetime.now().astimezone().isoformat(timespec="seconds")}}
 
 
 def _wxpush_payload(request: Request, cfg: dict | None = None) -> dict:

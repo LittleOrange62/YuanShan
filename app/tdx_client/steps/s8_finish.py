@@ -346,7 +346,7 @@ class FinishStep(Step):
             main = locator.main_window()
             if main is None:
                 # 最小化到托盘时按标题也可能找不到 —— 只要进程还活着就算过。
-                if win32.pids_by_name('TdxW.exe'):
+                if win32.live_pids('TdxW.exe'):
                     return True, '主窗口枚举不到但进程在（Min2Tray 缩到托盘了）'
                 return False, '**通达信进程也没了** —— 收尾时不该杀进程'
             if _minimized(main):

@@ -16,12 +16,7 @@ import { pctColor } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { StockLink } from "@/components/ui/StockLink";
-import { StartupVolumeBoard } from "@/components/quant/StartupVolumeBoard";
-import { FirstBoardShapeBoard } from "@/components/quant/FirstBoardShapeBoard";
-import { StartupQuadrantTrackBoard } from "@/components/quant/StartupQuadrantTrackBoard";
-import { StartupSpikeDaysBoard } from "@/components/quant/StartupSpikeDaysBoard";
 import { ConceptBoard, type ConceptRow } from "@/components/quant/ConceptBoard";
-import { EnergyTrackBoard } from "@/components/quant/EnergyTrackBoard";
 import { FilterToggleButton, TableFilterPanel } from "@/components/ui/TableFilterPanel";
 import { NoticeBar } from "@/components/ui/NoticeBar";
 
@@ -166,10 +161,9 @@ export function VolumeDouble() {
    *  （全站一份实现：`lib/useStockRowInteraction.ts`，用户 2026-10-15）。原来这份 `selectedIdx`
    *  只做整行高亮 —— 这一屏每行就是一只票，没有编组展开行；行号仍按整批序号 gi 记
    *  （与迁移前存 gi 同一份理由：高亮跟着整批的票走，不随翻页漂到别的票身上）。
-   * 下面那块「进榜后逐日走势」用的是**第二份实例**（`track`）：两张表各记各的选中态，
-   *  同一次点击不该把另一张表的第 3 行也点亮。 */
+   * 下面那几块回溯表各自带着自己的一份实例（11-07 起它们住在「策略回测」那一屏）：
+   *  两张表各记各的选中态，同一次点击不该把另一张表的第 3 行也点亮。 */
   const vd = useStockRowInteraction("倍量形态");
-  const track = useStockRowInteraction("加权分进榜后走势");
   const sortVd = (k: string) => { vd.clearAll(); vdSort.toggle(k); };
   /** 筛选面板展开状态 */
   const [showFilters, setShowFilters] = useState(false);
@@ -641,25 +635,17 @@ export function VolumeDouble() {
           </ExplainBox>
         </>} />
 
-      {/* 倍量榜之后补的一块（用户 2026-10-19 点名）：进榜那只票**之后每天怎么走**，
-          读的是走向不是这一场的读数。它长在概念榜后面而不是紧贴榜下面，是为了不打断
-          「上面那张倍量榜交出的 N 只」这句指代（概念榜的分母就是紧挨着它的那张榜）。
-          只读 /api/quant/energy-track，接口没有取数上限参数，每页行数读接口 page_size。 */}
-      <EnergyTrackBoard nonce={nonce} date={date} vd={track} />
-
-      <StartupVolumeBoard />
-
-      <FirstBoardShapeBoard />
-
-      {/* 启动前量能画像 / 首板形状之后补的一块：读**走向**而不是读形状 ——
-          启动日之前那 N 场里，七个分量的全市场名次往哪边走、T−1 那天站在哪个象限。
-          名次与象限都是库里算好的，这一屏只读 /api/quant/startup-quadrant-track。 */}
-      <StartupQuadrantTrackBoard />
-
-      {/* 象限轨迹后面补的一块：读**量与价在同一天的联合** —— 倍量那天收涨还是收跌、
-          突然拉高那种日子摊在倍量／准倍量还是缩量上（判据是日线代理，分钟线那套在 /spike）。
-          只读 /api/quant/startup-spike-days，天数与占比都在库里算好交出。 */}
-      <StartupSpikeDaysBoard />
+      {/* 原来跟在概念榜后面的那五块（倍量名次分档走势／启动前量能画像／首板形状预示／
+          启动前象限轨迹／启动前爆量与突然拉高）2026-11-07 整块搬到「个股研究与回测 · 历史回溯」：
+          它们读的都是历史场次之后怎么走，与这一屏的当日倍量榜不是同一件事，两处各挂一份迟早漂成两个说法。
+          其中第一块 2026-11-08 被用户推翻重做（逐票热力表 → 名次每 10 名一档的事件研究，
+          端点换成 /api/quant/energy-trend），这里只留指路，不挂第二份。 */}
+      <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+        倍量名次每 10 名一档之后几场的涨跌趋势、启动前那 30 场的量能／象限轨迹／爆量与突然拉高、首板形状预示 ——
+        这几块读的是历史场次之后的表现，在
+        <Link className="mx-1 text-primary underline" to="/backtest-agent">历史回溯</Link>
+        那一屏；判据与接口各只有一处，这里不再挂第二份。
+      </p>
 
       <Disclaimer compact />
     </div>

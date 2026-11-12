@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
  */
 
 const page = readFileSync(new URL('../src/components/quant/SystemEntryCohort.tsx', import.meta.url), 'utf8');
-const host = readFileSync(new URL('../src/pages/Confluence.tsx', import.meta.url), 'utf8');
+const host = readFileSync(new URL('../src/pages/StrategyBacktest.tsx', import.meta.url), 'utf8');
 const sys = readFileSync(new URL('../src/pages/System.tsx', import.meta.url), 'utf8');
 const compute = readFileSync(new URL('../../app/compute/confluence.py', import.meta.url), 'utf8');
 const cohort = readFileSync(new URL('../../duanxian/system_entry_cohort.py', import.meta.url), 'utf8');
@@ -141,12 +141,16 @@ test('说明默认收起、告警不折、页面上不许有裸星号', () => {
   assert.ok(!body.includes('**'), '源码正文里有字面 ** —— 会被当正文渲染出来');
 });
 
-test('块挂在交易体系榜之后，端点也登记进自检清单', () => {
-  assert.ok(host.includes('<SystemEntryCohort />'), '选股汇总页没挂上这一块');
-  assert.ok(host.indexOf('<SystemEntryCohort />') > host.indexOf('<SystemEntryBoard />'),
-    '这一叠要排在榜单之后（用户说的"这个清单最后"）');
+test('块挂在策略回测屏的启动那一族之后，端点也登记进自检清单', () => {
+  assert.ok(host.includes('<SystemEntryCohort />'), '策略回测屏没挂上这一块');
+  assert.ok(host.indexOf('<SystemEntryCohort />') > host.indexOf('<StartupSpikeDaysBoard />'),
+    '回溯这一组的顺序：启动那一族在前，走完三条的名单接在后面（11-07 搬家时定下的顺序）');
+  assert.ok(host.indexOf('<SystemEntryCohort />') < host.indexOf('<OutlookBacktestBoard />'),
+    '明日展望那份回溯留在最后（它是 11-06 第一次点名搬进来的那一块）');
+  assert.ok(!readFileSync(new URL('../src/pages/Confluence.tsx', import.meta.url), 'utf8')
+    .includes('<SystemEntryCohort />'), '原屏只剩指路，不许留第二份挂载');
   assert.ok(sys.includes('/quant/system-entry-cohort'), '自检清单少这一条接口');
   const line = /"\/quant\/system-entry-cohort"[^\n]*\n/.exec(sys)?.[0] ?? '';
   assert.ok(line.includes('slow: true'), '整批一次算完要 8 秒，自检里得标慢接口');
-  assert.ok(line.includes('where: "/confluence"'), '这一条要指回同一屏');
+  assert.ok(line.includes('where: "/backtest-agent"'), '这一条要指回它现在所在的那一屏');
 });

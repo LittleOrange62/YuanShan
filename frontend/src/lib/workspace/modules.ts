@@ -14,8 +14,10 @@ export const MODULES = [
     // 2026-10-26 用户裁定：「首板分析」改名「日间复盘及首板」（这屏上半挂盘中事件流、下半是首板样本）。
     // 2026-10-28 用户裁定再改一次：「日间复盘及首板」→「短线复盘」（路由 `/first-board` 照旧不变）。
     { to: '/agent/review', title: '复盘报告' }, { to: '/first-board', title: '短线复盘' },
-    { to: '/heat', title: '近5天热度' }, { to: '/backtest', title: '历史统计' },
-    { to: '/qd-compare', title: 'quantdash 口径对照' },
+    { to: '/heat', title: '近5天热度' }, { to: '/qd-compare', title: 'quantdash 口径对照' },
+    // 「历史统计」（`/backtest`，昨日涨停样本在次日的历史表现）2026-11-07 整屏搬进
+    // 「个股研究与回测 · 策略回测」的回溯那一组：这一屏无一格当日读数，主功能点就是回溯。
+    // 老地址只剩跳转，所以这一组的条目一并撤掉 —— 留两条入口就会变成两个说法。
   ] },
   // 量化选股：FinanceTool 那套打分/象限/热度/形态的呈现位。与「复盘」里的
   // 归因四象限是两件事（一个判"该不该买"，一个判"看对了没"），两边都保留、各自标口径。
@@ -25,6 +27,7 @@ export const MODULES = [
     { to: '/volume-double', title: '倍量形态' }, { to: '/volume-breakout', title: '突破信号' },
     { to: '/confluence', title: '选股汇总' }, { to: '/spike', title: '异动筛查' },
     { to: '/trend-stocks', title: '趋势股' },
+    { to: '/tomorrow-outlook', title: '明日展望' },
     { to: '/allocator', title: '分配者视角' },
     // 「自选组分析」2026-10-14 从「量化选股」这一组里撤掉：整块搬进「我的股票 · 分组自选」的**最上方**
     // （用户：先分析分组的整体情况，再分析分组自选）。判据与表格实现住在
@@ -54,7 +57,10 @@ export const MODULES = [
   // 两处入口指同一份内容会让人以为库里是两套数。
   { title: '个股研究与回测', to: '/stock-review', icon: LineChart, pages: [
     { to: '/stock-review', title: '个股深度复盘' },
-    { to: '/backtest-agent', title: '策略回测' },
+    // 2026-11-07 用户点名把「说一句条件让 AI 跑一趟」那半屏拆掉后，这一屏只剩编号回溯块，
+    // 导航名跟着换成「历史回溯」—— 名字写「策略回测」而屏上没有策略回测，就是屏幕在说假话。
+    // 会话标识那一头仍留「策略回测」（见下面 CHAT_PAGES 的纪律：标识存历史记录，不随改名迁移）。
+    { to: '/backtest-agent', title: '历史回溯' },
     { to: '/push-tasks', title: '推送任务' },
   ] },
   // 交易日志 09-28 从「我的股票」里拿出来独立成一级模块（用户裁定），排在它后面。
@@ -99,7 +105,7 @@ const CHAT_PAGES: Record<string, string> = {
   '/qd-compare': 'quantdash 口径对照',
   '/pipeline': '链路总览', '/coverage': '覆盖体检', '/tdx': '通达信控制',
   '/quadrant': '四维象限', '/sector-heat': '板块热度与点火',
-  '/volume-double': '倍量形态', '/volume-breakout': '突破信号', '/confluence': '选股汇总', '/spike': '异动筛查', '/trend-stocks': '趋势股', '/grouped': '分组自选', '/allocator': '分配者视角',
+  '/volume-double': '倍量形态', '/volume-breakout': '突破信号', '/confluence': '选股汇总', '/spike': '异动筛查', '/trend-stocks': '趋势股', '/grouped': '分组自选', '/allocator': '分配者视角', '/tomorrow-outlook': '明日展望',
   '/datasource': '数据获取', '/quality': '质量闸', '/screen': '筛选器',
   '/data-process': '数据加工', '/system': '系统配置', '/jobs': '任务调度',
   // '/watchlist-analytics' 的标题映射 2026-10-14 一并撤掉：路由没了（整块搬进 /grouped 顶部），

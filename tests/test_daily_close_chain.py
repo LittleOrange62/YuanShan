@@ -25,6 +25,28 @@ TARGET = dt.date(2026, 9, 24)
 NOW_DEFAULT = dt.datetime(2026, 9, 24, 17, 30)
 
 
+def _pstate(running=True, *, login_box=False, pid=4321, ghost=(), hung=False,
+            usable=None, state=None):
+    """`watchman.probe()` 的**真实形状**（2026-11-11 起判活只认线程数）。
+
+    桩必须与生产同形：少交 `usable`/`live`，链就会把"可用"读成"不可用"，
+    测出来的是另一件事。`state_label` 直接引生产那份字典，不在测试里抄第二份措辞。
+    """
+    from app.tdx_client import watchman
+
+    if state is None:
+        state = (('login' if login_box else 'hung' if hung else 'ok') if running
+                 else ('ghost' if ghost else 'off'))
+    if usable is None:
+        usable = state in watchman.USABLE_STATES
+    return {'running': running, 'live': [pid] if running else [], 'ghost': list(ghost),
+            'pid': pid if running else None, 'login_box': login_box, 'hung': hung,
+            'window': '通达信金融终端V7.73' if running else None,
+            'minimized': False if running else None, 'sync': '没有 TPyth* 进程',
+            'state': state, 'state_label': watchman.STATE_LABELS[state],
+            'usable': usable, 'reason': watchman.STATE_LABELS[state]}
+
+
 class FakeProbe:
     def __init__(self, fresh):
         self.fresh_flag = fresh
@@ -96,7 +118,6 @@ def env(monkeypatch, tmp_path):
 
     monkeypatch.setattr(dcs, '_run', fake_run)
     monkeypatch.setattr(dcs, '_now', lambda: clock['at'])
-    monkeypatch.setattr(dcs, '_client_running', lambda: True)
     monkeypatch.setattr(rd, 'Readiness', FakeReadiness)
     monkeypatch.setattr(rd, 'expected_trade_date', lambda now=None: TARGET)
     monkeypatch.setattr(locator, 'sync_running', lambda: (False, '没有 TPyth* 进程'))
@@ -130,7 +151,7 @@ def env(monkeypatch, tmp_path):
     # 队列里给多个状态时按次消费（拉起前一个、复验一个），只给一个就一直用它。
     from duanxian import gui_trail
     monkeypatch.setattr(gui_trail, 'data_path', lambda *p: str(tmp_path / 'trail'))
-    probes = [{'running': True, 'login_box': False, 'pid': 4321}]
+    probes = [_pstate()]
 
     def fake_probe():
         st = probes[0] if len(probes) == 1 else probes.pop(0)
@@ -273,6 +294,50 @@ def test_TQ那条腿排在点窗口之前(env, monkeypatch):
         '先动鼠标再问客户端 = 把最贵的一条排在最前面'
 
 
+def test_客户端可用就不重启只复用(env, monkeypatch):
+    """用户 2026-11-11 的裁定原话：「不要每次无脑都强制重启，只有在判断进程不可用的时候，
+    再去主动切掉，然后重新开启同步」。可用 ⇒ 一次 reset 都不许发。"""
+    monkeypatch.setattr(dcs, 'RESTART_WAIT_SEC', 0)
+    monkeypatch.setattr(dcs, 'DOWNLOAD_WAIT_SEC', 0)
+    assert _main(['--date', TARGET.isoformat()]) == 3
+    j = joined(env.calls)
+    assert 'app.tdx_client.reset' not in j, '客户端好好的还去收进程 = 无脑重启'
+    assert 'run_agent' in j and 'p0_tdx_predownload' in j
+
+
+def test_缩到托盘的客户端照样算可用(env, monkeypatch):
+    """Min2Tray=1 时主窗口是 0×0 隐藏窗口，枚举不到 ≠ 没登录。
+    拿"看不到窗口"当不可用，就会去切一台好好的客户端。"""
+    monkeypatch.setattr(dcs, 'RESTART_WAIT_SEC', 0)
+    monkeypatch.setattr(dcs, 'DOWNLOAD_WAIT_SEC', 0)
+    env.probes[:] = [_pstate(True, state='tray')]
+    assert _main(['--date', TARGET.isoformat()]) == 3
+    assert 'app.tdx_client.reset' not in joined(env.calls)
+
+
+def test_活着但不可用才先收掉再起(env, monkeypatch):
+    monkeypatch.setattr(dcs, 'RESTART_WAIT_SEC', 0)
+    monkeypatch.setattr(dcs, 'DOWNLOAD_WAIT_SEC', 0)
+    env.probes[:] = [_pstate(True, login_box=True)]
+    assert _main(['--date', TARGET.isoformat()]) == 3
+    names = [' '.join(c) for c in env.calls]
+    reset_i = next(i for i, n in enumerate(names) if 'app.tdx_client.reset' in n)
+    assert any('run_agent' in n for n in names[reset_i + 1:]), \
+        '收掉之后必须先把客户端拉回来再等 —— 杀掉干等是等不到自动同步的'
+
+
+def test_只剩残影时不去切_直接起新的(env, monkeypatch):
+    """残影＝0 线程、进程已死但 tasklist 还列着它。杀不掉也等不掉 ——
+    2026-11-11 一整天的日线就是被「旧进程关不掉」这一步吃掉的。"""
+    monkeypatch.setattr(dcs, 'RESTART_WAIT_SEC', 0)
+    monkeypatch.setattr(dcs, 'DOWNLOAD_WAIT_SEC', 0)
+    env.probes[:] = [_pstate(False, ghost=[45956])]
+    assert _main(['--date', TARGET.isoformat()]) == 3
+    j = joined(env.calls)
+    assert 'app.tdx_client.reset' not in j, '没有活进程可切，发 reset 只是白等一轮'
+    assert 'run_agent' in j
+
+
 def test_客户端没开着会先自动拉起再问TQ(env, monkeypatch):
     """**用户 10-06 20:5x 点头的那件事**：「这个必须要你自动执行啊！太需要你去动界面了」。
 
@@ -281,7 +346,7 @@ def test_客户端没开着会先自动拉起再问TQ(env, monkeypatch):
     """
     monkeypatch.setattr(dcs, 'RESTART_WAIT_SEC', 0)
     monkeypatch.setattr(dcs, 'DOWNLOAD_WAIT_SEC', 0)
-    env.probes[:] = [{'running': False}, {'running': True, 'login_box': False, 'pid': 777}]
+    env.probes[:] = [_pstate(False), _pstate(True, pid=777)]
     env.lands['tq'] = True
     assert _main(['--date', TARGET.isoformat()]) == 0
     names = [' '.join(c) for c in env.calls]
@@ -302,8 +367,7 @@ def test_已经在跑就不重复拉起(env):
 def test_停在登录框也算没准备好要补登录(env, monkeypatch):
     monkeypatch.setattr(dcs, 'RESTART_WAIT_SEC', 0)
     monkeypatch.setattr(dcs, 'DOWNLOAD_WAIT_SEC', 0)
-    env.probes[:] = [{'running': True, 'login_box': True},
-                     {'running': True, 'login_box': False, 'pid': 1}]
+    env.probes[:] = [_pstate(True, login_box=True), _pstate(True, pid=1)]
     ok, why = dcs.step_launch(TARGET, check_only=False, no_gui=False)
     assert ok, why
     assert '停在登录框' in why or '登录框' in why or '已自动拉起' in why
@@ -313,7 +377,7 @@ def test_拉起后还是没登录就别去白问TQ(env, monkeypatch):
     """`step_tq` 的前置不过 → 直接不调 c12：TQ 连不上是必然，白等一轮超时。"""
     monkeypatch.setattr(dcs, 'RESTART_WAIT_SEC', 0)
     monkeypatch.setattr(dcs, 'DOWNLOAD_WAIT_SEC', 0)
-    env.probes[:] = [{'running': False}]
+    env.probes[:] = [_pstate(False)]
     ok, why = dcs.step_tq(TARGET, check_only=False)
     assert not ok and '客户端起不来' in why
     assert 'ingest.jobs.c12_tq_day' not in joined(env.calls)
@@ -323,7 +387,7 @@ def test_auto_launch关掉就只记清单不碰桌面(env, monkeypatch):
     from duanxian import jobs as jstore
     monkeypatch.setattr(jstore, 'settings',
                         lambda key, defaults=None: ({'auto_launch': False}, []))
-    env.probes[:] = [{'running': False}]
+    env.probes[:] = [_pstate(False)]
     ok, why = dcs.step_launch(TARGET, check_only=False, no_gui=False)
     assert not ok and 'auto_launch=false' in why
     assert env.calls == [], '关了开关还起 run_agent = 开关是假的'
@@ -337,7 +401,7 @@ def test_每一步界面动作都进待人工清单并带手动做法(env, monke
     唯一的落点：清单里必须有**没做成的那几条**，且每条写着人怎么补。"""
     monkeypatch.setattr(dcs, 'RESTART_WAIT_SEC', 0)
     monkeypatch.setattr(dcs, 'DOWNLOAD_WAIT_SEC', 0)
-    env.probes[:] = [{'running': False}]          # 拉起前后都不在跑 → 这次没成
+    env.probes[:] = [_pstate(False)]          # 拉起前后都不在跑 → 这次没成
     ok, why = dcs.step_launch(TARGET, check_only=False, no_gui=False)
     assert not ok
     pend = env.trail.pending()
@@ -347,7 +411,7 @@ def test_每一步界面动作都进待人工清单并带手动做法(env, monke
 
 
 def test_no_gui时前置也不动桌面(env, monkeypatch):
-    env.probes[:] = [{'running': False}]
+    env.probes[:] = [_pstate(False)]
     ok, why = dcs.step_launch(TARGET, check_only=False, no_gui=True)
     assert not ok and '--no-gui' in why
     assert env.calls == []

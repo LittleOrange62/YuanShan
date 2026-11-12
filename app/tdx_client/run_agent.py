@@ -163,7 +163,7 @@ def _run_attempt(args, target: dt.date, r: readiness.Readiness,
 
     wd = None
     if not args.no_watchdog and not args.dry_run:
-        pids = win32.pids_by_name('TdxW.exe')
+        pids = win32.live_pids('TdxW.exe')
         wd = watchdog.PopupWatchdog(pid=pids[0] if pids else None).start()
         ctx.log(f'弹窗看门狗已启动（规则来源：{wd.rules_source}）')
     try:

@@ -1,6 +1,6 @@
 import { apiUrl } from './base.ts';
 import { authHeaders } from './api.ts';
-import type { BroadcastConfig, BroadcastState } from './intradayBroadcastReads.ts';
+import type { BroadcastBodies, BroadcastConfig, BroadcastState } from './intradayBroadcastReads.ts';
 
 /**
  * 「盘中播报」那一屏的 I/O 层（判据与类型在 `intradayBroadcastReads.ts`，那份不接 I/O、
@@ -19,6 +19,26 @@ export async function loadBroadcast(): Promise<BroadcastState | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * 那一天真发出去的正文（`day` 缺省＝后端挑的最近一天）。
+ *
+ * 与 `loadBroadcast` 不同，这里**不把失败兜成空**：接口挂了要抛给调用方说"读不出来"，
+ * 兜成 `items: []` 就会在屏上变成"那天一条都没发过"，那是把观测层故障说成业务事实。
+ * 日期非法时后端回 400 带原话，也原样抛上去。
+ */
+export async function loadBroadcastBodies(day?: string | null): Promise<BroadcastBodies | null> {
+  const url = day
+    ? `/api/intraday/broadcast/bodies?day=${encodeURIComponent(day)}`
+    : '/api/intraday/broadcast/bodies';
+  const resp = await fetch(apiUrl(url), { headers: authHeaders() });
+  const body = await resp.json().catch(() => null) as
+    { data?: BroadcastBodies; detail?: string } | null;
+  if (!resp.ok) {
+    throw new Error(body?.detail || `推送正文读不出来（HTTP ${resp.status}）`);
+  }
+  return body?.data ?? null;
 }
 
 /**

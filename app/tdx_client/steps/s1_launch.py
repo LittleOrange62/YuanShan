@@ -11,6 +11,11 @@ s1 · 启动或复用通达信。
     跑着但没登录（卡在登录框/连不上行情）→ 才重启
 
 `--force-restart` 保留强制重启，用于"怀疑行情连接坏了"的场合。
+
+2026-11-11 追加一条：**残影条目不算「跑着」**。`tasklist` 还列着但 0 线程的进程已经死了，
+杀不掉也等不掉；旧判据把它当"在跑"，于是每轮都先关它、关不掉、判「旧进程关不掉」转人工，
+一整天的日线一根都没落。现在判活走 `win32.split_live`，收进程按 pid 精确收
+（`/IM` 群杀会把这一轮刚拉起的新实例一起收掉，当天实测过一次）。
 """
 
 from __future__ import annotations
@@ -66,14 +71,21 @@ class LaunchStep(Step):
                 f'找不到通达信主程序：{p}。'
                 '如果装在别的目录，设 FT_TDX_DIR 环境变量。')
 
-        running = win32.pids_by_name(EXE_NAME)
-        if running:
-            ctx.log(f'  已有进程 {running}，先关掉再起（当前未登录或要求强制重启）')
-            win32.kill(EXE_NAME)
+        live, ghost = win32.split_live(EXE_NAME)
+        if ghost:
+            # 残影＝0 线程、进程已死但 tasklist 还列着。**不杀也不等它消失**：
+            # taskkill 对它无能为力，等它就是白等 20s 然后判「旧进程关不掉」。
+            # 它也不挡新实例（2026-11-11 23:50:09 实测：残影 45956 在场时新实例 17880 照样起来了）。
+            ctx.log(f'  残影条目 {ghost}（进程已死、条目未回收）→ 不杀、不等，只记账')
+        if live:
+            ctx.log(f'  活着的实例 {live} 当前不可用（未登录/假死/要求强制重启）'
+                    f'→ 按 pid 收掉再起')
+            win32.kill_pids(live)
             # 等进程真的退出，别刚 kill 完就启动 —— 通达信会检测到已有实例
             # 然后什么都不做直接退出，表现是"启动了但没窗口"。
+            # 判据只看**活着的**实例：残影永远等不掉，拿它当判据就是必超时。
             ok, why = self.wait_until(
-                lambda: (not win32.pids_by_name(EXE_NAME), '进程仍在'),
+                lambda: (not win32.live_pids(EXE_NAME), '进程仍在'),
                 timeout=20, interval=0.5)
             if not ok:
                 return StepResult.fail(f'旧进程关不掉：{why}')
@@ -95,16 +107,20 @@ class LaunchStep(Step):
         只是在等输入的通达信。
         """
         def check():
-            pids = win32.pids_by_name(EXE_NAME)
-            if not pids:
-                return False, '进程不在'
-            ctx.bag['pid'] = pids[0]
-            if _login_box(pids[0]) is not None:
-                return True, f'登录框已出现（pid={pids[0]}）'
+            live, ghost = win32.split_live(EXE_NAME)
+            if not live:
+                return False, ('进程不在'
+                               + (f'（只剩残影条目 {ghost}，它不算在跑）' if ghost else ''))
+            # pid 取**真有窗口的那个**：按镜像名拿到的第一个可能是残影，
+            # 后面每一步都拿它当句柄主人，就会一路报"控件没反应"。
             main = ctx.refresh_main()
+            pid = main.pid if main is not None else live[0]
+            ctx.bag['pid'] = pid
+            if _login_box(pid) is not None:
+                return True, f'登录框已出现（pid={pid}）'
             if main is not None:
                 return True, f'主窗口已出现（pid={main.pid}）'
-            return False, f'进程 {pids} 在，但还没有窗口'
+            return False, f'进程 {live} 在，但还没有窗口'
 
         return self.wait_until(check, ctx=ctx)
 

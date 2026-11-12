@@ -3,7 +3,9 @@
 钉的都是这一类功能最容易糊过去的地方：
 
 1. **两档对"该不该有一台开着登录着的客户端"必须给不同答案**，而"坏"的判据不能两档各写一份
-   （假死 / 停在登录框 / 交易时段里 vipdoc 不往前写，都住 `_tdx_stuck_reason` 一处）。
+   （假死 / 停在登录框 / 残影条目都住 `watchman.probe()` 的 `usable` 一处，
+   交易时段里 vipdoc 不往前写住 `server._tdx_data_stale`；11-11 把假死从
+   `_tdx_stuck_reason` 搬进探针，就是为了不再同一轮枚举两遍窗口）。
 2. **判不了不算坏**：读不到窗口响应、读不到 vipdoc 进度、读不到键鼠空闲时间 ——
    都按"不知道"处理，绝不拿"取不到"当"坏了"去重启或关闭客户端
    （《06-自查表》#111 那条"探不到≠false"的同一纪律；这里错了会白手重启用户的行情软件）。
@@ -129,31 +131,64 @@ def test_读不到进度时不判坏(srv, monkeypatch, readiness):
     assert srv._tdx_data_stale("10:00", now_ts=1_700_000_000.0 + 400 * 60) is None
 
 
-def test_窗口不响应是假死_读不到句柄不算(srv, monkeypatch):
+def _probe_ok(**over):
+    """`watchman.probe()` 的真实形状（11-11 起判活只认线程数，`usable` 是唯一可用性判据）。"""
+    from app.tdx_client import watchman
+    st = {'running': True, 'pid': 40672, 'login_box': False, 'sync': None,
+          'window': '通达信金融终端V7.73', 'minimized': False,
+          'live': [40672], 'ghost': [], 'hung': False, 'state': 'ok',
+          'state_label': watchman.STATE_LABELS['ok'], 'usable': True,
+          'reason': '在跑（pid 40672）· 已登录'}
+    st.update(over)
+    return st
+
+
+def test_窗口不响应是假死_读不到句柄不算(monkeypatch):
+    """假死判据 11-11 搬进 `watchman.probe()`（原来 `server._tdx_stuck_reason` 自己再枚举
+    一遍窗口，同一轮两份读数）。三态纪律不许跟着搬丢：**判不了 ≠ 假死**。"""
     from app.tdx_client import locator, win32
+    from app.tdx_client.steps import s1_launch, s8_finish
+    from app.tdx_client import watchman
 
-    monkeypatch.setattr(locator, "main_window", lambda: type("W", (), {"hwnd": 1234})())
-    monkeypatch.setattr(srv, "_tdx_data_stale", lambda hhmm, **kw: None)
-    monkeypatch.setattr(win32, "window_hung", lambda hwnd: True)
-    why, read = srv._tdx_stuck_reason({"pid": 1}, "10:00")
-    assert read["hung"] is True and "假死" in why, (why, read)
+    monkeypatch.setattr(win32, 'split_live', lambda name: ([1], []))
+    monkeypatch.setattr(locator, 'main_window',
+                        lambda **kw: type('W', (), {'hwnd': 1234, 'pid': 1,
+                                                    'text': '通达信金融终端V7.73'})())
+    monkeypatch.setattr(locator, 'sync_running', lambda: (False, '没有 TPyth* 进程'))
+    monkeypatch.setattr(s1_launch, '_login_box', lambda pid=None: None)
+    monkeypatch.setattr(s8_finish, '_minimized', lambda w: False)
+    monkeypatch.setattr(win32, 'window_hung', lambda hwnd: True)
+    st = watchman.probe()
+    assert st['hung'] is True and st['state'] == 'hung' and st['usable'] is False, st
+    assert '假死' in st['reason'], st['reason']
 
-    monkeypatch.setattr(win32, "window_hung", lambda hwnd: None)   # 判不了
-    why2, read2 = srv._tdx_stuck_reason({"pid": 1}, "10:00")
-    assert why2 is None and read2["hung"] is None, (why2, read2)
+    monkeypatch.setattr(win32, 'window_hung', lambda hwnd: None)   # 判不了
+    st2 = watchman.probe()
+    assert st2['hung'] is None and st2['usable'] is True, st2
+    assert st2['state'] == 'ok', '判不了响应就当成假死 = 白手重启用户的行情软件'
 
 
 def test_探针把开着但用不了报成不通(srv, monkeypatch):
     """这一格从前会报"正常·连败 0"，而 TQ 那条腿其实取不到数 —— 最坏的一种假绿。"""
     from app.tdx_client import watchman
-    monkeypatch.setattr(watchman, "probe", lambda: {"running": True, "pid": 40672,
-                                                     "login_box": False, "sync": None,
-                                                     "window": None, "minimized": False})
-    monkeypatch.setattr(srv, "_tdx_stuck_reason",
-                        lambda st, hhmm: ("主窗口消息线程不响应（假死，人点它也没反应）", {"hung": True}))
+    monkeypatch.setattr(watchman, 'probe', lambda: _probe_ok(
+        hung=True, state='hung', state_label=watchman.STATE_LABELS['hung'],
+        usable=False, window=None,
+        reason='客户端开着（pid 40672）但主窗口消息线程不响应（假死，人点它也没反应）'))
     ok, detail = srv._tdx_probe_round()
-    assert ok is False and detail["stuck"] is True and detail["hung"] is True, detail
-    assert "用不了" in detail["reason"], detail
+    assert ok is False and detail['stuck'] is True and detail['hung'] is True, detail
+    assert '用不了' in detail['reason'] and '假死' in detail['reason'], detail
+
+
+def test_开着也登录着但盘中不收数_照样报不通(srv, monkeypatch):
+    """假死搬走之后，`_tdx_stuck_reason` 还剩这一条判据 —— 它不许跟着一起消失。"""
+    from app.tdx_client import watchman
+    monkeypatch.setattr(watchman, 'probe', lambda: _probe_ok())
+    monkeypatch.setattr(srv, '_tdx_data_stale',
+                        lambda hhmm, **kw: '盘中 31 分钟里 vipdoc「已到目标日」的文件数停在 7 没往前走')
+    ok, detail = srv._tdx_probe_round()
+    assert ok is False and detail['stuck'] is True, detail
+    assert '用不了' in detail['reason'] and 'vipdoc' in detail['reason'], detail
 
 
 # ---------------------------------------------------------------- 两档的动作

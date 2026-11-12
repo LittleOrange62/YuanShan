@@ -9,7 +9,7 @@
 - [一、服务形态与三个入口](#一服务形态与三个入口)
 - [二、权限边界与失败口径](#二权限边界与失败口径)
 - [三、A 层：全市场榜与数据加工产出（24 个专用工具）](#三a层全市场榜与数据加工产出24-个专用工具)
-- [四、B 层：个股明细（8 个专用工具）](#四b层个股明细8-个专用工具)
+- [四、B 层：个股明细（9 个专用工具）](#四b层个股明细9-个专用工具)
 - [五、C 层：只进目录、靠兜底工具取](#五c层只进目录靠兜底工具取)
 - [六、通用层 3 个工具](#六通用层-3-个工具)
 - [七、全量端点索引（现扫，不抄条数）](#七全量端点索引现扫不抄条数)
@@ -64,16 +64,16 @@
 | `rank_momentum` | 名次稳步前进榜 · `/quadrant` | `/api/quant/rank-momentum` → `vr/app.py:643` | `duanxian/quant.py`：`analytics.score` | `metric='xy'`、`limit=80(5..200)`、`date=''` |
 | `momentum_follow` | 前进榜前 N 名今日与近 5 日表现 · `/quadrant` | `/api/quant/momentum-follow` → `vr/app.py:667` | `duanxian/momentum_follow.py`：`analytics.score`、`analytics.volume_double`、`analytics.volume_breakout_signal`、`analytics.ambush_setup`、`analytics.trend_stock_daily`、`analytics.abnormal_move_daily`、`market_data.stock_daily` | `metric='xy'`、`date=''`、`limit=80(5..200)` |
 | `volume_double` | 倍量形态 · `/volume-double` | `/api/quant/volume-double` → `vr/app.py:745` | `analytics.volume_double`、`analytics.volume_ratio_daily` | `date=''`、`limit=150(1..800)`、`min_energy=0(0..40)`、`quadrants=''`、`step_gap_min=None(-40..40)` |
-| `energy_track` | 加权分进榜后逐日涨跌幅 · `/volume-double` | `/api/quant/energy-track` → `vr/app.py:794` | `duanxian/quant.py`：`analytics.score`、`market_data.stock_daily`（后复权） | `date=''`、`top_n=None(10..500，默认取阈值表 120)` |
-| `startup_volume` | 启动前量能分布 · `/volume-double` | `/api/quant/startup-volume` → `vr/app.py:1039` | `analytics.startup_volume_profile` | `cohort='board4'`、`months=3(1..12)`、`limit=200(1..1200)` |
-| `first_board_shape` | 首板形状预示 · `/volume-double` | `/api/quant/first-board-shape` → `vr/app.py:1064` | `duanxian/first_board_view.py`：`analytics.first_board_shape`、`analytics.volume_ratio_daily` | `months=60(1..60)`、`bucket='dbl_days'`、`buckets=4(2..10)`、`metric='ex5'`、`board=''`、`complete_only=true`、`exclude_locked=true`、`min_bars=20(1..30)` |
-| `startup_quadrant_track` | 启动前 30 场象限轨迹 · `/volume-double` | `/api/quant/startup-quadrant-track` → `vr/app.py:1096` | `duanxian/quadrant_track_view.py`：`analytics.startup_quadrant_track`、`analytics.startup_volume_profile`、`analytics.first_board_shape`、`analytics.score` | `cohort='board4'`、`months=12(1..12)`、`window=30`、`key='all'`、`limit=200(1..600)` |
-| `startup_spike_days` | 启动前爆量与突然拉高 · `/volume-double` | `/api/quant/startup-spike-days` → `vr/app.py:1126` | `duanxian/spike_days_view.py`：`analytics.startup_spike_days`、`analytics.startup_volume_profile`、`analytics.first_board_shape`、`analytics.volume_ratio_daily` | `cohort='anyfirst'`、`months=12(1..12)`、`window=30`、`jump_pct=0.07(0.03..0.15)`、`limit=200(1..600)` |
+| `energy_trend` | 近期倍量表走势分析（名次每 10 名一档 × 往后第几场）· `/backtest-agent`（11-07 随那块搬进策略回测屏，11-08 用户推翻上一版逐票热力表后换成这张档表） | `/api/quant/energy-trend` → `vr/app.py:896` | `duanxian/energy_trend.py`：`analytics.volume_double`、`market_data.stock_daily`（后复权） | `date=''`、`window=None(10..250，不给＝默认 120)`、`top_n=None(10..500，默认取阈值表 120)`、`refresh=False`（只清这一组参数的一小时缓存） |
+| `startup_volume` | 启动前量能分布 · `/backtest-agent` | `/api/quant/startup-volume` → `vr/app.py:1039` | `analytics.startup_volume_profile` | `cohort='board4'`、`months=3(1..12)`、`limit=200(1..1200)` |
+| `first_board_shape` | 首板形状预示 · `/backtest-agent` | `/api/quant/first-board-shape` → `vr/app.py:1064` | `duanxian/first_board_view.py`：`analytics.first_board_shape`、`analytics.volume_ratio_daily` | `months=60(1..60)`、`bucket='dbl_days'`、`buckets=4(2..10)`、`metric='ex5'`、`board=''`、`complete_only=true`、`exclude_locked=true`、`min_bars=20(1..30)` |
+| `startup_quadrant_track` | 启动前 30 场象限轨迹 · `/backtest-agent` | `/api/quant/startup-quadrant-track` → `vr/app.py:1096` | `duanxian/quadrant_track_view.py`：`analytics.startup_quadrant_track`、`analytics.startup_volume_profile`、`analytics.first_board_shape`、`analytics.score` | `cohort='board4'`、`months=12(1..12)`、`window=30`、`key='all'`、`limit=200(1..600)` |
+| `startup_spike_days` | 启动前爆量与突然拉高 · `/backtest-agent` | `/api/quant/startup-spike-days` → `vr/app.py:1126` | `duanxian/spike_days_view.py`：`analytics.startup_spike_days`、`analytics.startup_volume_profile`、`analytics.first_board_shape`、`analytics.volume_ratio_daily` | `cohort='anyfirst'`、`months=12(1..12)`、`window=30`、`jump_pct=0.07(0.03..0.15)`、`limit=200(1..600)` |
 | `volume_breakout` | 突破信号 · `/volume-breakout` | `/api/quant/volume-breakout` → `vr/app.py:1018` | `analytics.volume_breakout_signal` | `date=''`、`limit=150(1..800)`、`signal_type=''` |
 | `ambush_setup` | 埋伏票 · `/volume-breakout` | `/api/quant/ambush` → `vr/app.py:872` | `analytics.ambush_setup` | `date=''`、`limit=150(1..800)`、`types=''`、`only_strict=false`、`min_weekly_ups=0(0..10)` |
 | `confluence_hits` | 选股汇总（各榜交叉命中）· `/confluence` | `/api/quant/confluence` → `vr/app.py:894` | `duanxian/confluence_view.py`：`analytics.confluence_daily`、`analytics.score` | `date=''`、`min_hits=1(1..6)`、`sources=''`、`limit=300(1..1000)` |
 | `system_entry` | 交易体系榜 · `/confluence` | `/api/quant/system-entry` → `vr/app.py:952` | `duanxian/system_entry_view.py`：`analytics.system_entry`、`analytics.system_entry_stats` | `date=''`、`only_entry=true`、`min_gap=0(0..30)`、`limit=300(1..1000)`、`days=250(10..600)` |
-| `system_entry_cohort` | 体系票近六个月名单 · `/confluence` | `/api/quant/system-entry-cohort` → `vr/app.py:978` | `duanxian/system_entry_cohort.py`：`analytics.system_entry`、`analytics.confluence_daily`、`analytics.score`、`market_data.stock_daily` | `months=6(1..24)` |
+| `system_entry_cohort` | 体系票近六个月名单 · `/backtest-agent` | `/api/quant/system-entry-cohort` → `vr/app.py:978` | `duanxian/system_entry_cohort.py`：`analytics.system_entry`、`analytics.confluence_daily`、`analytics.score`、`market_data.stock_daily` | `months=6(1..24)` |
 | `intraday_spike` | 异动筛查（盘中冲高/触板）· `/spike` | `/api/quant/intraday-spike` → `vr/app.py:926` | `duanxian/spike_view.py`：`analytics.intraday_spike`、`market_data.stock_daily` | `date=''`、`tags=''`、`min_hi=0(0..30)`、`limit=400(1..1000)`、`days=43(2..250)` |
 | `trend_stocks` | 趋势股 · `/trend-stocks` | `/api/quant/trend-stocks` → `vr/app.py:1353` | `duanxian/trend_view.py`：`analytics.trend_stock_daily`、`market_data.sector_daily` | `date=''`、`lookback=5`、`limit=300(1..1000)` |
 | `sector_heat` | 板块热度与点火 · `/sector-heat` | `/api/quant/sector-heat` → `vr/app.py:1476` | `analytics.sector_heat_daily`、`analytics.ignition` | `date=''`、`type=''`、`stage=''`、`sort='heat'`、`limit=200(1..1000)`、`stats='day'` |
@@ -86,12 +86,13 @@
 
 > ⚠️ `refresh` 参数在 A 层条目上一律存在，但 **MCP 侧强制 `false`**（见第二节第 2 条），所以参数列里不写它。
 
-## 四、B 层：个股明细（8 个专用工具）
+## 四、B 层：个股明细（9 个专用工具）
 
 | 工具 / capability_id | 标签 · 屏幕落点 | 来源端点 → 处理函数 | 取数模块 · 主读表 | 参数（默认值） |
 |---|---|---|---|---|
-| `stock_scores` | 趋势评分八分量 · `/stock-review` | `/api/quant/scores` → `vr/app.py:584` | `analytics.score`、`analytics.score_detail` | `code`（必填，带市场后缀全码）、`date=''` |
-| `stock_score_trend` | 评分窗口斜率/连续上行 · `/stock-review` | `/api/quant/score-trend` → `vr/app.py:598` | `analytics.score`、`analytics.score_trend` | `code`、`window=10(2..120)`、`sessions=60(1..500)` |
+| `stock_scores` | 趋势评分八分量 · `/stock-review` | `/api/quant/scores` → `vr/app.py:660` | `analytics.score`、`analytics.score_detail` | `code`（必填，带市场后缀全码）、`date=''` |
+| `stock_score_trend` | 评分窗口斜率/连续上行 · `/stock-review` | `/api/quant/score-trend` → `vr/app.py:674` | `analytics.score`、`analytics.score_trend` | `code`、`window=10(2..120)`、`sessions=60(1..500)` |
+| `stock_scheme_radar` | 近期各方案得分名次＋五档窗口带动 · `/stock-review` | `/api/quant/scheme-radar` → `vr/app.py:696` | `duanxian/scheme_radar.py`：`analytics.score`、`xy_rank_daily`、`volume_double`、`ambush_setup`（只读四张已落库的表，斜率与带动读侧现算） | `code`、`sessions=5(2..10)`、`refresh=false` |
 | `stock_indicators` | 35 项技术指标读数 · `/stock-review` | `/api/stock/indicators` → `vr/app.py:412` | `analytics.indicator_value` | `code`、`date=''` |
 | `stock_dossier` | 个股量化档案（八块拼一页）· `/stock-review` | `/api/quant/stock-dossier` → `vr/app.py:999` | `duanxian/stock_dossier.py`：`analytics.score(+_detail/_trend)`、`volume_double`、`volume_breakout_signal`、`ambush_setup`、`confluence_daily`、`sector_heat_daily`、`startup_volume_profile` | `code`、`date=''` |
 | `stock_facts` | 个股信息主档 · `/stock-review` | `/api/stock/facts` → `vr/app.py:1153` | `duanxian/stock_facts.py`：`reference_data.security/stock_profile/sector_member`、`market_data.stock_daily/stock_snapshot`、`analytics.stock_brief` | `code` |
@@ -108,6 +109,7 @@
 | `stock_metrics_ledger` | 全指标总账 · `/stock-review` | `/api/stock/metrics-ledger` → `vr/app.py:1312` | `analytics.indicator_value`、`score`、`volume_ratio_daily`、`market_sentiment_daily` |
 | `stock_volume_similarity` | 近 30 根量价形状相近样本 · `/stock-review` | `/api/stock/volume-similarity` → `vr/app.py:1269` | `analytics.startup_volume_profile`、`volume_ratio_daily`；首约 6 秒 |
 | `confluence_history` | 单票交叉命中历史 · `/confluence` | `/api/quant/confluence-history` → `vr/app.py:914` | `duanxian/confluence_view.py` |
+| `tomorrow_outlook` | 明日展望（推送 ⑩ 两榜 + 逐票全部指标）· `/tomorrow-outlook` | `/api/quant/tomorrow-outlook` → `vr/app.py:1015` | `duanxian/tomorrow_outlook.py`（19:00 那一炉 import 同一份判据）；首约 3 秒、缓存 15 分钟 |
 | `sector_members` | 板块成分股明细 · `aiPresets` 二级展开 | `/api/quant/sector-members` → `vr/app.py:1375` | `reference_data.sector_member` |
 | `new_high` | 自选股历史新高 · `/grouped` | `/api/quant/new-high` → `vr/app.py:698` | `reference_data.security`、`market_data.stock_daily` |
 | `market_overview` | 盘面总览 · `/sector-heat`、首页 | `/api/market/overview` → `vr/app.py:260` | `market_data.sector_fund_flow_daily` |
@@ -139,7 +141,7 @@
 | `positions` | 重点关注（持仓）· `/my-stocks` | `/api/positions` → `server.py:1060` | 只读 |
 | `risk_report` | 风险监控报告 · `/my-stocks` 一带 | `/api/risk/report` → `server.py:1241` | 只读；同族 `at-risk`/`attribution`/`excursion`/`inbox`/`rules` 走索引 |
 | `review_latest` | 复盘报告 · `/agent/review` | `/api/review/latest` → `server.py:697` | 文件侧产出；`date` 可选 |
-| `backtest_stats` | 历史统计 · `/backtest` | `/api/backtest` → `server.py:1447` | `days=60` |
+| `backtest_stats` | 涨停样本统计（历史统计）· `/backtest-agent`（11-07 整屏搬进策略回测屏，老地址 `/backtest` 只剩跳转） | `/api/backtest` → `server.py:1447` | `days=60` |
 | `weekly_heat` | 近 5 天热度 · `/heat` | `/api/weekly` → `server.py:755` | 只读 |
 | `live_emotion` | 盘中实时情绪 | `/api/market/live-emotion` → `server.py:634` | `duanxian/live_emotion.py` |
 | `intraday_path` | 盘中走势 · 复盘材料 | `/api/intraday/path` → `server.py:3926` | `date` 可选 |

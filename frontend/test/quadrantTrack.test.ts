@@ -31,7 +31,7 @@ import {
 
 const lib = readFileSync(new URL("../src/lib/quadrantTrack.ts", import.meta.url), "utf8");
 const comp = readFileSync(new URL("../src/components/quant/StartupQuadrantTrackBoard.tsx", import.meta.url), "utf8");
-const page = readFileSync(new URL("../src/pages/VolumeDouble.tsx", import.meta.url), "utf8");
+const page = readFileSync(new URL("../src/pages/StrategyBacktest.tsx", import.meta.url), "utf8");
 const system = readFileSync(new URL("../src/pages/System.tsx", import.meta.url), "utf-8");
 
 // ============================================ 契约样本：字段名逐个照接口合同抄（拼错只会永远显示 —）
@@ -463,7 +463,7 @@ test("spec_version 对不上就当场念出来（字段改名不会报错，只�
 
 // ============================================ 十、接线与措辞红线（漏一处就是哑卡片）
 
-test("这一块真挂在倍量形态页上，并登记进系统自检清单", () => {
+test("这一块真挂在策略回测屏上，并登记进系统自检清单", () => {
   assert.ok(page.includes("<StartupQuadrantTrackBoard />"), "调用点没接上");
   assert.ok(comp.includes('useProbe<SqPayload>("/quant/startup-quadrant-track"'), "组件没发那条请求");
   assert.ok(!comp.includes('useProbe<SqPayload>("/api'), "页面里绝不写 /api（useProbe 自己补前缀）");

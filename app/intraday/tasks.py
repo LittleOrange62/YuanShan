@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""盘中播报这六路（事件差／竞价／热度／变化量／午间／微信镜像）的「什么时候跑、发到哪、谁在跑」这一面。
+"""盘中播报这十一路（①事件差／②竞价／③变化量／④热度／⑤午间／⑥体系榜取数／⑦体系榜推送／
+⑧微信镜像／⑨每日复盘 18:18／⑩明日展望 19:00／⑪最强模式 19:19）的「什么时候跑、发到哪、谁在跑」这一面。
 
-分工要说死：判据与正文不归这里（住 `ingest/jobs/*.py` 与 `app/intraday/templates.json`），
+分工要说死：判据与正文不归这里（住 `ingest/jobs/push/tNN_*.py` 与 `app/intraday/templates.json`），
 这个模块只管三件事 —— **配置（`jobs/config.json` 里的 `intraday_broadcast`）→ 计划任务定义
 → 注册与对账**。改时点这件事落到「重新注册 Windows 计划任务」，不是落到某个循环的 sleep。
 
@@ -108,6 +109,20 @@ SPEC: dict[str, dict] = {
         "base_args": "--send", "shape": "times",
         "limit": "PT15M", "retry_interval": "PT2M", "retry_count": 2,
     },
+    "tomorrow": {
+        "label": "明日展望（19:00，盘后那一栏）",
+        "task_name": "YuanShan-TomorrowOutlook",
+        "module": "ingest.jobs.push.t10_tomorrow_outlook",
+        "base_args": "--send", "shape": "times",
+        "limit": "PT15M", "retry_interval": "PT2M", "retry_count": 2,
+    },
+    "strong_mode": {
+        "label": "最强模式（19:19，盘后那一栏）",
+        "task_name": "YuanShan-StrongMode",
+        "module": "ingest.jobs.push.t11_strong_mode",
+        "base_args": "--send", "shape": "times",
+        "limit": "PT15M", "retry_interval": "PT2M", "retry_count": 2,
+    },
 }
 
 #: 默认值只住这一处；作业侧、界面侧、CLI 侧都从这里取（两处各写一份就会出现"页面改得动、代码不读"）
@@ -123,7 +138,7 @@ DEFAULTS: dict[str, Any] = {
     "heat_enabled": True,
     "delta_enabled": True,
     "noon_enabled": True, "noon_times": "12:10",
-    #: 交易体系榜（⑤，11-03 从外部 `intraday_sysentry/` 收编）也是两层：
+    #: 交易体系榜是屏上 ⑥⑦ 两行（11-03 从外部 `intraday_sysentry/` 收编），也是两层：
     #: 14:39 那一针**只取数只落库**（`sysentry_fill`），14:40:30 那一炉**只读库再发**（`sysentry`）。
     #: `sysentry_wait_s` 是 B 侧愿意等多久 A 的数（TQ 一次要跑几十只票，慢的时候真会跨过半分钟）；
     #: 等到点还没有 ⇒ 播"未就绪"那句，绝不拿昨天的行顶。
@@ -131,6 +146,9 @@ DEFAULTS: dict[str, Any] = {
     "sysentry_enabled": True, "sysentry_times": "14:40:30", "sysentry_wait_s": 180,
     #: 下面这几格就是外部那份 `sysentry_config.json` 的内容，全部收进同一个配置块（两处可改＝一处生效）
     "sysentry_at_all": True, "sysentry_max_rows": 30, "sysentry_watch_list": False,
+    #: 卡片末尾 @所有人 后面跟的那句提示词（用户 11-10：@所有人挪到卡片最后、后面跟可配置提示词，
+    #: 入本配置块、在「推送任务」⑦那一行可改）。留空保存＝删键回这句出厂默认。
+    "sysentry_at_prompt": "深度分析以上个股排个最佳隔日T的买票推荐",
     "sysentry_quote_source": "tq", "sysentry_tq_fallback_web": True,
     "sysentry_tq_timeout_s": 240, "sysentry_tq_retry_wait_s": 8,
     "sysentry_quote_batch": 50, "sysentry_quote_retry": 2, "sysentry_quote_cool_s": 9,
@@ -142,8 +160,44 @@ DEFAULTS: dict[str, Any] = {
     #: 每日复盘那一栏（18:18）。**默认关着**：`ingest/jobs/push/t09_daily_review.py` 的正文判据是要人去填的骨架，
     #: 开着它就等于让调度器每天往群里发一条"还没写上内容"的东西 —— 关着时连任务都不注册（屏上那行会说"这一路已关"）。
     "daily_review_enabled": False, "daily_review_times": "18:18",
+    #: 明日展望那一栏（19:00，用户 11-04 要的第 ⑩ 条）：正文他也自己写上了（三节：多指标靠前／
+    #: 趋势最正／明日观察清单）。**开关仍默认关着** —— 打开就是每天 19:00 真往群里发一条，
+    #: 这个动作留给他自己在「推送任务」那一屏按（关着的语义就是连任务都不注册）。
+    #: 19:00 选在收盘链与 `fill_all` 之后（本机实测 16:06 / 17:56 落定），那时今天的日线、天梯、
+    #: 体系榜、指标族才都在库里 —— 展望读的就是这些。
+    "tomorrow_enabled": False, "tomorrow_times": "19:00",
+    #: 最强模式那一栏（19:19，用户 11-10 要的第 ⑪ 条：预设六档涨停打法，报「今天最强是哪档、
+    #: 近 5 场怎么变的」）。**开关出厂默认关着**（与 ⑨⑩ 同一待遇：打开就是每天真往群里发一条，
+    #: 那一下由人自己在屏上按）；11-10 用户点名「每天 19:19 分准时跑」⇒ 现网配置里已打开并注册。
+    #: 19:19 排在 ⑩ 之后：两炉读的是同一批已落地的加工结果，互不等对方的数。
+    "strong_mode_enabled": False, "strong_mode_times": "19:19",
     "note": "",
 }
+
+#: 每一路"干什么"的一句话（≤20 字）。三个读法共用这一份：界面上那一行、
+#: `ingest/jobs/推送任务清单.md` 那张表、看护与文档里点名某一路时的短名。
+#: 键集与 `SPEC` 必须相等（下面这道 assert），加了新的一路忘了给短句就当场红。
+BRIEF: dict[str, str] = {
+    "watcher": "记涨跌停池事件差，本身不发送",
+    "auction": "竞价额榜与量榜、一字、概念计数",
+    "delta": "到点播上一针到现在的变化量",
+    "heat": "涨跌停池里 ≥3 只的概念热度",
+    "noon": "上午全景快照与量能",
+    "sysentry_fill": "判交易体系榜，本身不发送",
+    "sysentry": "读 ⑥ 那一针排版后发榜",
+    "mirror": "把 ② 那份正文镜像到个人微信",
+    "daily_review": "盘后复盘那一栏（正文用户自写）",
+    "tomorrow": "明日展望（正文用户自写）",
+    "strong_mode": "判最强涨停打法（六档预设／5场趋势）",
+}
+assert set(BRIEF) == set(SPEC), f"BRIEF 与 SPEC 的行集不一样：{set(BRIEF) ^ set(SPEC)}"
+assert all(v and len(v) <= 20 for v in BRIEF.values()), \
+    "短句要非空且 20 字以内（屏上那一行与清单表都直接读它，长了就把路径挤到下一行）"
+
+#: 真会往外发的那几路（顺序同 `SPEC`）。`mode='record'` 的①⑥只落库，它们留在
+#: `intraday_broadcast.body` 里的是池摘要/取数摘要，**不是发出去的正文** ——
+#: 「按日期回看推送内容」那一屏只数这几路，否则同一份变化量会在①和③各出现一次。
+PUSH_KEYS: tuple[str, ...] = tuple(k for k, s in SPEC.items() if s.get('mode', 'push') != 'record')
 
 _TIME_RE = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$")
 
@@ -291,6 +345,16 @@ def validate_patch(kv: dict, cfg: dict) -> str | None:
         elif key == "sysentry_wait_s":
             why = _int_range(value, 0, 600, key,
                              "秒（B 侧愿意等多久 A 的数；0＝不等，库里没有就当今天没有）")
+        elif key == "sysentry_at_prompt":
+            # 卡片末尾 @所有人 后面跟的那句。空串在上面那一档就跳过了（留空＝删键回默认），
+            # 到这里的是要真存下的：非空、不超 200 字，长句多半是误把一段分析贴进来。
+            raw = str(value).strip()
+            if not raw:
+                why = f"{key} 不能是纯空白（想清空请留空，留空＝回出厂默认）"
+            elif len(raw) > 200:
+                why = f"{key} 最长 200 字，收到 {len(raw)} 字（这一段是发到卡片末尾的提示词）"
+            else:
+                why = None
         elif key in SYS_INT_RANGE:
             lo, hi, unit = SYS_INT_RANGE[key]
             why = _int_range(value, lo, hi, key, unit)
@@ -593,7 +657,9 @@ def plan(*, ledger: dict | None = None, force_reg: bool = False) -> dict:
                              f'{"、".join(_clock(got["triggers"])) or "读不到"}）')
             if got['state'] == 'Disabled' and want_on:
                 drift.append('任务处于 Disabled（不是这里关的，或有人在任务计划程序里手动停过）')
-        rows.append({'key': key, 'label': spec['label'], 'task_name': spec['task_name'],
+        rows.append({'key': key, 'no': len(rows) + 1, 'label': spec['label'],
+                     'brief': BRIEF.get(key),
+                     'task_name': spec['task_name'],
                      'module': spec['module'], 'available': exists,
                      'on': want_on, 'editable': exists and not err,
                      'derived': SPEC[key].get('derived'),

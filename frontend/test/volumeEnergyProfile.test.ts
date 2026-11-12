@@ -217,7 +217,7 @@ test('这一卡挂在系统配置页，端点也登记进自检清单', () => {
   assert.match(system, /path: "\/config\/volume-energy"/, '自检清单里 path 不带 /api 前缀');
   assert.match(system, /path: "\/config\/volume-energy", label: [^\n]*where: "\/system"/,
     '落点要写系统配置这一屏的路由');
-  assert.match(system, /path: "\/quant\/energy-track"/);
+  assert.match(system, /path: "\/quant\/energy-trend"/);
   // 自检清单的说明文字也不许还写着第一稿那两件东西
   const line = (system.match(/path: "\/config\/volume-energy"[^\n]*/) ?? [''])[0];
   assert.doesNotMatch(line, /量纲|sum／top|占比/, '自检清单里还写着第一稿的量纲');

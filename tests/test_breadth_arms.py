@@ -15,7 +15,7 @@
 前两条是纯 SQL 片段 / 源码级（不打桩、不碰库也能跑）；后两条要真库，
 `pg.enabled()` 不通才 skip —— 本机库是 financetool，跑通是常态。
 
-写法参照 `tests/test_energy_track.py`、`tests/test_momentum_follow.py` 的真库那一节。
+写法参照 `tests/test_energy_trend.py`、`tests/test_momentum_follow.py` 的真库那一节。
 """
 from __future__ import annotations
 

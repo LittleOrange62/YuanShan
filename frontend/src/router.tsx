@@ -9,7 +9,7 @@ import { FirstBoard } from "@/pages/FirstBoard";
 import { AgentWeekly } from "@/pages/AgentWeekly";
 import { ResearchNotes } from "@/pages/ResearchNotes";
 import { Journal } from "@/pages/Journal";
-import { Backtest } from "@/pages/Backtest";
+// 「涨停样本统计」自己那一屏 11-07 搬进策略回测屏，这里不再 import 那个页面组件（老地址只剩跳转）。
 import { QdCompare } from "@/pages/QdCompare";
 import { SummaryBoard } from "@/pages/SummaryBoard";
 import { Jobs } from "@/pages/Jobs";
@@ -24,6 +24,7 @@ import { VolumeBreakout } from "@/pages/VolumeBreakout";
 import { Confluence } from "@/pages/Confluence";
 import { Spike } from "@/pages/Spike";
 import { TrendStocks } from "@/pages/TrendStocks";
+import { TomorrowOutlook } from "@/pages/TomorrowOutlook";
 import { Grouped } from "@/pages/Grouped";
 import { Datasource } from "@/pages/Datasource";
 import { Quality } from "@/pages/Quality";
@@ -54,7 +55,10 @@ export const router = createBrowserRouter([
       { path: "/heat", element: <AgentWeekly /> },
       { path: "/journal", element: <Journal /> },
       { path: "/notes", element: <ResearchNotes /> },
-      { path: "/backtest", element: <Backtest /> },
+      // 2026-11-07 用户点名：主要功能点是回溯的那些都归到「个股研究与回测 · 策略回测」。
+      // 这一整屏（昨日涨停样本在次日的历史表现）搬进那一屏的「回溯」那一组（`Backtest` 组件被它嵌入），
+      // 老书签跳过去 —— 两处各留一个入口，迟早变成两个说法（与 /stock-data、/agent/deepdive 同一处置）。
+      { path: "/backtest", element: <Navigate to="/backtest-agent" replace /> },
       { path: "/qd-compare", element: <QdCompare /> },
       { path: "/pipeline", element: <Pipeline /> },
       { path: "/coverage", element: <Coverage /> },
@@ -72,6 +76,7 @@ export const router = createBrowserRouter([
       { path: "/confluence", element: <Confluence /> },
       { path: "/spike", element: <Spike /> },
       { path: "/trend-stocks", element: <TrendStocks /> },
+      { path: "/tomorrow-outlook", element: <TomorrowOutlook /> },
       { path: "/grouped", element: <Grouped /> },
       { path: "/datasource", element: <Datasource /> },
       { path: "/quality", element: <Quality /> },

@@ -41,6 +41,23 @@ def test_变化量这一炉不碰源站():
 
 # ---------------------------------------------------------------- 窗口与正文
 
+def test_推送标题与时间并成一行():
+    """用户 11-05 原话：「盘中推送的时候，这个文字重复了文字标题。后面的时间不用换行，
+    直接跟在后面，将 3 行并成一行」——群里看到的只有 `盘中涨跌停变化量 自 09:35 起` 一行标题，
+    正文不再重复名字。措辞在模板 `delta_header`（改文案改模板，不改代码）。"""
+    import json
+    T = json.loads(D.TPL_FILE.read_text(encoding='utf-8'))
+    assert T['delta_header'].format(since='09:35') == '盘中涨跌停变化量 自 09:35 起'
+    lo = dt.datetime(2026, 11, 3, 9, 35, 0)
+    title = D.title_for(lo)
+    assert title == '盘中涨跌停变化量 自 09:35 起'
+    assert '\n' not in title                      # 并成一行：标题里没有换行
+    groups = {'seal_new': [{'code': '600001', 'name': '甲', 'board_count': 2, 'pct': 10.0,
+                           'open_count': 0, 'first_seal_time': '09:41'}]}
+    text = D.render(groups, {'n_rows': 1}, dt.datetime(2026, 11, 3, 9, 45, 3), lo, None, None)
+    assert '盘中涨跌停变化量' not in text          # 正文不重复标题
+
+
 def test_窗口起点接上次推送():
     from app.db import engine
     orig = engine.scalar
@@ -135,8 +152,10 @@ def test_正文含各类只数与家数时点():
                           'open_count': 2, 'first_seal_time': '09:38'}]}
     text = D.render(groups, {'n_rows': 3}, now, lo, {'zt': 61, 'zb': 9, 'dt': 4}, lo)
     lines = text.split('\n')
-    # 用户 11-03 定的版式：标题不重复发（推送本身带标题），第一行就是名字、第二行直接"自……"
-    assert lines[0] == '盘中涨跌停变化量' and lines[1] == '自 09:35 起'
+    # 用户 11-05：「文字重复了文字标题……将 3 行并成一行」——名字与时间住在推送标题里
+    # （`title_for`），正文第一行直接是事件内容，不再重复标题。
+    assert lines[0] == '新封 2只：甲2板、乙1板'
+    assert '盘中涨跌停变化量' not in text, '正文里不该再出现标题（推送标题已带名字）'
     assert '—读 analytics' not in text, '最后那句来源说明已经按用户要求撤掉（它仍在留痕表里）'
     assert '【' not in text
     assert '新封 2只：甲2板、乙1板' in text

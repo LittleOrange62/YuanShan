@@ -63,9 +63,11 @@ def build_server() -> FastMCP:
         return _forward("/api/quant/volume-double", date=date, limit=limit, min_energy=min_energy,
                         quadrants=quadrants, step_gap_min=step_gap_min)
 
-    @mcp.tool(name="energy_track", description=tool_description("energy_track"))
-    def energy_track(date: str = "", top_n: int | None = None) -> dict:
-        return _forward("/api/quant/energy-track", date=date, top_n=top_n)
+    @mcp.tool(name="energy_trend", description=tool_description("energy_trend"))
+    def energy_trend(date: str = "", window: int | None = None, top_n: int | None = None,
+                     refresh: bool = False) -> dict:
+        return _forward("/api/quant/energy-trend", date=date, window=window, top_n=top_n,
+                        refresh=refresh)
 
     @mcp.tool(name="startup_volume", description=tool_description("startup_volume"))
     def startup_volume(cohort: str = "board4", months: int = 3, limit: int = 200) -> dict:
@@ -170,6 +172,10 @@ def build_server() -> FastMCP:
     @mcp.tool(name="stock_score_trend", description=tool_description("stock_score_trend"))
     def stock_score_trend(code: str, window: int = 10, sessions: int = 60) -> dict:
         return _forward("/api/quant/score-trend", code=code, window=window, sessions=sessions)
+
+    @mcp.tool(name="stock_scheme_radar", description=tool_description("stock_scheme_radar"))
+    def stock_scheme_radar(code: str, sessions: int = 5, refresh: bool = False) -> dict:
+        return _forward("/api/quant/scheme-radar", code=code, sessions=sessions, refresh=refresh)
 
     @mcp.tool(name="stock_indicators", description=tool_description("stock_indicators"))
     def stock_indicators(code: str, date: str = "") -> dict:

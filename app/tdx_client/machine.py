@@ -305,7 +305,8 @@ def capture_stuck(ctx: RunContext, step: Step, result: StepResult) -> Path:
     # 结果把微信、飞书、浏览器的控件树也写进了现场包 —— 既慢（每个窗口
     # 一次 UIA dump 就是几百毫秒起）又是隐私问题：现场包是给人和智能体翻的，
     # 别人的聊天窗口标题不该出现在里面。
-    tdx_pids = set(win32.pids_by_name('TdxW.exe'))
+    live, ghost = win32.split_live('TdxW.exe')
+    tdx_pids = set(live) | set(ghost)
     main = ctx.main or locator.main_window()
     if main:
         tdx_pids.add(main.pid)
@@ -314,14 +315,16 @@ def capture_stuck(ctx: RunContext, step: Step, result: StepResult) -> Path:
     # 别人的只记 class 和位置 —— "是不是被别的程序盖住了"靠位置就能判断，
     # 不需要知道人家窗口叫什么。
     try:
-        lines = []
+        lines = [f'活着的实例：{live or "无"}；'
+                 f'残影条目（0 线程、进程已死但 tasklist 还列着）：{ghost or "无"}']
         for w in win32.top_windows(visible_only=False):
             if w.pid in tdx_pids:
                 lines.append(f'[TDX] {w}')
             elif w.visible and w.w > 100 and w.h > 50:
                 lines.append(f'[其它进程 pid={w.pid}] {w.cls} {w.rect}')
-        if not tdx_pids:
-            lines.insert(0, '**通达信进程不存在** —— 可能已退出或从未启动\n')
+        if not live:
+            lines.insert(1, '通达信没有活着的进程 —— 可能已退出或从未启动'
+                            '（残影条目不算在跑，也杀不掉）\n')
         (d / 'windows.txt').write_text('\n'.join(lines), encoding='utf-8')
     except Exception as e:
         (d / 'windows.txt').write_text(f'枚举失败：{e}', encoding='utf-8')

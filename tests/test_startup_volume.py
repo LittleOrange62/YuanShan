@@ -244,7 +244,9 @@ def test_整组汇总与明细行用的是同一批过滤条件():
     from duanxian import quant as q
     src = pathlib.Path(q.__file__).read_text(encoding='utf-8')
     body = src[src.index('def startup_volume('):]
-    trio = ('spec_version', 'p.cohort', "launch_date > (date", "' months'")
+    # 11-09 换写法：`date %s` 在 psycopg 3（服务端绑定成 `$n`）下是语法错误 ⇒ 两边都写 `%s::date`。
+    # 钉子跟着搬到新的共同写法，**不是放宽**：断言仍然要求两句话里同时出现这段筛句的四个部件。
+    trio = ('spec_version', 'p.cohort', "launch_date > (", "::date - (", "' months'", "::interval")
     detail = body[body.index('rows = _rows('):body.index('total = _one(')]
     summ = src[src.index('STARTUP_SUM_SQL = '):src.index('def startup_volume(')]
     for token in trio:
@@ -463,3 +465,76 @@ def test_或那半边真的放进了短段样本且每一行都过门槛():
                      f'它们只可能靠「或」入选，不达标就是门槛判据错了')
     assert nul == 0, (f'短段里有 {nul} 行 gain_first4 为空却入选：取不到第 4 根的行只能靠 len>=4 进来，'
                      '而 len<4 的行没有别的入选路径')
+
+
+# ==================================== 读侧那条 SQL：绑定方式与「坏了要按坏了说话」
+
+def test_读侧SQL里没有类型名紧跟绑定参数那种写法():
+    """psycopg 2 把 `%s` 在**客户端拼进语句**，所以 `date %s` 拼出来是 `date '2026-11-06'`（合法的类型前置写法）；
+    10-26 那次 `duanxian/pg.py::fetch_df` 改借 `app/db/engine` 的池（psycopg 3）之后，参数是**服务端绑定**成 `$n`，
+    `date $1` 就是语法错误。坏掉的后果不响：`fetch_df` 把异常兜成 None，屏幕上剩一句
+    「启动前量能画像取数异常：'NoneType' object is not iterable」（11-09 用户就是这么叫来的，红整整 13 天）。
+    只扫 `duanxian/`：那层每个 `%s` 都是 SQL 绑定参数；`ingest/jobs` 里的 `--date %s` 是命令行拼串，不算。
+    """
+    bad = []
+    for p in sorted((ROOT / 'duanxian').glob('*.py')):
+        text = p.read_text(encoding='utf-8')
+        for m in re.finditer(r'\b(date|timestamp|time|interval|numeric)\s+%\(?[a-z_]*\)?s\b', text):
+            line = text[:m.start()].count('\n') + 1
+            bad.append(f'{p.name}:{line} {m.group(0)!r}')
+    assert not bad, 'SQL 里要写 `%s::date`，不能写 `date %s`（服务端绑定后是语法错误）：' + '；'.join(bad)
+
+
+def test_真库这一发要真出得来行而不是打桩():
+    """上面那条是静态针，这条才是让它有意义的实证：走 `pg.fetch_df` 的真实绑定跑四个母体档。
+
+    桩替不出 `$n` 绑定 —— 这一族坏了 13 天里全量 3,754 条一条都没红，就是因为读侧用例全打桩。
+    """
+    _db_alive()
+    from duanxian import quant as q
+    for coh in ('board4', 'board4_45', 'board4_or_gain45', 'jump40'):
+        for mon in (3, 12):
+            o = q.startup_volume(cohort=coh, months=mon, limit=20)
+            assert o.get('available'), f'{coh} × 近 {mon} 月不可用：{o.get("reason")}'
+            rows = o.get('rows') or []
+            assert rows, f'{coh} × 近 {mon} 月一行都没有 ⇒ 那不是判据，是断链'
+            wf, lt = o.get('window_from'), o.get('latest_launch')
+            assert wf and all(r['launch_date'] > wf for r in rows), \
+                f'{coh} × 近 {mon} 月：窗口起点 {wf} 与行里的启动日期对不上 ⇒ 那句月份筛没生效'
+            assert len(rows) <= 20 and (o.get('rows_total') or 0) >= len(rows), \
+                f'{coh}：全场 {o.get("rows_total")} 行 / 交回 {len(rows)} 行 / 上限 20 —— 三个数不自洽'
+            # 整组汇总那一发是**同一条筛句的另一份 count**（用的是命名参数 `%(...)s`，
+            # 与取行那发的位置参数走两条不同的渲染路径，坏的时候未必一起坏）⇒ 两个 n 必须相等。
+            summ = o.get('summary') or {}
+            assert summ.get('n') == o.get('rows_total'), \
+                f'{coh} × 近 {mon} 月：汇总 n={summ.get("n")} 与全场行数={o.get("rows_total")} 不是同一批'
+            if mon == 3 and lt:
+                assert rows[0]['launch_date'] <= lt, f'{coh}：排序起点 {rows[0]["launch_date"]} 比最晚一场 {lt} 还晚'
+
+
+def test_查询坏了不许念成没有数据(monkeypatch):
+    """`_rows()` 在「这条 SQL 在库里炸了」与「库里真没这些行」两种情况下都交 None。
+
+    折成 `for r in None` 的 TypeError，屏幕上就是一句没人看得懂的「NoneType object is not iterable」；
+    折成 `_fail()` 那句则是拿「这一场没有数据」骗人去查回填。两种都不许：读侧必须分得开这两件事。
+    """
+    import pandas as pd
+    from duanxian import quant as q
+
+    calls = {'n': 0}
+
+    def fake(sql, params=()):
+        calls['n'] += 1
+        # 第一条是「这一档最晚一场是哪天」，让它成功；其后那条取行的必须失败。
+        if 'max(launch_date)' in sql:
+            return pd.DataFrame([{'d': '2026-11-06'}])
+        return None
+
+    monkeypatch.setattr(q.pg, 'fetch_df', fake)
+    o = q.startup_volume(cohort='board4', months=3, limit=20)
+    assert calls['n'] >= 2, '桩没被走到：这条用例就成了永真'
+    assert o['available'] is False
+    why = str(o.get('reason') or '')
+    assert '执行失败' in why, f'查询坏了要按查询坏了说话，实际念的是：{why}'
+    assert '未回填' not in why, f'不许借 `_fail` 那句「这一场没有数据（未回填…）」说取数失败：{why}'
+

@@ -92,9 +92,9 @@ def _quadrant_tokens(raw: str) -> tuple[list[str], list[str]]:
 _NOTE = {
     'quadrant_design': '`quadrant` 只在 capability_key=oper_score 的行上有值，其余 7 个 capability '
                        '恒为 NULL 是设计而非缺数',
-    'entry_quadrant': '`quadrant` 是**当日**象限；`window_entry_quadrant` 是**进 10 日窗口第一天**的象限'
+    'entry_quadrant': '`quadrant` 是当日象限；`window_entry_quadrant` 是进 10 日窗口第一天的象限'
                       '（producer 侧 `(array_agg(quadrant ORDER BY rn))[1]`）。两者分布本就不同，'
-                      '不是数据打架，界面别去"对齐"它们',
+                      '不是数据打架，界面别去「对齐」它们',
     'stale': '`is_stale=true` 表示这一行的输入已不是该场最新数据，读数仍可用但要标注',
     'coverage': '各表起点不同，短历史是 caveat 不是缺数。这一张表实有覆盖（起止与场数）'
                 '看同一份返回里的 `coverage`，它现算自库里的 `min/max(count distinct trade_date)`，'
@@ -152,6 +152,7 @@ _CAV_LABEL = {
     'relative_not_absolute': '相对位置不是绝对好坏',
     'cached_aggregates': '这几个数是缓存里的',
     'no_detail': '没有分量明细',
+    'contrib_sum': '分量贡献相加起来不等于分值',
     'weight_mismatch': '权重与注册表不一致',
     'component_name_unmatched': '有分量没对上中文名',
     'rank_degenerate': '这一项的名次没有横截面意义',
@@ -174,7 +175,7 @@ _CAV_LABEL = {
     'ambush_type_rejected': '这几个值没参与筛选',
     'ambush_counts_unread': '每类实有几只没读到',
     'ambush_empty': '这一档筛空了',
-    'ambush_char_missing_batch': '股性这一场还没算',
+    'char_missing_batch': '股性这一场还没算',
 }
 _CAV_LABEL_FALLBACK = '口径说明'
 
@@ -244,22 +245,6 @@ def _agg(key: str, sql: str, params=(), many: bool = False):
         return hit[1]
     value = _rows(sql, params) if many else _one(sql, params)
     if value is not None:   # 连不上库时别把 None 钉在缓存里一小时 —— 那样重连也不会再试
-        _AGG[key] = (now, value)
-    return value
-
-
-def _agg_call(key: str, fn):
-    """`_agg` 的函数版：同一份进程内缓存（`_AGG`、同一个 TTL），跑的是一条 SQL 之外的取数函数。
-
-    给那些"慢但不是一条 SQL 能包住"的取数（`day_returns.series_by_code` 取回后还要在 Python
-    里逐票串起算日）。存 None 的规矩照搬 `_agg`：连不上库那一趟不许钉在缓存里一小时。
-    """
-    now = time.monotonic()
-    hit = _AGG.get(key)
-    if hit is not None and now - hit[0] < _AGG_TTL:
-        return hit[1]
-    value = fn()
-    if value is not None:
         _AGG[key] = (now, value)
     return value
 
@@ -455,6 +440,40 @@ def _caveats(*keys: str, extra: str | None = None) -> list[dict]:
     if extra:
         out.append(_cav('note', extra))
     return out
+
+
+def _character_read(ch, d: str) -> tuple[dict, list[dict]]:
+    """股性那一族在**两张榜**（埋伏票／突破信号）共用的读数与声明，一处写两份用。
+
+    读的是 `analytics.stock_character_daily`（每日加工链 `stockchar` 步的产出）：
+    这一场有没有行、有几行、其中多少只档位判得了，以及"整场还没入库"那一条声明。
+    两边各写一遍迟早变成"一屏说还没算、另一屏说一切正常"。
+    """
+    tot = _one("select count(*)::int n, count(*) filter (where char_level is not null)::int scored"
+               "  from analytics.stock_character_daily where trade_date = %s and spec_version = %s",
+               (d, ch.SPEC_VERSION)) or {}
+    n = int(tot.get('n') or 0)
+    block = {'spec_version': ch.SPEC_VERSION, 'table': ch.TABLE,
+             'amp_sessions': ch.AMP_SESSIONS, 'amp_min_bars': ch.AMP_MIN_BARS,
+             'char_sessions': ch.CHAR_SESSIONS, 'char_min_bars': ch.CHAR_MIN_BARS,
+             'strong_min': ch.CHAR_STRONG_MIN, 'middle_min': ch.CHAR_MIDDLE_MIN,
+             'level_labels': dict(ch.CHAR_LEVEL_LABELS),
+             'has_rows_on_date': n > 0, 'rows_on_date': _int(tot.get('n')),
+             'scored_on_date': _int(tot.get('scored'))}
+    cav = [] if n else [_cav('char_missing_batch',
+                             f'这一场（{d}）的股性与近 {ch.AMP_SESSIONS} 场日均振幅还没入库'
+                             f'（{ch.TABLE} 里 spec {ch.SPEC_VERSION} 零行）——'
+                             '这两列是每日加工链 `stockchar` 步的产出，缺它不影响本栏判据本身，'
+                             '界面上那两格显示 —，不是「振幅 0」也不是「股性差」。'
+                             '补法：等当晚收盘链，或在系统配置里单跑 `stockchar` 这一步。')]
+    return block, cav
+
+
+def _char_definitions(ch_comments: dict) -> dict:
+    """股性那张表的列注释改成"读侧叫什么列就叫什么键"：两边都有 `missing` 列，
+    这里那份在行里叫 `char_missing`，键名跟着改，否则并表时会盖掉本栏自己的 `missing`。
+    """
+    return {('char_missing' if k == 'missing' else k): v for k, v in ch_comments.items()}
 
 
 def _coverage(tables: tuple[str, ...]) -> dict:
@@ -1390,6 +1409,103 @@ SCORE_DEFINITIONS = {
     '权重和': '这一项各分量权重相加应等于 1。不等或有缺 ⇒ 这一项今天的分不可跨票比，屏上标红',
 }
 
+#: 「该支票的趋势量化计算」这一整块的设计规则（用户 2026-11-09：说明再详细一点，
+#: 把设计规则和「屏幕上那一格到底意味着什么」都显示出来）。
+#: 与 `SCORE_DEFINITIONS` 的分工：那份是**逐列**「这一格的数怎么来的」，
+#: 这一份是**整块**「这几列合起来在说什么、合起来的算术长什么样、什么情况下不能说」。
+#: 句子只住这一处，前端逐节转述；页面里不许再手写一份自己的说明。
+_EXPLAIN_NOT_THIS = {
+    'heading': '先说这一块不做什么（后面每一句都受这四条限制）',
+    'body': '① 不预测股价、不给买卖点 —— 这里每个数都是「这一场它处在什么位置」的位置读数，'
+            '不是对未来的断言。\n'
+            '② 不把八项合成一个总分 —— 八项是三把不同母体、四种量纲（分／档／同一个值）的尺，'
+            '平均出来的那一个数没有出处，也没有任何一场能复算它。\n'
+            '③ 不重算判据 —— 上块只读 `analytics.score` 与 `analytics.score_detail`'
+            '（写侧算好的分与当时实际用的权重），下块只读 `analytics.score_trend`；'
+            '页面和读侧都不再算第二套分。\n'
+            '④ 35 项技术指标不在这里 —— 同页下面「个股研究」那一块（一个组件挂一份），'
+            '档案里再放一份就是两份同源表。',
+}
+
+_EXPLAIN_SCALE = {
+    'heading': '「值」那一列是什么量纲：位置，不是分数好坏，更不是涨跌',
+    'body': '分量与合成分的取值范围 −100~100，是把这场该项的原始读数按全场横截面归一之后的位置：'
+            '+50 说的是「这一项它在全场偏前」，不是「涨了 50%」、不是「股价 50 元」、不是「比 40 的那只好 10 分」。\n'
+            '三件事因此不能做：跨场直接比大小（分位的母体天天在变，5,570 只与 5,400 只的第一名不是一把尺）；'
+            '跨项直接比大小（量能阶段那一列是 1~5 的档位，与操作分的 0~100 不是同一个量纲）；'
+            '把负值读成坏（负只表示「这场它在这一项偏后」）。\n'
+            '要判断「这一场它到底强不强」，看同一行右边那枚名次与并列只数，不看值本身。',
+}
+
+_EXPLAIN_RANK = {
+    'heading': '名次那一格为什么要先判「能不能排」——四档，判不了就念 —',
+    'body': '判据与那句解释只住 `duanxian/quant.py::_rank_view` 一处，页面与「近期各方案得分与名次」那块'
+            '调的是同一个函数。\n'
+            '· `ok`：正常横截面 ⇒ 念「第 N 名（共 M 只）」。多数并列只数是 1。\n'
+            '· `coarse`：这一项全场只有几十个取值（量能阶段、板块热度、环境共振）⇒ 名次挤在档位里，'
+            '相邻几名之间可能压根没有分差，所以名次要连「并列几只」一起念。\n'
+            '· `degenerate`：这一场这一项全市场同一个值（大盘情绪每天只有一个读数）⇒ '
+            '库里那两列在这种档上恒给出「第 1 名」与「50.0」，两个数互相打脸。所以名次与分位都交 —，'
+            '这一项只按分值本身读。这不是「并列第一」，也不是「第 1 名」。\n'
+            '· `no_rank`／`unknown`：库里这一行本来就没写名次（旧批次）或这一场的分布没数出来（聚合读失败）⇒ '
+            '前者念「没有名次」，后者照原值念但要出声，两者都不等于「判过没问题」。',
+}
+
+SCORE_EXPLAIN: tuple[dict, ...] = (
+    {'heading': '这一块两问：分是怎么加出来的 ＋ 这个分在往哪走',
+     'body': '上一块（八项能力加权明细）回答「凭什么是这个分」：每一项能力拆成几个分量，'
+             '每个分量按这一场实际生效的权重出多少力，逐格可见。\n'
+             '下一块（窗口趋势）回答「它在往哪走」：同一只票按交易日滚动的若干个窗口，'
+             '每行一个基准日，给斜率、拟合优度、高点位置与连续上行天数。\n'
+             '两块都是选中这只票才取数；没选票时两个请求根本不发。'},
+    _EXPLAIN_NOT_THIS,
+    _EXPLAIN_SCALE,
+    {'heading': '「值 × 权重 ＝ 贡献，贡献相加 ＝ 这一项的分」——每一行的算术',
+     'body': '分量表那五行读法：`值` 是这一分量自己的位置读数（同一把 −100~100 的尺）；'
+             '`权重` 是这一场这一只票实际用的权重（取 `analytics.score_detail`，不是注册表那份期望值）；'
+             '`贡献` ＝ 值 × 权重，就是这个分量给上面那枚分出了多少力；'
+             '各行贡献相加 ＝ 这一项的分，页面在表格下面把那一步当场加一遍给你看，'
+             '加不上（差超过四舍五入的量）就出声。\n'
+             '权重那一列加不满 1 或有缺失 ⇒ 这一项今天不可跨票比，行首会标红；'
+             '实际权重与注册表不一致 ⇒ 那是「改了注册表但没重算」，以 `score_detail` 为准并报名字。\n'
+             '算例（库里真数，2026-11-06 600519.SH 的操作分）：'
+             '这一项由两轴加权 —— 个股质量 52.1967 与 环境共振 −28.2515，'
+             '0.40 × 52.1967 ＋ 0.60 × (−28.2515) ＝ 20.8787 − 16.9509 ＝ 3.9278，'
+             '与库里那格存的分值逐位相同。这一句是把上面那条算术念一遍，不是另一套判据。'},
+    _EXPLAIN_RANK,
+    {'heading': '机器键为什么还留着（capability_key、脚本那一列）',
+     'body': '屏上格子的名字是中文（能力中文名只住 `config.capability.name`，分量中文名住 '
+             '`config.view_effective_binding.script_name`，读不到时出声并退回机器键，不自造一份映射）。'
+             '括号里/最后一列那串英文是对账用的主键：推送、查库、SQL 都按它找。'
+             '它是配角，不是这一格的名字。'},
+)
+
+TREND_EXPLAIN: tuple[dict, ...] = (
+    {'heading': '这一张表：每一行是「同一个基准日往回数若干个有评分日」的窗口',
+     'body': '横排多只票的榜单与它无关 —— 表里每一行都是这一只票，只是基准日不同。\n'
+             '窗口天数不是日历天数：每个窗口取「往前数 N 个有操作分的交易日」，缺分的日子不进窗口，'
+             '所以长假里 10 个日历日可能只剩 5 个交易日，跨度按交易日数。'},
+    {'heading': '斜率 · r² · 高点在第几天 —— 三个一起读才读得对',
+     'body': '`斜率` ＝ 窗口内那些点的最小二乘斜率，单位是每 1 个窗口日动多少分（分是位置量，见下一节）。'
+             '+0.4 × 10 个窗口日 ≈ 这一项在窗口里前进了 4 分的位置；它说的是分数在往哪走，不是股价涨跌。\n'
+             '`r²`（相关系数平方）说的是这条线本身成不成立：低 r² ＋ 大斜率 ＝ 中间有一天跳了一下，'
+             '不代表趋势，所以相关性弱的行自己标出来，别拿它的斜率排序。\n'
+             '`高点在第几天` 补的是斜率看不见的那一半：同一个平均数可以由完全相反的形状拼出来。'
+             '高点落在窗口末尾＝这轮还在往上；落在开头＝高点早过了、这些天在回落。\n'
+             '`连续上行` 从基准日往前数连续严格上行的天数，中断即归零重数；'
+             '`入口档` 是窗口第一天落在哪个象限（Q1~Q4），与「当日象限」是两个问题的答案，分布不同是应该的。'},
+    _EXPLAIN_SCALE,
+    _EXPLAIN_RANK,
+    _EXPLAIN_NOT_THIS,
+    {'heading': '为什么有的格子是 —（缺数、判不了、被截断是三种不同的话）',
+     'body': '库里 `analytics.score_trend` 目前只落了一种窗口（10 个有评分日）：'
+             '要别的窗口，接口直接返回不可用并列出实有窗口，不悄悄改用 10 天代答 —— '
+             '那是把不同长度的斜率混成同一个数。\n'
+             '「高点在第几天」为空是因为那天定位不了；「入口档」约一半的场为空（当天两轴有一轴没过分位线），'
+             '比例由 `window_entry_quadrant_null` 那条计数交出。这些一律念 —，不补 0、不拿上一天的顶上。\n'
+             '表只列最近 40 行，`交出` 那一格才是后端给的全部场数；排序发生在截断之前。'},
+)
+
 
 def _capability_names() -> tuple[dict, str]:
     """能力中文名与说明的唯一出处：`config.capability`（`name` / `description`）。
@@ -1473,6 +1589,13 @@ def scores(code: str, date: str = '') -> dict:
         weights = [p.get('weight') for p in parts]
         unknown = [w for w in weights if w is None]
         wsum = None if (not parts or unknown) else round(sum(float(w) for w in weights), 6)
+        # 「各行贡献相加 ＝ 这一项的分」是这一屏唯一一条能当场验的算术。
+        # 加起来对不上（差过 0.005，即分值那 4 位小数的进位量）就交 `contrib_matches=False`，
+        # 屏上必须出声——那说明 detail 与 score 两张表在这场不同批，不是显示问题。
+        cons = [p.get('contribution') for p in parts]
+        cunknown = [c for c in cons if c is None]
+        csum = None if not parts or cunknown else round(sum(float(c) for c in cons), 4)
+        cdiff = None if (csum is None or c.get('value') is None) else round(csum - float(c['value']), 4)
         reg_w = sorted(_num(b['raw_weight'], 4) for b in registry.get(k, [])
                        if b['raw_weight'] is not None)
         used = sorted(_num(w, 4) for w in weights if w is not None)
@@ -1483,6 +1606,9 @@ def scores(code: str, date: str = '') -> dict:
                     'capability_name': named.get('name'), 'capability_note': named.get('description'),
                     'components': parts, 'component_count': len(parts),
                     'weight_sum': wsum,
+                    'contrib_sum': csum, 'contrib_diff': cdiff,
+                    'contrib_matches': None if cdiff is None else abs(cdiff) <= 0.005,
+                    'contrib_missing': len(cunknown) if parts else None,
                     'weight_missing': len(unknown) if parts else None,
                     'weight_sum_ok': None if wsum is None else abs(wsum - 1.0) < 0.02,
                     'registry_weights': reg_w, 'registry_binding': registry.get(k, []),
@@ -1533,8 +1659,17 @@ def scores(code: str, date: str = '') -> dict:
     if names_source.startswith('config.capability 读不到') or not cap_names:
         caveats.append(_cav('note', f'能力中文名读不到（{names_source}）⇒ 这一屏退回机器键名。'
                                     '中文名的唯一出处是 `config.capability.name`'))
+    off = [o for o in out if o['contrib_matches'] is False]
+    if off:
+        caveats.append(_cav('contrib_sum',
+                            '这几项的分量贡献相加对不上上面那枚分值（'
+                            + '、'.join(f'{o["capability_name"] or o["capability_key"]}'
+                                        f'（差 {o["contrib_diff"]}）' for o in off)
+                            + '）⇒ `score_detail` 与 `score` 这一场不是同一批数，'
+                              '这一项「凭什么是这个分」回答不了；屏上标出来，不静默把明细当合分讲'))
     return {'available': True, 'code': sec, 'date': d,
             'capabilities': out, 'capability_keys': list(CAPABILITIES),
+            'explain': list(SCORE_EXPLAIN),
             'n_components': sum(len(o['components']) for o in out),
             'weights_registry_table': 'config.view_effective_binding',
             'names_source': names_source,
@@ -1620,13 +1755,14 @@ def score_trend(code: str, window: int = 10, sessions: int = 60, refresh: bool =
                                 '为空只说明窗口首日那行没有象限，斜率本身照样算得出'})
     return {'available': True, 'security_code': sec, 'window_days': want,
             'min_point_count': 8, 'sessions_returned': len(rows),
+            'explain': list(TREND_EXPLAIN),
             'first_session': rows[-1]['trade_date'], 'last_session': rows[0]['trade_date'],
             'definitions': {**(_comments('score_trend') or {}),
                             # 这两列不在表里（是本层现算的展示列），所以口径必须在这里交，
                             # 让页面逐字透出 —— 页面自己写一句解释就有两份口径了。
-                            'x_plus_y_max_day_no': '峰值在窗口内**第几个有评分日**（1＝窗口第一天，'
+                            'x_plus_y_max_day_no': '峰值在窗口内第几个有评分日（1＝窗口第一天，'
                                                    f'{want}＝就是这一场的基准日）。数的是 `analytics.score` 的'
-                                                   '有评分日、与斜率同一把尺子，**不数日历日**（长假里 10 个'
+                                                   '有评分日、与斜率同一把尺子，不数日历日（长假里 10 个'
                                                    '日历日可能只有 5 个交易日）',
                             'x_plus_y_max_position': '把那个序号翻成一句话：就在这一场（刚创新高）／最近两天／'
                                                      '中途见顶／起点附近（高点早已过去）。同一个最高值，'
@@ -1713,9 +1849,9 @@ from app.compute import volume_energy as venc   # noqa: E402
 #: 界面读 `thresholds.step_gap_min`。
 STEP_GAP_MIN = 1.5
 
-#: 新榜「加权分进榜后的逐日走势」母体的默认档：**当日得分前 N 名**（不是分数门槛）。
-#: 真值住 `volume_energy.DEFAULT_TOP_N`（用户 2026-10-19 晚点名：取前 120，每页 60、共 2 页），
-#: 这里只引用，不写第二遍。
+#: 倍量榜 `thresholds` 里回显的母体默认档：**当日得分前 N 名**（不是分数门槛）。
+#: 真值住 `volume_energy.DEFAULT_TOP_N`，这里只引用，不写第二遍；
+#: 「近期倍量表走势分析」那块也读同一个真值（`duanxian/energy_trend.py`）。
 TOP_N_DEFAULT = venc.DEFAULT_TOP_N
 PAGE_SIZE_DEFAULT = venc.PAGE_SIZE
 
@@ -2186,151 +2322,6 @@ def volume_double(date: str = '', limit: int = 150, min_energy: float | None = N
             'caveats': caveats, 'source': 'pg', 'requests': 0}
 
 
-def energy_track(date: str = '', top_n: int | None = None, refresh: bool = False) -> dict:
-    """「加权分进榜后的逐日涨跌幅」：当日前 N 名，每只票从它第一次进榜那天铺到今天。
-
-    形状：母体＝**基准日这一场得分前 N 名**（默认 `TOP_N_DEFAULT`＝120，可改；
-    同分并列 ⇒ 边界那一批一起进来，所以只数可能略多于 N，界面按名次念不硬凑 120）；
-    每只票的起算日＝它**历史上第一次进榜**（第一次排进前 N 名）那一场；
-    格子里是起算日到基准日**每一场**的当日涨跌幅（后复权，判据只住 `day_returns.py`），
-    列数不定、一直铺到今天；排序默认按「整体涨跌幅」从低到高。
-
-    为什么是"前 N 名"而不是"分数门槛"（用户 2026-10-19 晚纠正）：分值一改，
-    门槛对应的只数就跟着漂（上一稿的"≥0.8"就这么废了），而"前 120 名"与档表无关 ——
-    怎么改配置这一块都是 2 页 × 60 行。
-
-    三条不会从代码里自己长出来的口径，写死在这里：
-
-    1. **整体涨跌幅的基期＝起算日的前一场收盘**，与表格里各格连乘一致
-       （起算日当天那一格也算在内）。想只看"进榜之后"的走势，读第 1 格起。
-    2. **起算日可能被覆盖起点截断**：这张表从 `coverage.lo` 那一场才有数，
-       一只票的首次进榜日正好落在最早那几场时，真正的首次可能更早、库里看不到 ⇒
-       行上带 `first_censored=True`，界面念成「不晚于 X 日」，不许念成「就是 X 日」。
-    3. **今天的第几名 ≠ 第一次进榜那一天的第几名**：行里 `rank_in_day` 是今天的全场名次，
-       `first_date` 是全史第一次进榜那一场，两件事分开给（名次算法见 `duanxian/ranking.py`）。
-
-    行数不截（用户点名"不限制展示行数，分页还是保持 60 个"）：分页在前端，
-    所以这里交的是**整批**；`rows_returned` 就是这批的只数。
-
-    取数走进程内缓存（`_agg`/`_agg_call`，一小时），**键里带着「看哪一场 ＋ 倍量配置的指纹 ＋ 名次线」**：
-    每天加工链跑完、或量能加权分的配置一改，`energy_fp` 就换 ⇒ 键自己变，旧键不可能把上一批的数
-    顶给这一批；同一天同一批重算是同一个答案，所以这一小时的旧值不会说假话。
-    真刚回填完想立刻看，带 `refresh=1`（就是清掉 `energy_track_` 那几个键）。
-    """
-    table = 'analytics.volume_double'
-    if refresh:
-        clear_agg_cache('energy_track_')
-    d = _dash(date) or _latest(table) or ''
-    if not d or not pg.session_has(table, d):
-        return _fail('加权分进榜后的逐日走势', table, d or None)
-    n = int(top_n or TOP_N_DEFAULT)
-    n = max(10, min(n, 500))
-    fp = venc.fingerprint()
-    # 当日**全场**名次。10-26 实测：这里原来是逐行现数「同一场同一批里分更高的只数」
-    # （`_energy_rank_expr` 那个相关子查询），5,519 行 × 每行一次计数 = 8,087 毫秒，占整发请求的 62%。
-    # 改成窗口 `rank()` 后同一批行 39.5 毫秒、rank_in_day 与边界那批同分并列**逐位相同**
-    # （探针 .local/_et_rank_probe.py）。
-    # ⚠️ 这个写法只在"where 里除了分区键什么都没有"时成立：本条的筛参是
-    #    `trade_date` ＋ `energy_fp` ＋ `dbl_energy is not null`，前两个正是窗口的分组条件，
-    #    第三个是"没分的不占号"那条判据本身 ⇒ 窗口看到的那一堆＝当日全场有分的那一批。
-    #    倍量榜主查询（`volume_double`）还叠了象限／分段差等筛参，那边一改就把全场名次
-    #    筛成"这堆里的第 1"，所以那三处继续用 `_energy_rank_expr`，`test_ranking_shared.py` 钉着。
-    hits = _agg(f'energy_track_hits:{d}:{fp}:{n}', f"""
-        with r as (select v.security_code as code,
-                          coalesce(s.name, v.security_code) as name,
-                          s.board, s.market, v.dbl_energy, v.bars, v.win_days,
-                          rank() over (order by v.dbl_energy desc nulls last)::int as rank_in_day
-                     from analytics.volume_double v
-                     left join reference_data.security s using (security_code)
-                    where v.trade_date = %s and v.energy_fp = %s
-                      and v.dbl_energy is not null)
-        select code, name, board, market, dbl_energy, bars, win_days, rank_in_day
-          from r where r.rank_in_day <= %s
-         order by r.rank_in_day, r.code""", (d, fp, n), many=True) or []
-    if not hits:
-        return _empty_after_filter('加权分进榜后的逐日走势', table, d,
-                                   f'按当日前 {n} 名取（库里这一批没有可排名的行，'
-                                   '或这一场还没按当前配置重算）')
-    codes = [str(r['code']) for r in hits if r.get('code')]
-    # 第一次进榜＝历史上第一次排进当日同一名次线以内。名次按**当天整场**排，
-    # 所以这里必须逐场 `rank() over (partition by trade_date …)`（窗口在这条 SQL 里是对的：
-    # 它不带任何筛参），不能拿今天的门槛去比历史分数。
-    first = {str(r['code']): str(r['first_date']) for r in (_agg(
-        f'energy_track_first:{d}:{fp}:{n}',
-        """with r as (select security_code, trade_date,
-                                  rank() over (partition by trade_date
-                                               order by dbl_energy desc nulls last) as rk
-                             from analytics.volume_double
-                            where energy_fp = %s and dbl_energy is not null
-                              and security_code = any(%s::text[]))
-             select security_code as code, min(trade_date)::text as first_date
-               from r where rk <= %s group by 1""", (fp, codes, n), many=True) or []) if r.get('code')}
-    cover = _coverage(('volume_double',)).get('volume_double') or {}
-    cover_lo, cover_hi, cover_n = cover.get('from'), cover.get('to'), cover.get('sessions')
-    ser = _agg_call(f'energy_track_series:{d}:{fp}:{n}',
-                    lambda: day_returns.series_by_code(
-                        {c: first[c] for c in codes if c in first}, d)) or {}
-    rows: list[dict] = []
-    for r in hits:
-        c = str(r.get('code') or '')
-        s = ser.get(c) or {}
-        days = s.get('days') or []
-        f0 = first.get(c)
-        rows.append({'code': c, 'name': r.get('name'), 'board': r.get('board'),
-                     'market': r.get('market'),
-                     'dbl_energy': _num(r.get('dbl_energy'), 4),
-                     # 今天的全场名次（同分同名、顺延），与 first_date（第一次进榜）两件事分开
-                     'rank_in_day': _int(r.get('rank_in_day')),
-                     'bars': _int(r.get('bars')), 'win_days': _int(r.get('win_days')),
-                     'first_date': f0,
-                     # 截断声明：起算日就是这张表最早那几场时，"第一次"只是"不晚于"
-                     'first_censored': bool(f0 and cover_lo and f0 <= str(cover_lo)),
-                     'sessions_since': len(days) - 1 if days else None,
-                     'chg_cum': (days[-1].get('cum') if days else None),
-                     'missing_base': bool(s.get('missing_base')),
-                     'base_day': s.get('base_day'),
-                     'series': days})
-    # 默认按整体涨跌幅**从低到高**（用户点名）。None（没基期/停牌到今）排最后，
-    # 不参与比较 —— 让它冒到最前会把"算不出"念成"跌得最少"。
-    rows.sort(key=lambda x: (x['chg_cum'] is None,
-                             x['chg_cum'] if x['chg_cum'] is not None else 0.0))
-    no_first = [str(x['code'])[:6] for x in rows if not x['first_date']]
-    no_cum = [str(x['code'])[:6] for x in rows if x['chg_cum'] is None]
-    caveats = _caveats('coverage') + [{'code': 'energy_track_scope',
-                                       'text': f'母体是「基准日这一场得分前 {n} 名」里的 '
-                                               f'{len(rows)} 只（同分并列会一起进来，所以只数可以'
-                                               f'略多于 {n}）；每只票的起算日是它全史里'
-                                               '第一次排进前 N 名那一场，所以同一行里"今天第几名"和'
-                                               '"最早哪天进榜"是两个时点，别看成一件事。'
-                                               + RANKING.RULE_NOTE}]
-    if any(x['first_censored'] for x in rows):
-        caveats.append({'code': 'energy_track_censored',
-                        'text': f'有 {sum(1 for x in rows if x["first_censored"])} 只的首次进榜日'
-                                f'落在或紧贴这张表的最早一场（{cover_lo}）—— 它真正第一次进榜'
-                                '「可能更早、库里看不到」。界面念「不晚于该日」，不念「就是该日」。'})
-    if no_first:
-        caveats.append({'code': 'energy_track_no_first',
-                        'text': f'{len(no_first)} 只找不到首次进榜日（库里这一批没有它的进榜行）：'
-                                f'{"、".join(no_first[:8])}' + ('…' if len(no_first) > 8 else '')})
-    if no_cum:
-        caveats.append({'code': 'energy_track_no_base',
-                        'text': f'{len(no_cum)} 只算不出整体涨跌幅：起算日那一天的前一场'
-                                '在日线里没有行（那天才上市，或基期缺数）。这一格显示 —，'
-                                '「不当 0%」（0% 是「一分钱没动」）。'})
-    return {'available': True, 'date': d, 'top_n': n, 'rows_capped': len(rows) > n,
-            'top_n_default': TOP_N_DEFAULT, 'page_size': PAGE_SIZE_DEFAULT,
-            'rank': {'rule': RANKING.RULE_NOTE, 'rule_short': RANKING.RULE_NOTE_SHORT,
-                     'by': 'dbl_energy'},
-            'fingerprint': fp,
-            'coverage': {'lo': str(cover_lo) if cover_lo else None,
-                         'hi': str(cover_hi) if cover_hi else None,
-                         'sessions': cover_n},
-            'rows': rows, 'rows_returned': len(rows),
-            'max_series_len': max((len(x['series']) for x in rows), default=0),
-            'pct_rule': day_returns.RULE_NOTE,
-            'caveats': caveats, 'source': 'pg', 'requests': 0}
-
-
 def breakout_signal(date: str = '', limit: int = 150, signal_type: str = '') -> dict:
     """缩量收敛后首次突破形态信号（`analytics.volume_breakout_signal`）。
 
@@ -2342,9 +2333,15 @@ def breakout_signal(date: str = '', limit: int = 150, signal_type: str = '') -> 
     `signal_type` 可筛：'first_break' / 'surge_after_shrink' / 'converging'；
     不传就返回全部三类。认不得的值**不参与筛选并当场点名**（静默丢掉等于交一份
     "看着像筛过了其实没筛"的榜 —— 与埋伏榜 `types` 同一条规矩）。
+
+    「近 10 场日均振幅」与「股性」两列（用户 2026-11-04 点名右栏也要带）与左栏同源：
+    LEFT JOIN `analytics.stock_character_daily`（左连接 ⇒ 突破的票一行都不会因它缺行而少掉），
+    参数、门槛、中文档名走同一个 `_character_read`，两屏不许各写一份。
     """
     from app.compute import breakout_signal as bs
+    from app.compute import stock_character as ch
 
+    ch_spec = ch.SPEC_VERSION
     table = 'analytics.volume_breakout_signal'
     d = _dash(date) or _latest(table, spec=bs.SPEC_VERSION) or ''
     if not d or not pg.session_has(table, d):
@@ -2368,12 +2365,20 @@ def breakout_signal(date: str = '', limit: int = 150, signal_type: str = '') -> 
     rows = _rows("""select v.security_code as code, coalesce(s.name, v.security_code) as name,
                           s.board, v.signal_type, v.last_surge_date, v.surge_vol_ratio,
                           v.shrink_days, v.converge_days, v.break_vol_ratio, v.break_dev,
-                          v.break_close, v.break_ma60, v.window_days, v.bars_used
+                          v.break_close, v.break_ma60, v.window_days, v.bars_used,
+                          c.amp_10, c.amp_10_pctile, c.bars_10 as char_bars_10,
+                          c.char_level, c.char_level_label, c.char_mid_pctile,
+                          c.gene_pctile, c.seal_250, c.touch_250, c.consec_max_250,
+                          c.bars_250 as char_bars_250, c.missing as char_missing,
+                          c.spec_version as char_spec
                      from analytics.volume_breakout_signal v
                      left join reference_data.security s using (security_code)
+                     left join analytics.stock_character_daily c
+                            on c.security_code = v.security_code and c.trade_date = v.trade_date
+                           and c.spec_version = %%s
                     where %s
                     order by v.break_vol_ratio desc nulls last, v.converge_days desc nulls last
-                    limit %s""" % (where, '%s'), params + [lim])
+                    limit %s""" % (where, '%s'), [ch_spec] + params + [lim])
     if not rows:
         return _empty_after_filter(
             '突破信号', table, d,
@@ -2389,21 +2394,32 @@ def breakout_signal(date: str = '', limit: int = 150, signal_type: str = '') -> 
                   'break_close': _num(r.get('break_close'), 2),
                   'break_ma60': _num(r.get('break_ma60'), 2),
                   'surge_vol_ratio': _num(r.get('surge_vol_ratio'), 2),
+                  # 股性那一族：左连接拿不到行就是 None（"没数"），0 是真实读数，两件事不许混
+                  'amp_10': _num(r.get('amp_10'), 3),
+                  'amp_10_pctile': _num(r.get('amp_10_pctile'), 2),
+                  'char_mid_pctile': _num(r.get('char_mid_pctile'), 2),
+                  'gene_pctile': _num(r.get('gene_pctile'), 2),
+                  'char_bars_10': _int(r.get('char_bars_10')), 'char_bars_250': _int(r.get('char_bars_250')),
+                  'seal_250': _int(r.get('seal_250')), 'touch_250': _int(r.get('touch_250')),
+                  'consec_max_250': _int(r.get('consec_max_250')),
                   # 屏幕上那一格读的就是这个标签，列排序也排它（sortKey 必须等于格子里读到的东西）
                   'signal_type_label': bs.TYPE_LABELS.get(r.get('signal_type'), r.get('signal_type'))})
 
     short = [str(r['code'])[:6] for r in rows if r['bars_used'] is not None and r['bars_used'] < r['window_days']]
-    caveats = _caveats('coverage') + _cache_caveat(('coverage:breakout_signal',))
+    # 股性那一族的"整场还没入库"声明与参数块：与左栏同一个函数，两屏不许各写一份
+    char_block, char_cavs = _character_read(ch, d)
+    caveats = (_caveats('coverage') + _cache_caveat(('coverage:breakout_signal',
+                                                     'coverage:stock_character_daily')) + char_cavs)
     if short:
-        caveats.append({'code': 'short_window',
-                        'text': f'这些票的可用 K 线不足 {rows[0]["window_days"]} 日，信号按短窗算出，'
-                                f'不能与满窗的票横比：{"、".join(short[:8])}'
-                                + ('…' if len(short) > 8 else '')})
+        caveats.append(_cav('short_window',
+                            f'这些票的可用 K 线不足 {rows[0]["window_days"]} 日，信号按短窗算出，'
+                            f'不能与满窗的票横比：{"、".join(short[:8])}'
+                            + ('…' if len(short) > 8 else '')))
     if rejected:
-        caveats.append({'code': 'breakout_type_rejected',
-                        'text': '信号类型筛选里这个值不是已登记的类型：' + '、'.join(rejected)
-                                + ' —— 它没有参与筛选（本轮交的是全部三类）。可用的是 '
-                                + '、'.join(f'{k}（{v}）' for k, v in bs.TYPE_LABELS.items())})
+        caveats.append(_cav('breakout_type_rejected',
+                            '信号类型筛选里这个值不是已登记的类型：' + '、'.join(rejected)
+                            + ' —— 它没有参与筛选（本轮交的是全部三类）。可用的是 '
+                            + '、'.join(f'{k}（{v}）' for k, v in bs.TYPE_LABELS.items())))
 
     # 每一类全场实有几只：**不带筛选条件**聚合，不受 limit 影响。
     # 原先这里是从已交出的行里数（"各类信号数量 150 行里首破 7 只"），
@@ -2420,9 +2436,9 @@ def breakout_signal(date: str = '', limit: int = 150, signal_type: str = '') -> 
     except Exception:  # noqa: BLE001  读不到就说读不到，不拿 0 顶（0 = "这一类今天一只都没有"）
         counts_ok = False
     if not counts_ok:
-        caveats.append({'code': 'breakout_counts_unread',
-                        'text': '每一类全场实有几只没读到（那条聚合失败了），界面按"没读到"显示，'
-                                '不拿 0 顶 —— 0 的意思是"这一类今天一只都没有"。'})
+        caveats.append(_cav('breakout_counts_unread',
+                            '每一类全场实有几只没读到（那条聚合失败了），界面按"没读到"显示，'
+                            '不拿 0 顶 —— 0 的意思是"这一类今天一只都没有"。'))
 
     tot = _one("select count(*)::int n from analytics.volume_breakout_signal "
                "where trade_date = %s and spec_version = %s", (d, bs.SPEC_VERSION)) or {}
@@ -3393,7 +3409,7 @@ STARTUP_SUM_SQL = f"""select count(*) n,
        count(*) filter (where bars_used < window_days) short_rows
   from analytics.startup_volume_profile p
  where p.spec_version = %(spec)s and p.cohort = %(coh)s
-   and p.launch_date > (date %(to)s - (%(mon)s || ' months')::interval)"""
+   and p.launch_date > (%(to)s::date - (%(mon)s || ' months')::interval)"""
 
 
 def startup_volume(cohort: str = 'board4', months: int = 3, limit: int = 200) -> dict:
@@ -3433,14 +3449,23 @@ def startup_volume(cohort: str = 'board4', months: int = 3, limit: int = 200) ->
                           p.ratio_max, p.ratio_min, p.std_days, p.ratios
                      from {table} p
                     where p.spec_version = %s and p.cohort = %s
-                      and p.launch_date > (date %s - (%s || ' months')::interval)
+                      and p.launch_date > (%s::date - (%s || ' months')::interval)
                     order by p.launch_date desc, p.dbl_days desc nulls last, p.ratio_p80 desc nulls last
                     limit %s""", (spec, coh, d_to[:10], str(mon), lim))
+    if rows is None:
+        # `_rows` 在「这条 SQL 在库里炸了」与「库里真没这些行」两种情况下都交 None，
+        # 而下面那句 `for r in rows` 会把前者折成 TypeError ⇒ 屏幕上只剩一句
+        # 「取数异常：'NoneType' object is not iterable」（11-09 用户就是被这句话叫来的）。
+        # 取数失败必须按取数失败说话，不许借「没有数据」那一句（`_fail` 里那条查询失败分支要靠
+        # `_alive()` 探到连不上才走得到，而这里库是通的、坏的只是这条 SQL ⇒ 借 `_reject` 的信封、自己写原因）。
+        return _reject('启动前量能画像', d_to,
+                       '这条只读 SQL 在库里执行失败（不是「这一场没有数据」，也不是母体为空）：'
+                       '服务端日志里有同一秒的「PG 查询失败」那一行，带驱动报回的语法位置')
     total = _one(f'select count(*) n, '
                  'count(*) filter (where p.bars_used < 10) below_min, '
-                 '(date %s - (%s || \' months\')::interval)::date::text win_from '
+                 '(%s::date - (%s || \' months\')::interval)::date::text win_from '
                  f'from {table} p where p.spec_version = %s and p.cohort = %s '
-                 'and p.launch_date > (date %s - (%s || \' months\')::interval)',
+                 'and p.launch_date > (%s::date - (%s || \' months\')::interval)',
                  (d_to[:10], str(mon), spec, coh, d_to[:10], str(mon))) or {}
     # 这一版实际算到哪一天：不查这一条，"近 12 个月"在库里只有 3 个月批次的情况下
     # 会交出一份贴着 12 个月标签、其实只有 3 个月名单的榜 —— 屏幕上看不出区别。
@@ -3544,7 +3569,7 @@ def startup_volume(cohort: str = 'board4', months: int = 3, limit: int = 200) ->
         from app.compute import startup_volume as sv
         cut_pct = '%g%%' % (sv.GAIN_FIRST4_MIN * 100)
         base = _one(f'select count(*) n from {table} where spec_version = %s and cohort = %s '
-                    'and launch_date > (date %s - (%s || \' months\')::interval)',
+                    'and launch_date > (%s::date - (%s || \' months\')::interval)',
                     (spec, 'board4', d_to[:10], str(mon))) or {}
         n4, n45 = _int(base.get('n')), _int(total.get('n'))
         cut = (n4 - n45) if (n4 is not None and n45 is not None) else None
@@ -3601,7 +3626,7 @@ def ambush(date: str = '', limit: int = 150, types: str = '',
 
     「近 10 场日均振幅」与「股性」两列（用户 2026-11-03 点名）**left join 另一张表**
     `analytics.stock_character_daily`：那是每日加工链 `stockchar` 步的产出，与埋伏判据无关，
-    所以它一缺行这两列就是 `—`（并出一条 `ambush_char_missing_batch` 点名「整场没入库」），
+    所以它一缺行这两列就是 `—`（并出一条 `char_missing_batch` 点名「整场没入库」），
     绝不能读成「这只票振幅 0」。窗口口径与档位门槛从 `app/compute/stock_character` 现读，
     中文档名沿用那份 `CHAR_LEVEL_LABELS`（屏上念的词与库里的键一份出处）。
     """
@@ -3695,19 +3720,9 @@ def ambush(date: str = '', limit: int = 150, types: str = '',
                "  from analytics.ambush_setup where trade_date = %s", (d,)) or {}
     # 股性那一族是不是**整场**都没入库：left join 拿不到行时每一格都是 NULL，
     # 而"这只票判不了"与"这一场还没算"是两句话，界面只能按前者说就不诚实。
-    char_tot = _one("select count(*)::int n, count(*) filter (where char_level is not null)::int scored"
-                    "  from analytics.stock_character_daily where trade_date = %s and spec_version = %s",
-                    (d, ch_spec)) or {}
-    char_present = int(char_tot.get('n') or 0) > 0
+    char_block, char_cavs = _character_read(ch, d)
     caveats = _caveats('coverage') + _cache_caveat(('coverage:ambush_setup',
-                                                    'coverage:stock_character_daily'))
-    if not char_present:
-        caveats.append(_cav('ambush_char_missing_batch',
-                            f'这一场（{d}）的股性与近 {ch.AMP_SESSIONS} 场日均振幅还没入库'
-                            f'（analytics.stock_character_daily 里 spec {ch_spec} 零行）——'
-                            '这两列是每日加工链 `stockchar` 步的产出，缺它不影响埋伏判据本身，'
-                            '界面上那两格显示 —，不是「振幅 0」也不是「股性差」。'
-                            '补法：等当晚收盘链，或在系统配置里单跑 `stockchar` 这一步。'))
+                                                    'coverage:stock_character_daily')) + char_cavs
     if rejected:
         caveats.append(_cav('ambush_type_rejected',
                             '埋伏类型筛选里这些值不是已登记的类型：'
@@ -3736,14 +3751,7 @@ def ambush(date: str = '', limit: int = 150, types: str = '',
                            'weekly_min_bars': amb.WEEKLY_MIN_BARS,
                            'shrink_max': amb.SHRINK_MAX, 'bars_min': amb.BARS_MIN},
             # 股性/振幅那一族的全部参数与门槛从写侧现读（这里不抄第二份），界面按这份说话。
-            'character': {'spec_version': ch_spec, 'table': ch.TABLE,
-                          'amp_sessions': ch.AMP_SESSIONS, 'amp_min_bars': ch.AMP_MIN_BARS,
-                          'char_sessions': ch.CHAR_SESSIONS, 'char_min_bars': ch.CHAR_MIN_BARS,
-                          'strong_min': ch.CHAR_STRONG_MIN, 'middle_min': ch.CHAR_MIDDLE_MIN,
-                          'level_labels': dict(ch.CHAR_LEVEL_LABELS),
-                          'has_rows_on_date': char_present,
-                          'rows_on_date': _int(char_tot.get('n')),
-                          'scored_on_date': _int(char_tot.get('scored'))},
+            'character': char_block,
             'day_total': _int(tot.get('n')), 'day_strict_total': _int(tot.get('strict')),
             'caliber': ('埋伏分只为排序（0~100，不是涨跌概率）：紧（均线极差 '
                         + f'{amb.SPREAD_MAX}% 以下最满）{amb.SCORE_WEIGHTS["tight"]:.0f} 分、'
@@ -3766,11 +3774,9 @@ def ambush(date: str = '', limit: int = 150, types: str = '',
                         '判不了显示 —（逐行原因在 char_missing）。'
                         '这两列是事后描述量：只说这只票过去一年活不活跃，不进埋伏分、也不预测涨幅——'
                         '「缩在箱体内等启动」与「一旦起来能起多高」是两件事，合成一个数就都说不清了。'),
-            # 两张表的列注释一起交（注释本体在 DDL，读侧不重抄）：`missing` 两边同名，
-            # 那张表的这一列在这里叫 `char_missing`，键名跟着改，否则注释会盖掉埋伏那一份。
+            # 两张表的列注释一起交（注释本体在 DDL，读侧不重抄）：合并规则见 `_char_definitions`。
             'definitions': {**_comments('ambush_setup'),
-                            **{('char_missing' if k == 'missing' else k): v
-                               for k, v in _comments('stock_character_daily').items()}},
+                            **_char_definitions(_comments('stock_character_daily'))},
             'coverage': _coverage(('ambush_setup', 'stock_character_daily')),
             'caveats': caveats,
             'rows': rows or []}

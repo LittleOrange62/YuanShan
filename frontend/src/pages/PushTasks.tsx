@@ -24,15 +24,16 @@ export function PushTasks() {
   return (
     <div className="space-y-4">
       <PageHeader title="推送任务" level={1}
-        subtitle="到点往群里（和你手机上）发东西的那几路汇总在这一屏：什么时候跑、发到哪些渠道、这一路还开不开，以及机器上真注册成什么状态、今天库里真发出几条。保存会动 Windows 任务计划程序。" />
+        subtitle="到点往群里（和你手机上）发东西的那几路汇总在这一屏：什么时候跑、发到哪些渠道、这一路还开不开，以及机器上真注册成什么状态、今天库里真发出几条；下面那一块还能按日期回看那天真发出去的正文（默认最近一天）。保存会动 Windows 任务计划程序。" />
 
       <IntradayBroadcastPanel />
 
       <GlassCard>
         <h2 className="text-sm font-semibold">这屏不管什么，要去哪儿改</h2>
         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-          作业脚本在 <code>ingest/jobs/push/</code>，文件名前缀 <code>t01</code>…<code>t09</code>
-          就是上面这张表从上往下的行序；判据与措辞在那些脚本与 <code>app/intraday/templates.json</code>，
+          作业脚本在 <code>ingest/jobs/push/</code>，文件名前缀 <code>t01</code>…<code>t11</code>
+          就是上面那张表从上往下的行序（每行行首那个 ①…⑪ 与它同一个号，报号就能找到行也能找到文件）；
+          判据与措辞在那些脚本与 <code>app/intraday/templates.json</code>，
           本屏只管"什么时候跑、发到哪、开不开"。
         </p>
         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
@@ -42,9 +43,10 @@ export function PushTasks() {
           <Link className="mx-1 text-primary underline" to="/system">系统配置 · 个人微信推送</Link>。
         </p>
         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-          今天几点真发了什么，另有一处按渠道回看：
-          <Link className="mx-1 text-primary underline" to="/jobs">任务调度</Link>
-          与库里 <code>analytics.intraday_broadcast</code>（上面每行末尾那格读的就是它）。
+          几点真发了什么、发的是哪一串原文：上面「推送正文（按日期回看）」那一块读的就是库里
+          <code>analytics.intraday_broadcast</code> 的 <code>body</code>（每行末尾那格留痕与它同一张表，
+          都是当时落库的那一份，不重算）；按渠道回看另有
+          <Link className="mx-1 text-primary underline" to="/jobs">任务调度</Link>。
         </p>
       </GlassCard>
       <Disclaimer compact />

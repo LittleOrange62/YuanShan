@@ -40,6 +40,10 @@ interface Capability {
   security_code?: string | null;
   components?: Component[] | null; component_count?: number | null;
   weight_sum?: number | null; weight_missing?: number | null; weight_sum_ok?: boolean | null;
+  /** 「各行贡献相加＝这一项的分」这一条当场可验的算术：合计、与分值的差、对不对得上、缺几个。
+   *  由后端算好交出（`duanxian/quant.py::scores`），页面不加自己的那一次求和。 */
+  contrib_sum?: number | null; contrib_diff?: number | null;
+  contrib_matches?: boolean | null; contrib_missing?: number | null;
   registry_binding?: { script_key?: string | null; script_name?: string | null; path?: string | null; version?: string | null; raw_weight?: number | null; eff_weight?: number | null }[] | null;
 }
 interface Scores {
@@ -47,6 +51,9 @@ interface Scores {
   source?: string | null; capabilities?: Capability[] | null; capability_keys?: string[] | null;
   n_components?: number | null; weights_registry_table?: string | null;
   names_source?: string | null; component_names_source?: string | null;
+  /** 这一块的设计规则（整块讲「这几列合起来在说什么」，与逐列的 definitions 分工不同）。
+   *  句子只住后端 `duanxian/quant.py::SCORE_EXPLAIN`，页面逐节转述，不自写一份。 */
+  explain?: { heading: string; body: string }[] | null;
   definitions?: Record<string, string> | null;
   coverage?: Record<string, { from?: string | null; to?: string | null; sessions?: number | null }> | null;
   caveats?: { code?: string | null; label?: string | null; text?: string | null }[] | null;
@@ -67,6 +74,8 @@ interface Trend {
   first_session?: string | null; last_session?: string | null;
   /** 序号→词 的阈值那句话，住在后端（`_peak_position`），页面只转述 */
   peak_rule?: string | null;
+  /** 这一块的设计规则（后端 `TREND_EXPLAIN`），逐节转述，页面不自写 */
+  explain?: { heading: string; body: string }[] | null;
   definitions?: Record<string, string> | null; rows?: TrendRow[] | null; source?: string | null;
   coverage?: Record<string, { from?: string | null; to?: string | null; sessions?: number | null; available_windows_for_this_stock?: unknown[] } | unknown[]> | null;
   caveats?: { code?: string | null; text?: string | null }[] | null;
@@ -122,13 +131,18 @@ function Breakdown({ code, nonce }: { code: string; nonce: number }) {
                 return c ? `${c.label ?? code}：${plain(c.text ?? "")}` : null;
               }),
             ].filter(Boolean) as string[]}
-            extra={(
+            extra={<>
+              {(d.explain ?? []).map(s => (
+                <DrawerSection key={s.heading} heading={s.heading}>
+                  <p className="whitespace-pre-line leading-relaxed">{plain(s.body)}</p>
+                </DrawerSection>
+              ))}
               <DrawerSection heading="权重与名字出自哪张表（对账、查库都按这三行找）">
                 <Row label="权重出处" value={dash(d.weights_registry_table)} />
                 <Row label="能力名出处" value={dash(d.names_source)} />
                 <Row label="分量名出处" value={dash(d.component_names_source)} />
               </DrawerSection>
-            )} />
+            </>} />
 
           <ul className="mt-2 space-y-1.5">
             {(d.capabilities ?? []).map(c => (
@@ -186,6 +200,21 @@ function Breakdown({ code, nonce }: { code: string; nonce: number }) {
                     ))}
                   </tbody>
                 </table>
+                {/* 这一行是这一块唯一一条当场可验的算术：各行贡献相加 ＝ 上面那枚分值。
+                    合计、差、对不对得上全由后端算好交出（`contrib_sum`/`contrib_diff`/`contrib_matches`），
+                    页面不再自己加一遍。对不上时那条 caveat 也会留屏，这里只是把"加得上"这件事摆在数旁边。 */}
+                {(c.contrib_sum != null || c.contrib_missing) ? (
+                  <p className={cn("mt-1 text-[10px] leading-relaxed",
+                    c.contrib_matches === false ? "text-warning" : "text-muted-foreground")}>
+                    这一项各行的贡献相加 ＝ <b className="font-mono tabular-nums text-foreground">{num(c.contrib_sum ?? null, 4)}</b>
+                    ，上面那枚分值 ＝ <b className="font-mono tabular-nums text-foreground">{num(c.value ?? null, 4)}</b>
+                    （差 {num(c.contrib_diff ?? null, 4)}）
+                    {c.contrib_matches === false
+                      ? " ⇒ 对不上：`score_detail` 与 `score` 这一场不是同一批数，「凭什么是这个分」在这里回答不了"
+                      : " ⇒ 这一项的分就是这几行加出来的，没有别处来的数"}
+                    {c.contrib_missing ? `｜有 ${c.contrib_missing} 个分量的贡献是空的（空不按 0 参与相加）` : ""}
+                  </p>
+                ) : null}
                 {(c.components ?? []).length === 0 && (
                   <p className="mt-1 text-[10px] text-muted-foreground">
                     后端没交这一项的分量明细 —— 只给了合成分，所以这里不猜它由什么组成。
@@ -234,6 +263,11 @@ function Windows({ code, nonce }: { code: string; nonce: number }) {
               + '窗口天数不是日历天数：长假里 10 个日历日可能只剩 5 个交易日。'
               + '斜率说方向与快慢，「高点在第几天」说这个方向是哪一种形状 —— 两个一起才读得对。']}
             extra={<>
+              {(d.explain ?? []).map(s => (
+                <DrawerSection key={s.heading} heading={s.heading}>
+                  <p className="whitespace-pre-line leading-relaxed">{plain(s.body)}</p>
+                </DrawerSection>
+              ))}
               <DrawerSection heading="母体与逐列读法（【】逐条，后端算好的口径）">
                 <p className="whitespace-pre-line leading-relaxed">
                   {"【母体】这不是横排多只票的榜单：它是「这一只票」按交易日滚动的若干个窗口。" +

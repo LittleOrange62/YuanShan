@@ -50,6 +50,8 @@ from . import pg
 # 均线与 zigzag 的唯一实现在 `duanxian/trend.py`（2026-10-31 搬过去，与「国家队代理指标」共用一份）。
 # 这里继续以本模块的名字暴露它们：调用点与 `tests/test_risk_signal.py` 的打法都不变。
 from .trend import moving_average, zigzag_turns  # noqa: F401
+# 涨跌那把尺（缺数交 None、绝不补 0）与「近 6 个月名单」「倍量表走势」共用一份实现，见 day_returns。
+from .day_returns import _pct
 
 # ------------------------------------------------------------ 唯一的阈值出处（界面读 thresholds）
 
@@ -275,6 +277,18 @@ def _num(v: Any, nd: int | None = None) -> Any:
 def _rows(sql: str, params=()) -> list[dict]:
     df = pg.fetch_df(sql, params)
     return [] if df is None else [
+        {k: _num(v) for k, v in row.items()} for row in df.to_dict('records')]
+
+
+def _rows_opt(sql: str, params=()) -> list[dict] | None:
+    """同 `_rows`，但把「这条 SQL 在库里执行失败」原样交出去（None），不折成空表。
+
+    空表会被下游念成一句很合理的假读数 ——「这一族指数没有日线」。`pg.fetch_df` 把异常吞成
+    warning ＋ None（见《05-踩坑与经验清单》第 23 条：2026-11-09 那次「'NoneType' object is
+    not iterable」就是这么洗出来的），所以凡是"空"和"坏"在屏幕上说法不同的读取，都走这一份。
+    """
+    df = pg.fetch_df(sql, params)
+    return None if df is None else [
         {k: _num(v) for k, v in row.items()} for row in df.to_dict('records')]
 
 
@@ -534,6 +548,7 @@ def aggregate_periods(daily: list[dict], group: str) -> list[dict]:
             out.append({
                 'period': r['trade_date'],
                 'label': str(r['trade_date'])[5:],
+                'anchor_date': str(r['trade_date'])[:10],
                 'bars_in_period': 1,
                 'up_count': up, 'down_count': down,
                 'limit_up_count': r.get('limit_up_count'),
@@ -573,6 +588,9 @@ def aggregate_periods(daily: list[dict], group: str) -> list[dict]:
         lu_avg = round(sum(lus) / len(lus), 1) if lus else None
         out.append({
             'period': p, 'label': buckets[p]['label'], 'bars_in_period': len(members),
+            # 「后 5 场」那种跨期读数需要一个真日子当锚：周/月档取**这一期内库里最后一场**
+            # （不是自然周的周日、也不是月末 —— 月末可能没开盘，那样往后数就数到空洞里去了）
+            'anchor_date': max(str(m['trade_date'])[:10] for m in members),
             'up_count': up_avg, 'down_count': down_avg,
             # 周/月那一档的涨停家数是**期内日均**（与上面家数同一口径），不是期内合计 —— 
             # 屏上要说清，不然"一周 500 家涨停"会被读成一週累计
@@ -656,6 +674,7 @@ def find_extremes(periods: list[dict]) -> dict:
               and float(p['up_ratio']) >= th['width_min_pct']):
             div_row = {
                 'period': p['period'], 'label': p['label'], 'kind': 'divergence',
+                'anchor_date': p.get('anchor_date'),
                 'width_pct': p['up_ratio'], 'amount_share_up': p['amount_share_up'],
                 'share_gap': p['share_gap'], 'count_ratio': p['count_ratio'],
                 'arms_ratio': p.get('arms_ratio'), 'limit_up_count': p.get('limit_up_count'),
@@ -669,6 +688,7 @@ def find_extremes(periods: list[dict]) -> dict:
                     and float(prev['up_ratio']) >= th['prev_width_min_pct']):
                 col_row = {
                     'period': p['period'], 'label': p['label'], 'kind': 'collapse',
+                    'anchor_date': p.get('anchor_date'),
                     'width_pct': p['up_ratio'], 'prev_period': prev['period'],
                     'prev_label': prev['label'], 'prev_width_pct': prev['up_ratio'],
                     'drop_pp': drop, 'amount_share_up': p.get('amount_share_up'),
@@ -700,6 +720,175 @@ def find_extremes(periods: list[dict]) -> dict:
         'skipped_no_gap': skipped_no_arms,
         'periods_in_window': len(periods),
     }
+
+
+# ------------------------------------------- 清单右边那五列：极端点位之后五个宽基怎么走（现算）
+#: 用户 2026-11-10 点名：极端点位清单后面加「上证／深证／创业／科创／北证 后5日涨跌」五列，
+#: 一个指数的 5 个数摆进**同一列**、涨红跌绿，整张表按时间从近到远排。
+#: 口径当场选定＝**逐日累计**：后第 k 场收盘 ÷ 极端点当日收盘 − 1（与 `system_entry_cohort._forward`
+#: 同一把尺——累计是主值，那一场自己的单日涨跌只进悬停）。
+#:
+#: 三件数据现实（11-10 现查本机库，写在这里免得下一个人再量一遍）：
+#: ① `market_data.index_daily.pct_change`／`pre_close` **大面积为空**（000001.SH 1,276 行里只有
+#:    635 行有 pre_close，899050.BJ 1,097 行里只有 15 行）⇒ 涨跌一律用表内收盘现算，
+#:    同一条纪律在 `app/compute/abnormal_move.py:22-25` 也写着；
+#: ② 899050.BJ 的日线从 **2022-04-29** 才开始 ⇒ 早于它的锚定日，北证那一整列 null（界面 —），不是 0；
+#: ③ 「科创」这里用 **000688.SH 科创50**（首页「大盘指数」「午盘回顾」那套宽基就是它），
+#:    不是异动提醒那把尺用的 000680.SH 科创综指 —— 两件事，谁也不许顶替谁。
+#: 场次轴取 000001.SH 在库里的日期（五只里它覆盖最全），这样「后第 3 场」在五列里是同一个日子。
+FWD_DAYS = 5
+FWD_AXIS_CODE = '000001.SH'
+#: 查询右界要**跨过窗口右界**，否则清单里最靠右那几行的「后 5 场」会被当成缺数。
+FWD_TAIL_DAYS = 40
+FWD_INDEXES = (
+    {'code': '000001.SH', 'name': '上证', 'full': '上证指数'},
+    {'code': '399001.SZ', 'name': '深证', 'full': '深证成指'},
+    {'code': '399006.SZ', 'name': '创业', 'full': '创业板指'},
+    {'code': '000688.SH', 'name': '科创', 'full': '科创50'},
+    {'code': '899050.BJ', 'name': '北证', 'full': '北证50'},
+)
+#: 列头悬停那一句（五列共用一份，页面不自己再写一遍口径）。⚠️ 这句会上屏：不要写星号，也不要写反引号。
+FWD_NOTE = ('这一格是后第 1~5 场的逐日累计：第 k 场收盘 ÷ 极端点当日收盘 − 1，收盘比收盘'
+            '（market_data.index_daily 的 pct_change 那列大面积为空，不读它）。'
+            '从左往右读是后第 1 场到第 5 场，涨红跌绿；— 有两种，悬停分得清：'
+            '往后还没走完 ／ 库里那一场没有这根指数（北证50 的日线要到 2022-04-29 才有）。')
+
+
+def fwd_columns() -> list[dict]:
+    """五列的列头与说明（中文只住这一处：界面按这份渲染，不自己抄「上证后5日涨跌」）。"""
+    return [{'code': x['code'], 'name': x['name'], 'full': x['full'],
+             'label': f"{x['name']}后{FWD_DAYS}日涨跌", 'note': FWD_NOTE} for x in FWD_INDEXES]
+
+
+def _index_close_rows(d_from: dt.date, d_to: dt.date) -> list[dict] | None:
+    """五个宽基＋场次轴在 [d_from, d_to] 的日线收盘。None＝这条只读 SQL 在库里执行失败。
+
+    ⚠️ 日期参数一律写成 `%(lo)s::date` 这种"后置强转"形状：psycopg 3 是服务端绑定，
+    客户端拼串时代那种把类型名放在参数**前面**的写法在这里就是语法错误
+    （见《05-踩坑与经验清单》第 23 条；`tests/test_startup_volume.py` 那条全目录扫描
+    连注释一起扫，就是为了这句话不许以坏形状出现在这个文件里）。
+    """
+    codes = [FWD_AXIS_CODE] + [x['code'] for x in FWD_INDEXES if x['code'] != FWD_AXIS_CODE]
+    return _rows_opt(
+        'select security_code, trade_date::text as trade_date, close '
+        'from market_data.index_daily '
+        'where security_code = any(%(codes)s::text[]) '
+        'and trade_date between %(lo)s::date and %(hi)s::date '
+        'order by trade_date, security_code',
+        {'codes': codes, 'lo': d_from.isoformat(), 'hi': d_to.isoformat()})
+
+
+def build_index_maps(rows: list[dict]) -> tuple[list[str], dict[str, dict[str, float]]]:
+    """→ (场次轴升序, {代码: {日期: 收盘}})。
+
+    轴只认 `FWD_AXIS_CODE` 的日期：它是五列共用的「第几场」。
+    收盘缺或为 0 的行不进表 —— 0 一旦当成价格，`_pct` 会算出 −100%，比留空严重得多。
+    """
+    axis: list[str] = []
+    closes: dict[str, dict[str, float]] = {}
+    for r in rows:
+        code, day = str(r.get('security_code')), str(r.get('trade_date'))[:10]
+        if code == FWD_AXIS_CODE and (not axis or axis[-1] != day):
+            axis.append(day)
+        close = r.get('close')
+        if close is None or close == 0:
+            continue
+        closes.setdefault(code, {})[day] = float(close)
+    return axis, closes
+
+
+def forward_from(anchor: str | None, axis: list[str],
+                 closes: dict[str, dict[str, float]], horizon: int = FWD_DAYS) -> dict:
+    """一条极端点位 → 五列 × 后 horizon 场（纯函数：不碰库，喂假日期表就能测）。
+
+    三种「没有数」分开交，否则屏幕会把「判不了」念成「平盘」：
+      · pending —— 轴上还没有这一场（库里最新一场就到这里，往后还没走完）；
+      · missing —— 轴上有这一场，但这根指数那天没有行（未上市／停牌／没入库）；
+      · has_base=False —— 锚定那一天这根指数自己就没有收盘价 ⇒ 这一整列 null。
+    """
+    pos = axis.index(anchor) if (anchor and anchor in axis) else None
+    days = [(axis[pos + k] if pos is not None and pos + k < len(axis) else None)
+            for k in range(1, horizon + 1)]
+    cols = []
+    for x in FWD_INDEXES:
+        book = closes.get(x['code']) or {}
+        base = book.get(anchor) if anchor else None
+        cum, day_pct, pending, missing = [], [], 0, 0
+        prev = base
+        for target in days:
+            if target is None:
+                cum.append(None)
+                day_pct.append(None)
+                pending += 1
+                prev = None
+                continue
+            cur = book.get(target)
+            cum.append(_pct(cur, base))
+            day_pct.append(_pct(cur, prev))
+            if cur is None:
+                missing += 1
+            prev = cur
+        cols.append({'code': x['code'], 'cum': cum, 'day': day_pct,
+                     'pending': pending, 'missing': missing, 'has_base': base is not None})
+    return {'anchor': anchor, 'on_axis': pos is not None, 'days': days, 'cols': cols}
+
+
+def _fwd_definition(axis: list[str] | None) -> str:
+    """抽屉「这一列是什么」那一条：口径只有 `FWD_NOTE` 一处，这里只补这一窗口的轴。"""
+    tail = ('' if not axis else
+            f' 场次轴取 {FWD_AXIS_CODE}（上证指数）在库里的日期：这一段共 {len(axis)} 场'
+            f'（{axis[0]} ~ {axis[-1]}）—— 五列的「后第 k 场」都按同一条轴数，'
+            '所以横着读过去是同一个日子。')
+    return (f'清单右边那五列（{"／".join(x["name"] for x in FWD_INDEXES)} 各一列，'
+            f'一格里摆后 {FWD_DAYS} 场，涨红跌绿）：{FWD_NOTE}{tail}')
+
+
+def attach_extreme_forward(extremes: dict, d_from: dt.date, d_to: dt.date,
+                           group: str = 'day') -> dict:
+    """给清单里每一条命中挂上那五列，并交出这一块自己的状态（取数只在这一句里发生）。
+
+    没有命中 ⇒ 不发查询，也不许借机说成「指数表读不到」；
+    查询坏了 ⇒ `available=false` ＋原因，五列一律 — ——「取数失败按取数失败说话」，
+    这一族规矩的来由是 2026-11-09 那句 'NoneType' object is not iterable。
+    """
+    rows = [r for key in ('divergence', 'collapse')
+            for r in ((extremes.get(key) or {}).get('rows') or [])]
+    hi = d_to + dt.timedelta(days=FWD_TAIL_DAYS)
+    fwd: dict = {'horizon': FWD_DAYS, 'columns': fwd_columns(), 'hit_rows': len(rows),
+                 'available': False, 'reason': None, 'anchor_note': None,
+                 'definition': _fwd_definition(None),
+                 'axis': {'code': FWD_AXIS_CODE, 'from': None, 'last': None, 'sessions': 0}}
+    if group != 'day':
+        fwd['anchor_note'] = ('现在是按周／按月：这一行的锚定日＝该期内库里最后一个交易日，'
+                              '后 5 场从那一场往后数（不是从自然周的周日或日历月末数 —— '
+                              '那些日子可能根本没开盘，往后数就数进空洞里了）。')
+    if not rows:
+        fwd['reason'] = '这一窗口两类判据都没有命中，没有要往后数的日子（不是指数读不到）。'
+        extremes['forward'] = fwd
+        return fwd
+
+    got = _index_close_rows(d_from, hi)
+    if got is None:
+        fwd['reason'] = ('这五列的只读 SQL 在库里执行失败 —— 不是「指数没有日线」，'
+                         '也不是「后 5 场都是平盘」。服务端日志同一秒有一行「PG 查询失败」，'
+                         '带驱动报回的位置。')
+        extremes['forward'] = fwd
+        return fwd
+
+    axis, closes = build_index_maps(got)
+    if not axis:
+        fwd['reason'] = (f'{FWD_AXIS_CODE} 在 {d_from} ~ {hi} 这段里一根日线都没有 —— '
+                         '场次轴立不起来，五列一律交 —（库里没这批数，不是市场没涨跌）。')
+        extremes['forward'] = fwd
+        return fwd
+
+    for r in rows:
+        r['fwd'] = forward_from(r.get('anchor_date'), axis, closes)
+    fwd.update({'available': True, 'definition': _fwd_definition(axis),
+                'axis': {'code': FWD_AXIS_CODE, 'from': axis[0], 'last': axis[-1],
+                         'sessions': len(axis)}})
+    extremes['forward'] = fwd
+    return fwd
 
 
 # ------------------------------------------------------------ 参数白名单（非法值出声退回）
@@ -815,6 +1004,8 @@ def panel(months: Any = 3, group: Any = 'day', date: Any = '') -> dict:
     # 接着挂「当日家数占比 vs 成交额占比」那一把尺，最后按它筛极端点位（判据只住本文件）。
     series = attach_ratio_view(attach_trend(attach_divergence(aggregate_periods(rows, g))))
     extremes = find_extremes(series)
+    # 清单右边那五列（用户 11-10 点名）：只有真的命中了才去读指数日线，读挂了单独出声
+    fwd = attach_extreme_forward(extremes, lo, base, g)
     trend = find_turns(series)
 
     # ---------------- 阿姆斯那一族列的三态（列没建 / 全库没回填 / 本窗口没铺到）
@@ -909,6 +1100,9 @@ def panel(months: Any = 3, group: Any = 'day', date: Any = '') -> dict:
                         'text': f'窗口里有 {extremes["skipped_no_gap"]} 期算不出成交额占比'
                                 f'（成交额分量没落库或下跌侧成交额为 0）—— 这些期没被判断，'
                                 f'不等于「没背离」。补 `{BACKFILL_CMD}`。'})
+    if fwd['hit_rows'] and not fwd['available']:
+        # 五列没读到就是没读到：这一句要让屏幕说「取数失败」，而不是让那一格空着被人读成"没涨没跌"
+        caveats.append({'code': 'fwd_unavailable', 'text': fwd['reason']})
     caveats.append({'code': 'not_signal',
                     'text': DEFINITIONS['scope']})
 
@@ -925,7 +1119,9 @@ def panel(months: Any = 3, group: Any = 'day', date: Any = '') -> dict:
                        'reverse': DIV_REVERSE, 'extremes': dict(EXTREME_THRESHOLDS)},
         'levels': dict(LEVEL_LABELS),
         'rule': RULE,
-        'definitions': dict(DEFINITIONS),
+        # 字段字典里那一条「后 5 日涨跌」是把 FWD_NOTE 与这一窗口的轴拼出来的：
+        # 口径只住 FWD_NOTE 一处，抽屉与列头悬停读的是同一句话
+        'definitions': {**DEFINITIONS, 'fwd_indexes': fwd['definition']},
         'arms': arms,
         'series': series,
         'latest': latest,

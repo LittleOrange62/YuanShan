@@ -10,6 +10,9 @@ H3 · 概念热度（10:05 / 10:55 / 14:18 三针）——外部 `intraday_zt/he
     python -m ingest.jobs.push.t04_heat_report --dry-run        # 取数+算+打印，不落库不发送
     python -m ingest.jobs.push.t04_heat_report                  # 落库（analytics.intraday_concept_count）
     python -m ingest.jobs.push.t04_heat_report --send           # 再加发送
+
+版式（用户 11-05：「这个标题"概念热度"也去掉」）：推送不带标题行 —— 正文第一行
+`【涨跌停概念热度 {t}】` 自己就是标题，机器人那一侧再拼标题就是群里重复一遍。
 """
 from __future__ import annotations
 
@@ -95,9 +98,13 @@ def one_round(*, dry_run: bool, send: bool, channel: str | None,
 
 
 def _send(now, text, channel):
-    from duanxian import notify
+    from app.intraday.cards import send_broadcast_with_card
     keys = tasks.send_channels(channel)       # 不给就读系统配置里的盘中播报渠道
-    res = notify.send_to(keys, '概念热度', text)
+    # 用户 11-05：「这个标题"概念热度"也去掉」——正文第一行已是【涨跌停概念热度 {t}】，
+    # 机器人那一侧再拼一个标题行就是重复（与 t03 同一处病根：`标题\n正文` 拼接）。
+    # 11-10 卡片化：卡头用固定类别名（用户 11-05 要的是"正文里别再拼一行标题"；
+    # 卡头是 UI 栏位不算正文行，不与第一行【涨跌停概念热度 {t}】重复）。
+    res = send_broadcast_with_card(keys, '概念热度', text)
     store.write_broadcast(now, task='heat', what='sent', body=text,
                           ok=bool(res.get('ok')), delivered=bool(res.get('ok')),
                           channel_key=','.join(keys),

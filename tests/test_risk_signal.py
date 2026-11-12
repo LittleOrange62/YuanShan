@@ -50,10 +50,57 @@ def _rows(n=25, arms=True, up_ratio_holes=()):
     return out
 
 
+# ------------------------------------------------------------------ 指数日线那份假数
+#: 清单右边那五列（用户 2026-11-10 点名）只读 `market_data.index_daily` 的收盘，
+#: 所以假库也得会答这一条 SQL。收盘价按"序号 × 每只自己的步长"铺，
+#: 五只的步长各不相同（含一只负的）⇒ 列错位、拿错基期这类 bug 一定算出别的数。
+
+IDX_COLS = ['security_code', 'trade_date', 'close']
+IDX_BASE = {'000001.SH': 3000.0, '399001.SZ': 9000.0, '399006.SZ': 2000.0,
+            '000688.SH': 1000.0, '899050.BJ': 500.0}
+IDX_STEP = {'000001.SH': 10.0, '399001.SZ': 5.0, '399006.SZ': -4.0,
+            '000688.SH': 2.0, '899050.BJ': 1.0}
+
+
+def _idx_axis(dates, tail=6):
+    """假场次轴：breadth 里那些日子（升序去重）＋往后 `tail` 个日历日。
+
+    `tail` 故意可调小：小于 `FWD_DAYS` 时末端那几格必须是 pending（往后还没走完），
+    既不许读成缺数，更不许读成平盘。
+    """
+    days = sorted({str(d)[:10] for d in dates})
+    if not days:
+        return []
+    last = dt.date.fromisoformat(days[-1])
+    return days + [(last + dt.timedelta(days=i)).isoformat() for i in range(1, tail + 1)]
+
+
+def _idx_rows(dates, *, tail=6, bj_from=None, skip=(), flat=()):
+    """铺 `market_data.index_daily` 的假行。三个开关各挡一种"屏幕会说谎"：
+      · tail —— 不够 FWD_DAYS ⇒ 末端是 pending；
+      · bj_from —— 那之前的日子没有北证行（真库 899050.BJ 从 2022-04-29 起才有日线）；
+      · skip —— 抽掉某一族指数某一场（停牌/没入库）⇒ 只有那一格是 —，
+                **同一天别的指数照旧有数**（不许整行一起消失）；
+      · flat —— 这几只指数的收盘恒定 ⇒ 累计是真的 0.0（平盘），不是缺数。
+    """
+    axis = _idx_axis(dates, tail=tail)
+    out = []
+    for i, d in enumerate(axis):
+        for code in IDX_BASE:
+            if code == '899050.BJ' and bj_from and d < bj_from:
+                continue
+            if (code, d) in skip:
+                continue
+            close = IDX_BASE[code] if code in flat else IDX_BASE[code] + IDX_STEP[code] * i
+            out.append({'security_code': code, 'trade_date': d, 'close': close})
+    return out
+
+
 class FakePg:
     """按 SQL 里的指纹串路由的假 fetch_df；列在/不在、回填/没回填都由 flags 控制。"""
 
-    def __init__(self, *, cols=True, global_arms=0, rows=None, coverage=None, fetch_fail=False):
+    def __init__(self, *, cols=True, global_arms=0, rows=None, coverage=None, fetch_fail=False,
+                 idx_rows=None, idx_fail=False):
         self.cols = cols
         self.global_arms = global_arms          # count(arms_ratio) 的全库非空行数
         self.rows = rows if rows is not None else _rows()
@@ -61,6 +108,8 @@ class FakePg:
             'n': max(1, len(self.rows)), 'lo': '2021-08-02',
             'hi': self.rows[-1]['trade_date'] if self.rows else '2026-10-20'}
         self.fetch_fail = fetch_fail
+        self.idx_rows = idx_rows                # None＝按 breadth 的日期现铺一批
+        self.idx_fail = idx_fail                # 只让指数那一条 SQL 坏（breadth 照读得到）
 
     def __call__(self, sql, params=()):
         if self.fetch_fail:
@@ -68,6 +117,12 @@ class FakePg:
         if 'information_schema.columns' in sql:
             return _df([{'column_name': c} for c in (COLS_ARMS if self.cols else COLS_BASE)],
                        ['column_name'])
+        if 'market_data.index_daily' in sql:
+            if self.idx_fail:
+                return None
+            dates = self.idx_rows if self.idx_rows is not None else \
+                _idx_rows([r['trade_date'] for r in self.rows])
+            return _df(dates, IDX_COLS)
         if 'count(arms_ratio)' in sql:
             g = self.global_arms
             return _df([{'n_arms': g, 'n_up_amt': g, 'n_down_amt': g,
@@ -511,6 +566,165 @@ class TestExtremes:
         assert all('share_gap' in r and 'limit_up_count' in r for r in p['series'])
 
 
+class TestExtremeForward:
+    """清单右边那五列：五个宽基指数的「后 5 场」（用户 2026-11-10 点名）。
+
+    判据是：数只能来自 `market_data.index_daily` 的**收盘比收盘**（那列 `pct_change` 大面积为空，
+    读它就是把缺数念成 0）；主值是**逐日累计**＝第 k 场收盘 ÷ 锚定日收盘 − 1，
+    那一场自己的单日涨跌只进悬停；三种「没有数」各归各的 ——
+    往后还没走完（pending）≠ 那一场没有这根指数（missing）≠ 锚定那天就没有它（has_base=False）。
+    """
+
+    def test_列头中文与说明只住后端一份(self):
+        cols = R.fwd_columns()
+        assert [c['label'] for c in cols] == \
+            ['上证后5日涨跌', '深证后5日涨跌', '创业后5日涨跌', '科创后5日涨跌', '北证后5日涨跌']
+        assert [c['code'] for c in cols] == \
+            ['000001.SH', '399001.SZ', '399006.SZ', '000688.SH', '899050.BJ']
+        # 「科创」是 000688 科创50（首页那套宽基），不是异动那把尺的 000680 科创综指 —— 两件事不许互顶
+        assert cols[3]['full'] == '科创50'
+        for c in cols:
+            assert c['note'] and '**' not in c['note'] and '"' not in c['note']
+            assert 'pct_change' in c['note'], '列头说明必须点名那把不用尺，不然下一个人又会去读它'
+
+    def test_累计是主值_单日是另一把尺_两个数不许混(self):
+        axis = ['d1', 'd2', 'd3', 'd4', 'd5', 'd6']
+        closes = {'000001.SH': {d: 100.0 + i for i, d in enumerate(axis)}}
+        got = R.forward_from('d1', axis, closes, horizon=5)
+        sh = got['cols'][0]
+        assert sh['cum'] == [1.0, 2.0, 3.0, 4.0, 5.0], '累计＝第 k 场 ÷ d1 − 1'
+        assert sh['day'] == [1.0, 0.99, 0.98, 0.97, 0.96], '单日是相对前一场'
+        assert sh['cum'] != sh['day'], '混成一份就等于把「后5日」念成「第5天」'
+        assert sh['pending'] == 0 and sh['missing'] == 0 and sh['has_base'] is True
+
+    def test_末端不够算pending_那一场没这根指数算missing(self):
+        axis = ['a1', 'a2', 'a3', 'a4']            # 轴到 a4 为止 ⇒ 后第 5 场还没走完
+        closes = {'000001.SH': {'a1': 100.0, 'a2': 200.0, 'a3': 300.0, 'a4': 400.0},
+                  '399001.SZ': {'a1': 200.0, 'a2': 202.0}}   # 深证从 a3 起没有行
+        got = R.forward_from('a1', axis, closes, horizon=5)
+        assert got['days'] == ['a2', 'a3', 'a4', None, None]
+        sh, sz = got['cols'][0], got['cols'][1]
+        assert sh['cum'] == [100.0, 200.0, 300.0, None, None]
+        assert (sh['pending'], sh['missing']) == (2, 0)
+        assert sz['cum'] == [1.0, None, None, None, None]
+        assert (sz['pending'], sz['missing']) == (2, 2), '轴上有这场但这只没行＝缺数，不是"还没到"'
+
+    def test_平盘是真的0_整列没有它才是None(self):
+        axis = ['a1', 'a2', 'a3']
+        closes = {'000001.SH': {'a1': 100.0, 'a2': 100.0, 'a3': 100.0}}   # 只有上证有行
+        got = R.forward_from('a1', axis, closes, horizon=3)
+        assert got['cols'][0]['cum'] == [0.0, 0.0, None], '恒定收盘＝真的平盘 0.0'
+        for col in got['cols'][1:]:
+            assert col['cum'] == [None, None, None] and col['has_base'] is False, \
+                '这只指数在库里就没有行 ⇒ 整列 —，一个 0 都不许冒出来'
+
+    def test_北证早于2022的锚定日整列None(self):
+        axis = ['2021-08-02', '2021-08-03']
+        closes = {'000001.SH': {'2021-08-02': 3000.0, '2021-08-03': 3030.0},
+                  '899050.BJ': {'2022-04-29': 1000.0}}
+        got = R.forward_from('2021-08-02', axis, closes, horizon=2)
+        bj = got['cols'][-1]
+        assert bj['has_base'] is False and bj['cum'] == [None, None]
+
+    def test_锚定日不在指数场次轴上也要说清(self):
+        got = R.forward_from('1999-12-31', ['a1', 'a2'], {'000001.SH': {'a1': 1.0}}, horizon=2)
+        assert got['on_axis'] is False
+        assert all(c['cum'] == [None, None] for c in got['cols'])
+
+    def test_面板把五列挂上每一条命中(self, fake):
+        rows = [_daily(),
+                _daily(trade_date='2026-09-22', up_ratio=42.62, up_count=2300, down_count=3088)]
+        fake(rows=rows)
+        p = R.panel(months=3, group='day')
+        f = p['extremes']['forward']
+        assert f['available'] is True and f['horizon'] == R.FWD_DAYS
+        assert f['anchor_note'] is None, '按日档不需要那句锚定说明'
+        assert [c['code'] for c in f['columns']] == [x['code'] for x in R.FWD_INDEXES]
+        hits = p['extremes']['divergence']['rows'] + p['extremes']['collapse']['rows']
+        assert p['extremes']['divergence']['rows'] and p['extremes']['collapse']['rows']
+        assert f['hit_rows'] == len(hits)
+        axis = _idx_axis([r['trade_date'] for r in rows])
+        for r in hits:
+            fw = r['fwd']
+            assert fw['anchor'] == r['anchor_date'] and fw['on_axis'] is True
+            assert len(fw['cols']) == 5
+            for col in fw['cols']:
+                assert len(col['cum']) == R.FWD_DAYS and len(col['day']) == R.FWD_DAYS
+            # 独立复算一遍（不叫回同一个函数）：假库里上证的收盘是 3000 + 10×序号，
+            # 基期必须是**锚定那一场**的序号 —— 拿错基期这一条当场就红
+            pos = axis.index(r['anchor_date'])
+            for k in range(1, R.FWD_DAYS + 1):
+                want = round((3000.0 + 10.0 * (pos + k)) / (3000.0 + 10.0 * pos) * 100 - 100, 2)
+                assert fw['cols'][0]['cum'][k - 1] == want, f'{r["period"]} 后第{k}场对不上手算'
+            assert fw['cols'][2]['cum'][0] < 0, '创业板那只在假数里是负的 ⇒ 屏上该是绿'
+
+    def test_轴只铺到后两场时剩下的格子是pending(self, fake):
+        rows = [_daily(),
+                _daily(trade_date='2026-09-22', up_ratio=42.62, up_count=2300, down_count=3088)]
+        dates = [r['trade_date'] for r in rows]
+        fake(rows=rows, idx_rows=_idx_rows(dates, tail=2))
+        p = R.panel(months=3, group='day')
+        f = p['extremes']['forward']
+        axis = _idx_axis(dates, tail=2)
+        assert f['available'] is True and f['axis']['last'] == axis[-1]
+        for r in p['extremes']['divergence']['rows'] + p['extremes']['collapse']['rows']:
+            pos = axis.index(r['anchor_date'])
+            want_pending = max(0, R.FWD_DAYS - (len(axis) - 1 - pos))
+            for col in r['fwd']['cols']:
+                assert col['pending'] == want_pending, \
+                    '轴上还没有的那几场是「往后还没走完」，不是缺数、更不是平盘'
+                assert col['cum'][R.FWD_DAYS - want_pending:] == [None] * want_pending
+
+    def test_没有命中就不发指数查询(self, fake):
+        fake()                       # 默认那批行两类判据都不命中
+        p = R.panel(months=3, group='day')
+        f = p['extremes']['forward']
+        assert f['hit_rows'] == 0 and f['available'] is False
+        assert '没有命中' in f['reason'] and '不是指数读不到' in f['reason']
+
+    def test_指数查询坏了说执行失败_不说没有日线(self, fake):
+        rows = [_daily(),
+                _daily(trade_date='2026-09-22', up_ratio=42.62, up_count=2300, down_count=3088)]
+        fake(rows=rows, idx_fail=True)
+        p = R.panel(months=3, group='day')
+        f = p['extremes']['forward']
+        assert f['available'] is False and f['hit_rows'] > 0
+        assert '执行失败' in f['reason'], '取数失败要按取数失败说话（2026-11-09 那起的病）'
+        assert all('fwd' not in r for r in
+                   p['extremes']['divergence']['rows'] + p['extremes']['collapse']['rows']), \
+            '读不到就不挂数：宁可五列全 —，也不许拿上一行或 0 顶上'
+        assert any(c['code'] == 'fwd_unavailable' for c in p['caveats'])
+
+    def test_周月档说清锚定的是期内最后一场(self):
+        """这一条不碰库：直接拿一份现成的 extremes 字典过 `attach_extreme_forward` 的说明分支。"""
+        th = R.EXTREME_THRESHOLDS
+        e = {'divergence': {'rows': [{'period': '2026-W39', 'label': '2026-W39',
+                                      'kind': 'divergence', 'anchor_date': '2026-09-25',
+                                      'share_gap': th['share_gap_pp'], 'width_pct': 85.0}]},
+             'collapse': {'rows': []}}
+        fwd = R.attach_extreme_forward(e, dt.date(2026, 6, 1), dt.date(2026, 9, 25), 'week')
+        assert '最后一个交易日' in fwd['anchor_note'] and '**' not in fwd['anchor_note']
+        assert fwd['hit_rows'] == 1
+
+    def test_周档的锚定日是该期内库里最后一场(self, fake):
+        rows = _rows(25)
+        fake(rows=rows)
+        p = R.panel(months=3, group='week')
+        daily = {str(r['trade_date'])[:10] for r in rows}
+        assert len(p['series']) >= 2, '这批假行至少要铺出两期，不然周档这条等于没测'
+        for s in p['series']:
+            assert s['anchor_date'] in daily, '锚定日必须是库里真有的一行，不能是日历拼出来的日子'
+            assert _in_week(s['anchor_date'], s['period']), '锚定日要落在它所属的那一期里'
+            assert s['anchor_date'] == max(d for d in daily if _in_week(d, s['period'])), \
+                '周/月档往后数要从期内最后一场数起（数到周末那种没开盘的日子就数进空洞了）'
+
+
+
+def _in_week(day: str, period: str) -> bool:
+    iy, iw, _ = dt.date.fromisoformat(day).isocalendar()
+    return f'{iy}-W{iw:02d}' == period
+
+
 class TestTrendLayer:
     """趋势与转折点（用户 2026-10-26：「这个图看不出趋势和转折点」）。
 
@@ -646,6 +860,60 @@ def test_真库_2026年9月21日的背离与次日崩塌都在清单里():
             cell = str(row.get(k) or '')
             assert cell, f'{row["period"]} 的 {k} 交不出来 ⇒ 屏上那一格是 —'
             assert 'nan' not in cell.lower() and '**' not in cell
+
+
+def test_真库_五列的后5场填得满且能在库里复算出来():
+    """不打桩的一条：五列的数必须真能拿 `market_data.index_daily` 的收盘复算出来。
+
+    桩只证明算法按我想的跑；这一条证明**库里有这五只的收盘、锚定日在场次轴上、
+    而且累计真的是相对锚定那一天的收盘**（拿错基期是最容易犯也最难看出的错）。
+    """
+    if not R.pg.enabled():
+        pytest.skip('本机 PG 没开')
+    p = R.panel(months=12, group='day')
+    if not p.get('available'):
+        pytest.skip(f'库里读不到 breadth：{p.get("reason")}')
+    f = p['extremes']['forward']
+    hits = p['extremes']['divergence']['rows'] + p['extremes']['collapse']['rows']
+    assert hits, '近 12 个月两类判据一次都没命中 ⇒ 该改的是判据，不是显示'
+    assert f['available'], f'指数日线读不到：{f["reason"]}'
+    assert [c['label'] for c in f['columns']] == \
+        ['上证后5日涨跌', '深证后5日涨跌', '创业后5日涨跌', '科创后5日涨跌', '北证后5日涨跌']
+    for r in hits:
+        fw = r['fwd']
+        assert fw['anchor'] == r['anchor_date']
+        assert fw['on_axis'] is True, f'{r["period"]} 的锚定日不在上证的日线场次轴上 ⇒ 五列全 —'
+        for col in fw['cols']:
+            assert len(col['cum']) == R.FWD_DAYS and len(col['day']) == R.FWD_DAYS
+            if col['has_base'] is False:
+                assert all(v is None for v in col['cum']), \
+                    f'{col["code"]} 在锚定那天没有收盘价 ⇒ 整列必须是 —（北证50 要 2022-04-29 起）'
+            else:
+                assert col['pending'] + col['missing'] == col['cum'].count(None), \
+                    f'{col["code"]} 空格的个数和两种「没有数」的账对不上'
+    # 上证从不停牌：轴上给够 5 场的那些命中，上证那一列必须五格全有数
+    far = [r for r in hits if len([d for d in r['fwd']['days'] if d]) == R.FWD_DAYS]
+    assert far, '近 12 个月没有一条命中的后 5 场走完了 ⇒ 这条测不到东西，换更长窗口'
+    for r in far:
+        sh = r['fwd']['cols'][0]
+        assert sh['pending'] == 0 and sh['missing'] == 0
+        assert all(v is not None for v in sh['cum'])
+    # 独立复算第一命中行的上证那一列：直接拿库里的收盘除一遍，不叫回被测的那两个函数
+    hit = hits[0]
+    days = hit['fwd']['days']
+    got = R.pg.fetch_df(
+        "select trade_date, close from market_data.index_daily "
+        "where security_code = '000001.SH' and trade_date between %s::date and %s::date "
+        "order by trade_date",
+        (hit['anchor_date'], f['axis']['last']))
+    assert got is not None, '这条对照 SQL 自己都没跑成 —— 别把测试绿当成数对'
+    book = {str(d)[:10]: float(c) for d, c in zip(got['trade_date'], got['close'])}
+    base = book[hit['anchor_date']]
+    for k, d in enumerate(days, start=1):
+        want = None if (d is None or d not in book) else round((book[d] / base - 1) * 100, 2)
+        assert hit['fwd']['cols'][0]['cum'][k - 1] == want, \
+            f'{hit["period"]} 后第{k}场与库里收盘复算对不上（{want} vs {hit["fwd"]["cols"][0]["cum"][k - 1]}）'
+    json.dumps(p, allow_nan=False, default=str)
 
 
 def test_follow_through_现算_与屏上那句自洽():

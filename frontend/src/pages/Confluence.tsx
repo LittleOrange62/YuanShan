@@ -7,7 +7,6 @@ import { CaliberFold, ExplainBox, Panel, Row } from "@/components/ui/DataPanel";
 import { SortHeader } from "@/components/ui/SortHeader";
 import { StockLink } from "@/components/ui/StockLink";
 import { SystemEntryBoard } from "@/components/quant/SystemEntryBoard";
-import { SystemEntryCohort } from "@/components/quant/SystemEntryCohort";
 import { StockDossier } from "@/components/quant/StockDossier";
 import { useNonce, useProbe } from "@/lib/probe";
 import { useTableSort } from "@/lib/useSort";
@@ -313,8 +312,14 @@ export function Confluence() {
 
       <SystemEntryBoard />
 
-      {/* 走完三条的个股近六个月名单（同一张母体表的历史视图，单独一份只读接口） */}
-      <SystemEntryCohort />
+      {/* 走完三条的个股近六个月名单（同一张母体表的历史视图）2026-11-07 搬到「策略回测」那一屏：
+          这一屏交的是**当天**谁被多个判据重复点到，那块读的是**过去 N 场**走完三条之后怎么走，
+          两件事摆在一起会让人以为名单是这一场选的。接口与判据都没动，这里只留一条指路。 */}
+      <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+        「近 6 个月走完三条的个股名单」在
+        <Link className="mx-1 text-primary underline" to="/backtest-agent">历史回溯</Link>
+        那一屏（同一张 <code>analytics.system_entry_daily</code>，单独那份只读接口也照旧）。
+      </p>
 
       <Disclaimer compact />
     </div>

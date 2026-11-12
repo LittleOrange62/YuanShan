@@ -31,6 +31,12 @@ export interface BroadcastLedger {
 export interface BroadcastTask {
   key: string; label: string; task_name: string; module: string;
   available: boolean; on: boolean; editable: boolean;
+  /** 这一路是第几路（后端按在册表顺序给，等于 `push/tNN` 的文件序号）。
+   *  用户 11-04 要"内容点编号"：他提需求时直接说"③盘中变化量"，屏上没有号就对不上号。 */
+  no?: number | null;
+  /** 这一路"干什么"的一句话（≤20 字）。后端 `BRIEF` 一份，屏上这行与
+   *  `ingest/jobs/推送任务清单.md` 那张表读的是同一串 —— 前端不许自己另写一句。 */
+  brief?: string | null;
   /** 有值 = 这一路的时点由那一格推导（如概念热度跟 `push_times` +10 秒），界面上只读 */
   derived?: string | null;
   /** `record` = 这一路只把数落库、本来就不往外发（涨跌停池事件差）；缺省是 `push` */
@@ -81,6 +87,11 @@ export function taskPatch(key: string, cfg: BroadcastConfig,
     }
     return out;
   }
+  // ⑦ 交易体系榜多一格：卡片末尾 @所有人 后面的提示词（用户 11-10，存 intraday_broadcast，
+  // 留空保存＝删键回出厂默认「深度分析以上个股排个最佳隔日T的买票推荐」）。
+  if (key === 'sysentry' && cfg['sysentry_at_prompt'] !== undefined) {
+    out['sysentry_at_prompt'] = cfg['sysentry_at_prompt'];
+  }
   // 六点那一格归 `delta`（`push_times`）：可改的是它，跟着推导出来的那一路只交开关 ——
   // 让 heat 也带一份时点就会有两处可改、一处生效。
   const field = timesField(key, task);
@@ -93,6 +104,17 @@ export function timesField(key: string, task?: Pick<BroadcastTask, 'derived' | '
   if (task?.times_field) return task.times_field;
   if (task?.derived) return null;
   return key === 'delta' ? 'push_times' : `${key}_times`;
+}
+
+/** 行首那个圈号：读后端那一格 `no`（在册表行序 = `ingest/jobs/push/tNN_*.py` 的序号，
+ *  两边同序由 `tests/test_intraday_broadcast_tasks.py` 钉住）。
+ *  号在库里没有（后端旧版／读不到）就交空串，屏上不自己补一个"大概是第几路"的号 ——
+ *  补错一位，用户按号改就改错了行。圈号表排到 ⑳（11-06 起有第 ⑪ 路最强模式），再往后退回 `#N`。 */
+export function taskNoBadge(no?: number | null): string {
+  const n = Number(no);
+  if (!Number.isInteger(n) || n < 1) return '';
+  const circles = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳";
+  return n <= circles.length ? circles[n - 1] : `#${n}`;
 }
 
 /** 脏键比对：只有真的与后端现值不同的键才交上去（同块多键是一笔原子写）。 */
@@ -185,4 +207,65 @@ export function ledgerText(t: Pick<BroadcastTask, 'on' | 'ledger' | 'mode' | 'pu
   const last = String(l.last_at ?? '');
   if (last) bits.push(`最后 ${last.length > 10 ? last.slice(11, 19) : last}`);
   return `${day ?? '今天'} ${bits.join(' · ')}`;
+}
+
+/** 「按日期回看推送正文」那一路的一条：当时落库的原文 + 发送回执。
+ *  `sent` = 库里有没有 `what='sent'` 那一行（**不是**"发成功了"，成功看 `delivered`）。 */
+export interface BroadcastBodyRound {
+  at: string; body: string; chars: number; kinds: string[];
+  sent: boolean; ok?: boolean | null; delivered?: boolean | null;
+  channel_key?: string | null; err?: string | null;
+}
+
+export interface BroadcastBodyItem { task: string; rounds: BroadcastBodyRound[] }
+
+export interface BroadcastBodies {
+  day?: string | null; days?: string[]; latest?: string | null;
+  items?: BroadcastBodyItem[]; readable?: boolean; reason?: string | null;
+  generated_at?: string | null;
+}
+
+/** 一条正文到底发出去没有。四种情形分开说，不许把"没回执"念成"已发送"：
+ *  ⑧微信镜像失败时写的是 `wx_warn` 而不是 `sent`（`delivered=false` 且有原话），
+ *  所以先看送达那一格，再看有没有回执 —— 顺序反了就会把一次真失败说成"只是没回执"。 */
+export function bodyStatusText(r: BroadcastBodyRound): string {
+  const via = r.channel_key ? ` · ${r.channel_key}` : '';
+  if (r.delivered === true) return `已送达${via}`;
+  if (r.delivered === false || r.ok === false) return `没发成${via}`;
+  if (r.sent) return `发过${via}，回执没说到没到`;
+  return '只有正文，库里没有发送回执';
+}
+
+/** `2026-11-09 18:18:03` → `18:18:03`（正文那一屏日子已经在标题上，每条只留钟点）。 */
+export function bodyClock(at?: string | null): string {
+  const s = String(at ?? '');
+  return s.length > 10 ? s.slice(11, 19) : s;
+}
+
+/** 日期选择器旁边那两颗「上一天／下一天」：在**真有正文的日子**之间跳，
+ *  而不是按日历 ±1（周末与停机日没有正文，跳过去就是一片空白，看着像坏了）。
+ *  `days` 是后端给的降序列表；当前那天不在列表里（手输了一个没内容的日子）也照样能跳。 */
+export function neighborDay(days: string[], day: string, dir: -1 | 1): string | null {
+  const older = days.filter(d => d < day);
+  const newer = days.filter(d => d > day);
+  if (dir === -1) return older.length ? older[0] : null;
+  return newer.length ? newer[newer.length - 1] : null;
+}
+
+/** 标题上那一天要不要标「最近一天」：默认落点就是它，标出来才知道自己看的是不是最新一场。 */
+export function bodyDayCaption(day?: string | null, latest?: string | null): string {
+  const d = String(day ?? '');
+  if (!d) return '—';
+  return latest && d === latest ? `${d}（最近一天）` : d;
+}
+
+/** 这一天一共有几路几条多少字 —— 空的那天要能与"读不出来"分开说。 */
+export function bodiesTally(items: BroadcastBodyItem[]): { routes: number; rounds: number; chars: number } {
+  let rounds = 0;
+  let chars = 0;
+  for (const it of items) {
+    rounds += it.rounds.length;
+    for (const r of it.rounds) chars += r.chars || r.body.length;
+  }
+  return { routes: items.length, rounds, chars };
 }

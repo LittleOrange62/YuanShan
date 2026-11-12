@@ -2,8 +2,9 @@
 """每日复盘那一栏（`ingest/jobs/push/t09_daily_review.py`，18:18）的钉住用例。
 
 用户 11-03 的话是「再加一个：每日复盘，指定脚本路径和脚本名称即可，具体脚本我会去改这个脚本」，
-所以这一路交付的是**壳**：内容函数留空，但壳的四条纪律必须当场可验——
-①没内容就一条都不发（不往群里发一句空复盘）；②正文先落库再发（于是 `--resend` 能一字不差补发）；
+11-04 他把自己写的那版正文放了进来（六节：量能／赚钱效应／情绪周期／主线／梯队／明日观察）。
+所以这里钉的是**壳的四条纪律**（正文本身不归测试管，那是他改的脚本）：
+①六节全空就一条都不发（不往群里发一句空复盘）；②正文先落库再发（于是 `--resend` 能一字不差补发）；
 ③默认关着 ⇒ 连任务都不注册（关着的语义是注销，不是留个每天空跑的壳）；④措辞在模板里，不在代码里拼。
 """
 from __future__ import annotations
@@ -38,10 +39,13 @@ def test_开着时生成的任务定义落在1818():
     assert '每天 18:18' in tasks.schedule_text('daily_review', cfg)
 
 
-def test_没写内容时一条都不发(monkeypatch):
-    """`collect()` 还是空骨架 ⇒ 不发、不落成"已发送"，只记一行 `daily_review_empty`。"""
+def test_全部缺数时一条都不发(monkeypatch):
+    """正文现在是真的有内容了（用户 11-04 把 ⑨ 那一栏填上了），所以这一条不再依赖
+    「`collect()` 还是空的」这个前提 —— 它钉的是纪律：**六节全空 ⇒ 一条都不发**，
+    只记一行 `daily_review_empty`，不许往群里发一句空复盘。"""
     codes: list[str] = []
     sent: list[str] = []
+    monkeypatch.setattr(R, 'collect', lambda now: {'sections': []})
     monkeypatch.setattr(R, '_log', lambda now, what, **kw: codes.append(what))
     monkeypatch.setattr(R, '_send', lambda now, text, keys, **kw: sent.append(text))
     monkeypatch.setattr(tasks, 'send_channels', lambda c=None: ['feishu-main'])
@@ -56,6 +60,8 @@ def test_有内容时先落正文再发_补发只读库(monkeypatch):
     monkeypatch.setattr(R, '_log',
                         lambda now, what, **kw: order.append((what, kw.get('body') is not None)))
     monkeypatch.setattr(R, '_send', lambda now, text, keys, **kw: order.append(('sent', text)))
+    # 收盘量能快照（11-05：每天两次入库之一）：打桩不出网、不真写库
+    monkeypatch.setattr(R.vol_snap, 'write_snap', lambda kind, now, **kw: 6)
     rc = R.one_round(dry_run=False, send=True, force=True, channel=None, resend=False)
     assert rc == 0
     assert order[0] == ('daily_review', True), '正文没先落库'
@@ -74,7 +80,7 @@ def test_补发没有正文时不重算冒充(monkeypatch):
 
 
 def test_模板键在册_缺了当场红():
-    t = R.tpl()
+    t = R._tpl()
     for key in ('daily_review_header', 'daily_review_footer'):
         assert key in t, f'app/intraday/templates.json 少了 {key}'
 

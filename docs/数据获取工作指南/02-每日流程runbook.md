@@ -4,6 +4,26 @@
 （c/e/p/b 链是 `ingest/jobs/` 下的模块，跑法统一 `python -m ingest.jobs.<名>`）；
 含中文/✓✗ 输出的脚本建议统一加 `PYTHONIOENCODING=utf-8`，含中文的 SQL 用文件 + `PGCLIENTENCODING=UTF8 psql -f`（GBK 控制台会炸，实测）。
 
+## 动手之前先判处境：只有「活着但不可用」才切（2026-11-11 用户裁定）
+
+原话：「不要每次无脑都强制重启，只有在判断进程不可用的时候，再去主动切掉，然后重新开启同步」。
+判据只住 `app/tdx_client/watchman.py::probe()` 一份（`state` 六档 / `usable`），收盘链 (a)、看护循环、
+页面那一格都读它，**不许各自再按镜像名判一次活**：
+
+```bash
+.venv/Scripts/python.exe -X utf8 -c "from app.tdx_client import watchman; print(watchman.probe())"
+```
+
+| 处境 | 该怎么做 |
+|---|---|
+| `ok` 已登录 / `tray` 缩到托盘 | **复用，不重启**（重启反而多花两三分钟、多一次登录失败的机会） |
+| `login` 停在登录框 / `hung` 假死 | 先按 pid 收掉（`reset.kill_all()`），再重新起 + 登录 + 等自动同步 |
+| `ghost` 只剩残影条目 / `off` 没在跑 | **没有活进程可切**，直接起新的；残影杀不掉也等不掉，别为它白等 20s |
+
+判活只认**线程数**（`win32.thread_counts()`）：`tasklist` 还列着但 0 线程的那一行是残影，
+2026-11-11 一整天的日线就是被它吃掉的 —— 详见 [03-故障排查.md](03-故障排查.md) 那一节。
+收进程一律按 pid 带 `/T`，**绝不 `/IM` 群杀**（会连这一轮刚拉起的新实例一起收掉）。
+
 ## 标准顺序（一键版）
 ```
 python -m ingest.jobs.e1_fill_all        # 第0步就是 tdxdl 下载，之后 c 链 → d 链 → 审计

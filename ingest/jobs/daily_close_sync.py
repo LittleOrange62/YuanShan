@@ -275,13 +275,6 @@ def step_vipdoc(has: readiness.Readiness, target: dt.date, *, prev: int | None =
     return True, 'vipdoc 日线齐、分钟线齐、条数过了门（%s）→ 不必下载，直接入库' % cwhy, cov_n
 
 
-def _client_running() -> bool:
-    """通达信在不在。用 `reset.snapshot()`，不在这里另写一份进程名清单
-    （`TdxW/TdxSP/TdxNonSP` 加 `Pyth*` 前缀那份只在 `app/tdx_client/reset.py:29-30` 有）。"""
-    from app.tdx_client import reset
-    return bool(reset.snapshot())
-
-
 def step_tq(target: dt.date, *, check_only: bool, no_gui: bool = False) -> tuple[bool, str]:
     """**第二条腿：不碰界面，直接问已登录的通达信客户端要日线**（`c12_tq_day`）。
 
@@ -348,15 +341,16 @@ def step_launch(target: dt.date, *, check_only: bool,
     （以及每一次"按闸门故意没动手"）都进 `duanxian/gui_trail.py` 的待人工清单，
     页面上是 `/api/jobs/chain` 的 `tdx_trail.pending`。
 
-    判据不认"我发了启动命令"，只认**探针复验**：`running` 且不是 `login_box` 才算成。
+    判据不认"我发了启动命令"，只认**探针复验**：`watchman.probe()` 的 `usable` 为真才算成
+    （活着 + 没停在登录框 + 窗口不是假死；残影条目不算活着）。
     """
     from duanxian import gui_trail
     from duanxian import jobs as jstore
 
     st = _tdx_probe()
-    if st.get('running') and not st.get('login_box'):
-        return True, ('客户端已经在跑且登录着（pid %s）→ 不必拉起' % st.get('pid'))
-    where = ('开着但停在登录框上' if st.get('running') else '没在跑')
+    if st.get('usable'):
+        return True, ('%s → 不必拉起' % (st.get('state_label') or '客户端可用'))
+    where = st.get('state_label') or ('开着但停在登录框上' if st.get('running') else '没在跑')
     if check_only:
         return False, ('`--check`：不实跑。真跑会先自动拉起并登录（现在%s），'
                        '命令 `python -m app.tdx_client.run_agent --only s1_launch '
@@ -380,7 +374,7 @@ def step_launch(target: dt.date, *, check_only: bool,
               what='自动拉起并登录通达信（③b 前置，用户 10-06 点头）',
               timeout=LAUNCH_TIMEOUT_SEC)
     after = _tdx_probe()
-    ok = bool(after.get('running')) and not after.get('login_box')
+    ok = bool(after.get('usable'))
     # run_agent 的出口码 2 就是"要人接手"（定位失败、"已在别处登录"这类），
     # 与"做完了但探针不过"要分开写 —— 人看到的第一句得是处境，不是笼统的失败。
     status = 'done' if ok else ('need_human' if rc == 2 else 'failed')
@@ -456,8 +450,13 @@ def step_download(target: dt.date, has: readiness.Readiness, *,
                   gui: bool, check_only: bool) -> tuple[bool, str]:
     """下载环节，严格按用户给的 (a)(b)(c) 顺序。
 
-    (a) 客户端在跑但数据没到 → **重启它**（关掉→重新起→登录→等登录后的自动同步）。
-        注意顺序：重启之后必须**先把客户端拉回来**再等，杀掉干等是等不到的
+    (a) **先判处境，再决定要不要切**（用户 2026-11-11 的裁定原话：「不要每次无脑都强制重启，
+        只有在判断进程不可用的时候，再去主动切掉，然后重新开启同步」）。判据只住
+        `watchman.probe()` 那一份（`state` 六档 / `usable`），本文件不另判一次活：
+          · 可用（已登录、窗口转得动，或缩到托盘）→ **复用**，不重启，只等它登录后那段自动同步；
+          · 活着但不可用（停在登录框 / 假死）→ 才按 pid 收掉，再重新起 + 登录 + 等自动同步；
+          · 只剩残影条目或根本没在跑 → 没有活进程可切，直接起新的（残影杀不掉也等不掉）。
+        注意顺序：切之后必须**先把客户端拉回来**再等，杀掉干等是等不到的
         （自动同步是登录成功后才跑的那一段，进程没了就永远不会到 —— 这版先前踩过）。
     (b) 等满 10 分钟仍没到 → 才去开「盘后数据下载」下日线。
     (c) 同一次里切第二个 tab 下 1/5 分钟线（**不传 `--day-only`**，传了就等于砍掉这一环）。
@@ -470,16 +469,26 @@ def step_download(target: dt.date, has: readiness.Readiness, *,
     # p0 自己就是 prepare→day→minute 三段，且每段跑完都用文件判据再验一次。
     download = _mod('ingest.jobs.p0_tdx_predownload', '--date', target.isoformat())
 
+    st = _tdx_probe()
+    live = list(st.get('live') or [])
+    usable = bool(st.get('usable'))
+    label = st.get('state_label') or '探不到客户端处境'
+    cut = bool(live) and not usable
+
     if check_only:
         if not gui:
             return False, ('`--check --no-gui`：最后一条腿本来就不走。真跑到这一步会回'
                            '退出码 4（等下一档），不是 3（要人来）—— 见 `gui_allowed_now`')
-        return True, ('`--check`：不去点窗口。真跑会依次执行\n'
+        first = ('先按 pid 收掉不可用的进程，再重新拉起并登录' if cut else
+                 '复用当前客户端，不重启' if usable else
+                 '直接拉起并登录（没有活着的进程可切）')
+        wait_line = ('             然后每 %d 秒探一次 vipdoc 尾部日期，最多等 %d 分钟\n'
+                     % (RESTART_POLL_SEC, RESTART_WAIT_SEC // 60)) if (cut or usable) else ''
+        return True, ('`--check`：不去点窗口。现在「%s」→ (a) %s\n'
                       '         (a) %s\n'
-                      '             然后每 %d 秒探一次 vipdoc 尾部日期，最多等 %d 分钟\n'
+                      '%s'
                       '         (b)(c) %s'
-                      % (' '.join(prepare), RESTART_POLL_SEC, RESTART_WAIT_SEC // 60,
-                         ' '.join(download)))
+                      % (label, first, ' '.join(prepare), wait_line, ' '.join(download)))
     if not gui:
         # 调用方（`main`）已经用 `gui_allowed_now` 拦过一遍，这里是最后一道门：
         # 无桌面模式一旦误开这条腿就是**在用户的机器上动鼠标**，宁可回 False。
@@ -488,23 +497,29 @@ def step_download(target: dt.date, has: readiness.Readiness, *,
                        '（会去点「盘后数据下载」），要么先在通达信里手工做完盘后下载再回来入库'
                        % target)
 
-    # ---- (a) 在跑但没数据 → 重启，让它的登录后自动同步补一段 ----
-    if _client_running():
-        print('\n  (a) 客户端在跑但 vipdoc 没到目标日 → 重启它'
-              '（自动同步是登录成功后才跑的那一段）', flush=True)
-        _run(_mod('app.tdx_client.reset'), what='(a) 关掉当前通达信进程',
+    # ---- (a) 只有"活着但不可用"才切；可用就复用；没活进程就直接起 ----
+    if cut:
+        print('\n  (a) %s → 先按 pid 收掉，再重新起并登录'
+              '（自动同步是登录成功后才跑的那一段）' % label, flush=True)
+        _run(_mod('app.tdx_client.reset'), what='(a) 收掉不可用的通达信进程',
              timeout=300)
-        _run(prepare, what='(a) 重新启动 + 登录 + 等自动同步', timeout=GUI_TIMEOUT_SEC)
+    elif usable:
+        print('\n  (a) %s → 不重启，复用它等自动同步' % label, flush=True)
+    else:
+        print('\n  (a) %s → 直接起它并走下载' % label, flush=True)
+
+    if cut or usable:
+        _run(prepare, what='(a) 重新启动 + 登录 + 等自动同步' if cut
+             else '(a) 复用当前客户端 + 等自动同步', timeout=GUI_TIMEOUT_SEC)
         # 只有"同步进程确实在跑"才值得等满 10 分钟；没看到进程就短等，到点进 (b)。
         from app.tdx_client import locator as _loc
         running, who = _loc.sync_running()
         budget = RESTART_WAIT_SEC if running else RESTART_ABSENT_WAIT
         print('  (a) 同步进程：%s → 这一轮最多等 %ds' % (who, budget), flush=True)
-        ok, why, _n = _wait_settled(has, target, '(a) 重启后等自动同步', budget=budget)
+        ok, why, _n = _wait_settled(has, target, '(a) 等自动同步', budget=budget)
         if ok:
             return True, why
     else:
-        print('\n  客户端不在跑 —— 直接起它并走下载', flush=True)
         _run(prepare, what='(a) 启动 + 登录（客户端本来没开）', timeout=GUI_TIMEOUT_SEC)
 
     # ---- (b)(c) 盘后数据下载：日线 tab + 第二个 tab 的 1/5 分钟线 ----
@@ -518,7 +533,8 @@ def step_download(target: dt.date, has: readiness.Readiness, *,
         # 日线到位、只有分钟线没拿到。日线是骨干，够往下入库；分钟线要单独补。
         return True, ('日线到位、分钟线没到（p0 退出码 3）→ 先入库日线，'
                       '分钟线回头单独补：run_agent --only s5_dialog --only s7_minute')
-    return False, ('自动手段用尽：重启过、等满了、盘后下载也跑过 —— %s' % why)
+    return False, ('自动手段用尽：处境判过（%s）、该切的切了、该等的等满了、'
+                   '盘后下载也跑过 —— %s' % (label, why))
 
 
 def _wait_settled(has: readiness.Readiness, target: dt.date, tag: str,

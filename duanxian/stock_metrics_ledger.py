@@ -43,6 +43,16 @@ BLOCKS: List[Dict[str, Any]] = [
                'sector_heat_daily / ambush_setup / volume_breakout_signal / confluence_daily',
      'logic': '八分量与象限读的是当日算好落库的那一行；块里每一格自带"出自哪一天"。',
      'defs_from': None},
+    {'key': 'radar', 'title': '近期各量化方案的名次与趋势带动',
+     'endpoint': '/api/quant/scheme-radar',
+     'owner': 'duanxian/scheme_radar.py',
+     'source': 'analytics.score（八项能力）× analytics.xy_rank_daily（xyr-1 两轴合计名次）'
+               '× analytics.volume_double（倍量加权分）× analytics.ambush_setup（埋伏分＝左侧机会）',
+     'logic': '名次母体是三把尺（全场／档表／入选批），每格自带分母；能不能排名次复用 `quant._rank_view` 那一个函数。'
+              '斜率是「最近 w 场这段日历」上的最小二乘（缺值跳过但不重编号，点数不足门槛就一个数都不交）；'
+              '带动＝Δ ÷ 长期斜率自己的标准误得到 z，判不出就交 unknown 而不是猜一个状态。'
+              '四态分开交：没入选／没读数／库里没这场／有值。不落表、不接每日链 —— 场次与窗口是界面用来对照的探索参数。',
+     'defs_from': 'duanxian/scheme_radar.py::DEFINITIONS'},
     {'key': 'trend', 'title': '该支票的趋势量化计算', 'endpoint': '/api/quant/scores',
      'owner': 'duanxian/quant.py + duanxian/trend_view.py',
      'source': 'analytics.score（八分量）与 analytics.indicator_value（均线/斜率族）',
@@ -84,6 +94,8 @@ def _live_definitions(key: str) -> Dict[str, str]:
         from . import stock_fundamentals as M
     elif key == 'pv':
         from . import price_volume_trend as M
+    elif key == 'radar':
+        from . import scheme_radar as M
     elif key == 'similarity':
         from . import volume_similarity as M
     else:
@@ -98,6 +110,8 @@ def _live_caliber(key: str) -> str | None:
         from . import stock_fundamentals as M
     elif key == 'pv':
         from . import price_volume_trend as M
+    elif key == 'radar':
+        from . import scheme_radar as M
     else:
         from . import volume_similarity as M
     return getattr(M, 'CALIBER', None)

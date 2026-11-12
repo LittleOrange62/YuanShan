@@ -134,7 +134,8 @@ test('用到这一份交互的屏都真的引用了它', () => {
                       '../src/components/quant/SteadyRankBoard.tsx',
                       '../src/components/quant/MomentumFollowBoard.tsx',
                       '../src/components/review/LimitUpBoard.tsx',
-                      '../src/components/review/LimitDownBoard.tsx'])
+                      '../src/components/review/LimitDownBoard.tsx',
+                      '../src/pages/TomorrowOutlook.tsx'])
     assert.ok(users.includes(must), `${must} 没接上（又退回自己写一份或干脆没有交互）`);
   // 每屏必须把"这一屏叫什么"交给 hook（复盘页要说清这只票是从哪一屏双击带过来的）
   for (const f of users)
@@ -154,7 +155,14 @@ test('用到这一份交互的屏都真的引用了它', () => {
   // 10-29 短线复盘页并表：那一屏的 `pages/FirstBoard.tsx` 自己不再铺表（名单搬进
   // `components/review/LimitUpBoard.tsx`，同屏新增 `LimitDownBoard.tsx`）⇒ 少一处、多两处，26 → 27；
   // 台账 §六 那一行跟着改，不许只改这里的数字。
-  assert.equal(users.length, 28, `调用点数目与台账 §六 不一致：${users.length} → ${users.join(', ')}`);
+  // 11-05 加「明日展望」（pages/TomorrowOutlook：两张榜 + 逐票全部指标那一屏）⇒ 28 → 29；
+  // 台账 §六 那一行跟着改，不许只改这里的数字。
+  // 11-07 回溯那一族搬进「策略回测」屏：当时那块逐票热力表的实例从「由页面交进来」改成自己起
+  // （倍量形态页那份 `track` 跟着搬走，VolumeDouble 仍在名单里，因为它自己那张榜还要用），
+  // 按文件计数就多一个文件 ⇒ 29 → 30；台账 §六 那一行同时改。
+  // 11-08 那块被用户推翻重做成「近期倍量表走势分析」（EnergyTrendBoard）：它的行是**名次档**
+  // 不是个股，没有可双击的票 ⇒ 不接这一份交互，调用点 30 → 29；台账 §六 那一行跟着删。
+  assert.equal(users.length, 29, `调用点数目与台账 §六 不一致：${users.length} → ${users.join(', ')}`);
 });
 
 test('hook 自己：双击带 noopener、点击不整行吞、告警与高亮一起清', () => {

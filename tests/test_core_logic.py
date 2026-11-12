@@ -5937,6 +5937,94 @@ class TestBacktestFilters:
 
 
 @pytest.mark.unit
+class TestBacktestGuidance:
+    """说明分节只住后端一份，且**真的接进出口**（用户 2026-11-08：抽屉里一句 desc 撑不起理解）。
+
+    两类错了看不出来：① 文字里留着 markdown 星号或 ASCII 引号 —— 屏上直接念出来；
+    ② 描述符写了、payload 没带 —— 界面读 `notes` 读到 undefined，按钮安静地不渲染，
+    没人知道后端那几段话其实没上过屏。所以这里既查文字卫生，也现跑一次 `run_backtest`。
+    """
+
+    @staticmethod
+    def _clean(secs, tag):
+        heads = []
+        for sec in secs:
+            text = f'{sec["heading"]}{sec["body"]}'
+            assert sec["heading"] and sec["body"], f"{tag} 有空小节"
+            assert "**" not in text, f"{tag} 的说明里还留着 markdown 星号：{sec['heading']}"
+            assert '"' not in text and "'" not in text, f"{tag} 嵌了 ASCII 引号：{sec['heading']}"
+            heads.append(sec["heading"])
+        assert len(set(heads)) == len(heads), f"{tag} 小节名重复"
+        return heads
+
+    def test_every_strategy_carries_at_least_three_sections(self):
+        from duanxian import backtest as bk
+
+        for name, s in bk.STRATEGIES.items():
+            assert len(s.get("notes") or []) >= 3, f"{name} 的说明分节不足三节"
+            self._clean(s["notes"], name)
+
+    def test_screen_level_guides_present(self):
+        from duanxian import backtest as bk
+
+        assert len(bk.READ_GUIDE) >= 8
+        assert len(bk.SHARED_NOTES) >= 4
+        assert len(bk.SEAL_GUIDE) >= 4
+        self._clean(bk.READ_GUIDE, "read_guide")
+        self._clean(bk.SHARED_NOTES, "shared_notes")
+        self._clean(bk.SEAL_GUIDE, "seal_guide")
+
+    def test_run_backtest_payload_actually_carries_the_guidance(self, monkeypatch):
+        """只桩取数与日历/情绪，判据与出口一律走真代码。"""
+        import json
+
+        from duanxian import backtest as bk
+
+        dates = [f"2026-11-0{d}" for d in range(3, 10)]        # 7 个收益日，过 5 天那道闸
+
+        def rows(_d):
+            return [
+                {"code": "600001", "name": "甲", "ret": 1.0, "prev_boards": 1,
+                 "seal_time": "093500", "sector": "电网设备", "close": 10.0, "limit_price": 10.0},
+                {"code": "600002", "name": "乙", "ret": -1.0, "prev_boards": 3,
+                 "seal_time": "", "sector": "房地产", "close": 8.0, "limit_price": 9.0},
+            ]
+
+        monkeypatch.setattr(bk.trade_calendar, "last_trade_dates", lambda n: dates)
+        monkeypatch.setattr(bk.trade_calendar, "trade_dates_ending_at", lambda d, n: dates)
+        monkeypatch.setattr(bk.trade_calendar, "prev_trade_date", lambda d: dates[0])
+        monkeypatch.setattr(bk, "_fetch_prev_pool", rows)
+        monkeypatch.setattr(bk.em, "day_summary",
+                            lambda d: {"limit_up": 40, "highest_consec": 3, "broken_rate": 0.2})
+        monkeypatch.setattr(bk, "corpus_days", lambda: list(dates))
+
+        out = bk.run_backtest(days=7)
+        assert out["available"], out.get("reason")
+        assert out["read_guide"] == bk.READ_GUIDE
+        assert out["shared_notes"] == bk.SHARED_NOTES
+        assert out["seal_guide"] == bk.SEAL_GUIDE
+        for name, r in out["strategies"].items():
+            assert r["notes"] == bk.STRATEGIES[name]["notes"], name
+            assert r["desc"] == bk.STRATEGIES[name]["desc"], name
+        # 出口必须是合法 JSON（NaN/NaT 会在这儿炸，而不是在浏览器 JSON.parse 里炸）
+        json.loads(json.dumps(out, ensure_ascii=False, allow_nan=False))
+
+    def test_rewording_a_note_invalidates_the_result_cache(self, tmp_path, monkeypatch):
+        """改了说明忘了动版本号 ⇒ 旧缓存一直发上一版的说法。指纹里那份摘要专为这件事存在。"""
+        from duanxian import backtest as bk
+
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setattr(bk, "RESULT_DIR", str(tmp_path))
+        monkeypatch.setattr(bk, "_CACHE_DIR", str(corpus))
+        TestBacktestCache._write_fresh(bk, tmp_path, corpus)
+        assert bk.load_result(30) is not None            # 换文字之前是新鲜的
+
+        monkeypatch.setitem(bk.SEAL_GUIDE[0], "body", "换了个说法")
+        assert bk.load_result(30) is None                # 只有文字变了 → 照样作废
+
+
+@pytest.mark.unit
 class TestBacktestRegimeNoLookahead:
     """分档必须用**入场前一交易日**的情绪，不能用收益发生当天的。
     用当天情绪解释当天收益 = 拿"事后才知道的明天情绪"，看板上的分环境期望会被读成

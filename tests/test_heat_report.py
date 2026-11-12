@@ -39,10 +39,13 @@ def test_屏上只列前十二个_取数与入库仍按全量(monkeypatch):
 
     def fake_send(keys, title, body):
         box['body'] = body
+        box['title'] = title
         return {'ok': True, 'detail': 'ok'}
     monkeypatch.setattr('duanxian.notify.send_to', fake_send)
 
     assert H.one_round(dry_run=False, send=True, channel=None, force=True) == 0
+    assert box['title'] == '', \
+        '用户 11-05：推送不带标题行（正文第一行已是【涨跌停概念热度 …】，再拼标题就是重复）'
     body = box['body']
     listed = [ln for ln in body.split('\n') if ln.startswith(('涨停股概念', '跌停股概念'))]
     assert len(listed) == 2, body

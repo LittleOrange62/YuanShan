@@ -26,9 +26,10 @@ test('preserve approved feature groups, merged stocks and research notes', () =>
   assert.equal(FEATURE_GROUPS.length, 5);
   const expected = [
     '/', '/agent/review', '/first-board', '/heat',
-    '/stock-review', '/intel', '/my-stocks', '/notes', '/journal', '/backtest', '/settings',
+    // 11-07：`/backtest`（涨停样本统计）整屏搬进「个股研究与回测 · 策略回测」，卡片登记跟着搬家。
+    '/stock-review', '/intel', '/my-stocks', '/notes', '/journal', '/backtest-agent', '/settings',
     '/pipeline', '/coverage', '/tdx', '/quadrant', '/sector-heat', '/volume-double', '/volume-breakout', '/grouped',
-    '/qd-compare', '/allocator', '/confluence', '/spike', '/trend-stocks', '/jobs',
+    '/qd-compare', '/allocator', '/confluence', '/spike', '/trend-stocks', '/tomorrow-outlook', '/jobs',
   ];
   assert.deepEqual(FEATURES.map(x => x.to).sort(), expected.sort());
   const routes = fs.readFileSync(new URL('../src/router.tsx', import.meta.url), 'utf8');
@@ -37,7 +38,7 @@ test('preserve approved feature groups, merged stocks and research notes', () =>
   assert.ok(routes.includes('{ path: "/", element: <SummaryBoard /> }'), '首页没挂在汇总看板上');
   assert.ok(!routes.includes('<Home />'), '被取消的工作台首页不该还挂在路由上');
   assert.equal(FEATURES.find(x => x.to === '/')?.title, '首页（汇总看板）');
-  assert.equal(FEATURES.find(x => x.to === '/backtest')?.title, '涨停样本统计');
+  assert.equal(FEATURES.find(x => x.to === '/backtest-agent')?.title, '历史回溯');
   // 2026-10-26 用户裁定：「首板分析」→「日间复盘及首板」；2026-10-28 再裁定 →「短线复盘」
   // （`/first-board` 不变，上半新挂盘中事件流）。这两次都是登记处改名，不是放宽判据。
   assert.equal(FEATURES.find(x => x.to === '/first-board')?.title, '短线复盘');
