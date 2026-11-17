@@ -2383,7 +2383,10 @@ _JOB_KEYS = ("enabled", "run_at", "note", "launch_lead_min", "trading_days_only"
            "client_mode", "restart_max_per_day", "exit_confirm_click",
            # 时间带两格 + 每日定时重启（用户 2026-10-19 点名要在系统配置里能改）。
            # 校验与默认值都住在 `duanxian/jobs.py`（`_hhmm` / 成对方向那条跨键判据 / `TDX_WATCH_DEFAULTS`）。
-           "client_band_lo", "client_band_hi", "restart_daily_enabled", "restart_daily_at")
+           "client_band_lo", "client_band_hi", "restart_daily_enabled", "restart_daily_at",
+           # 收尾租约三格（用户 2026-11-12：「记录下开启后的通达信的进程id…放个半小时后关闭」）。
+           # 与时间带是两把尺：那把按绝对时钟，这把按拉起后过了多久。校验住 `duanxian/jobs.py::_valid`。
+           "lease_close_enabled", "lease_close_after_min", "lease_max_defer_min")
 
 
 def _apply_job_patch(body: dict, key: str, who: str) -> tuple[int, dict]:
@@ -2514,6 +2517,10 @@ class LoopPatch(BaseModel):
     client_band_hi: str | None = None
     restart_daily_enabled: bool | None = None
     restart_daily_at: str | None = None
+    # 收尾租约三格（用户 2026-11-12）。范围校验住 `duanxian/jobs.py::_valid`，这里不判第二遍。
+    lease_close_enabled: bool | None = None
+    lease_close_after_min: int | None = None
+    lease_max_defer_min: int | None = None
 
 
 @app.get("/api/jobs/loops")

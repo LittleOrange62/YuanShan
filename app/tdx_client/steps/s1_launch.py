@@ -20,6 +20,7 @@ s1 · 启动或复用通达信。
 
 from __future__ import annotations
 
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -96,6 +97,10 @@ class LaunchStep(Step):
                              creationflags=win32.NO_WINDOW)
         except OSError as e:
             return StepResult.fail(f'启动失败：{e}')
+        # 真起了一个新实例才记租约（用户 2026-11-12：「记录下开启后的通达信的进程id」）。
+        # 复用已在跑的那条走 precheck，不进这里 —— 否则每轮刷新计时，永远到不了点。
+        from duanxian import tdx_lease
+        tdx_lease.mark_launched(why=os.environ.get('FT_TDX_LAUNCH_WHY') or '程序拉起')
         return StepResult.done(f'已启动 {p}')
 
     def verify(self, ctx: RunContext) -> tuple[bool, str]:
@@ -116,6 +121,9 @@ class LaunchStep(Step):
             main = ctx.refresh_main()
             pid = main.pid if main is not None else live[0]
             ctx.bag['pid'] = pid
+            # Popen 只证明「发了启动」，进程号要等这里看到窗口才算数。
+            from duanxian import tdx_lease
+            tdx_lease.attach_pid(pid)
             if _login_box(pid) is not None:
                 return True, f'登录框已出现（pid={pid}）'
             if main is not None:

@@ -50,6 +50,7 @@ SCENE_LABELS = {
     "quadrant": "四维象限榜", "abnormal": "异动筛查", "spike": "盘中冲高异动",
     "trendstock": "趋势股榜", "sector": "板块轮动", "groupanalytics": "自选分组分析",
     "news": "快讯要闻", "allocator": "分配者视角",
+    "top30_dups": "各榜单重复出现个股排行", "tomorrow_outlook": "明日展望",
 }
 #: 默认条数上限：一条飞书/钉钉消息别写成长篇 —— 群消息读的是"今天有没有我要看的票"。
 #: ⚠️ 这一格是**每档条数的唯一真源**：面板上的默认值与上限都从这里经 `scene_catalog()` 交出去，
@@ -60,7 +61,8 @@ DEFAULT_LIMITS = {"confluence": 12, "screen": 12, "watchlist": 30, "dossier": 6,
                   "positions": 20, "market": 4,
                   "voldbl": 10, "breakout": 10, "ambush": 10, "quadrant": 10,
                   "abnormal": 8, "spike": 8, "trendstock": 10, "sector": 8,
-                  "groupanalytics": 8, "news": 8, "allocator": 8}
+                  "groupanalytics": 8, "news": 8, "allocator": 8,
+                  "top30_dups": 30, "tomorrow_outlook": 3}
 #: 每档允许的上限（`market` 是"连板天梯列几层"，一共也没几层）。
 #: 那一格到底在数什么，单位由后端说（自选是"条"、天梯是"层"）—— 让前端猜单位就会说出
 #: 「市场概览 2 条」这种看着对其实错的话。
@@ -68,7 +70,8 @@ SCENE_LIMIT_UNITS = {"confluence": "只", "screen": "只", "watchlist": "只", "
                     "positions": "只", "market": "层",
                     "voldbl": "只", "breakout": "只", "ambush": "只", "quadrant": "只",
                     "abnormal": "只", "spike": "只", "trendstock": "只", "sector": "个",
-                    "groupanalytics": "组", "news": "条", "allocator": "个"}
+                    "groupanalytics": "组", "news": "条", "allocator": "个",
+                    "top30_dups": "只", "tomorrow_outlook": "节"}
 #: 上限取得**不超过那一档读层接口自己肯收的值**（`abnormal_view.screen` 的 limit 超过 200 会直接
 #: 回一句拒绝、`quant` 那几张榜内部截到 800、`qd.sector_cycle` 每天只留涨幅前 8 个板块）：
 #: 超过就是"面板上填得进去、发出来是一句话对不上"。
@@ -76,7 +79,8 @@ MAX_LIMITS = {"confluence": 60, "screen": 60, "watchlist": 120, "dossier": 20,
               "positions": 60, "market": 9,
               "voldbl": 60, "breakout": 60, "ambush": 60, "quadrant": 60,
               "abnormal": 60, "spike": 60, "trendstock": 60, "sector": 8,
-              "groupanalytics": 60, "news": 50, "allocator": 60}
+              "groupanalytics": 60, "news": 50, "allocator": 60,
+              "top30_dups": 100, "tomorrow_outlook": 3}
 #: 「个股档案」那一档能带的六块（`dossier.blocks`）。名字与 `_blk_dossier` 里读的
 #: `blocks.<键>` 一一对应，面板上那份候选也从 `scene_catalog()` 的这份生成 ——
 #: 界面上自己抄一份就会与正文里实际打印的块分叉。
@@ -854,6 +858,131 @@ def _blk_allocator(params: dict, day: str) -> str:
     return "\n".join(lines)
 
 
+# ========== 新增场景的 Builder 函数 ==========
+def _blk_top30_dups(params: dict, day: str) -> str:
+    """各榜单重复出现个股排行。"""
+    limit = _lim(params, "top30_dups")
+    min_hits = _num(params, "min_hits")
+    
+    # 调用各榜单的接口，收集重复出现的股票
+    scenes = ["confluence", "voldbl", "ambush", "breakout", "quadrant", 
+              "abnormal", "trendstock", "sector"]
+    
+    # 统计各股票在榜单中的出现次数
+    stock_count = {}
+    stock_details = {}
+    
+    for scene_key in scenes:
+        try:
+            # 调用各场景的取数函数
+            from duanxian import notify
+            builder = notify.SCENE_BUILDERS.get(scene_key)
+            if builder:
+                res = builder({}, day)
+                if res and "筛选规则" not in res:  # 排除基础筛选结果
+                    # 假设返回的数据是表格格式，解析出股票信息
+                    lines = res.split('\n')
+                    for line in lines:
+                        if "（" in line and "）｜" in line:
+                            name = line.split("（")[0].strip()
+                            code = line.split("（")[1].split("）")[0].strip()
+                            if code not in stock_count:
+                                stock_count[code] = 0
+                                stock_details[code] = []
+                            stock_count[code] += 1
+                            # 记录该股票在各榜单中的详情
+                            try:
+                                parts = line.split("｜")
+                                pct_change = parts[-3].split("%")[0] if "%" in parts[-3] else "—"
+                                pct_change_5d = parts[-2].split("%")[0] if "%" in parts[-2] else "—"
+                                left_right_signals = parts[-1] if len(parts) > -1 else "—"
+                                stock_details[code].append({
+                                    "scene": scene_key,
+                                    "pct_change": pct_change,
+                                    "pct_change_5d": pct_change_5d,
+                                    "left_right": left_right_signals
+                                })
+                            except:
+                                pass
+        except Exception as e:
+            print(f"取{scene_key}数据失败: {e}")
+    
+    # 筛选重复出现次数>=min_hits的股票
+    qualified_stocks = [code for code, count in stock_count.items() 
+                      if count >= min_hits]
+    qualified_stocks.sort(key=lambda x: stock_count[x], reverse=True)
+    
+    # 取前limit只，如果不足30只，需要补位（这里先留空，后续完善补位逻辑）
+    result_stocks = qualified_stocks[:limit]
+    
+    # 构建表格
+    lines = [f"各榜单重复出现个股排行（重复{min_hits}次以上）"]
+    lines.append(f"排名｜股票代码｜股票名称｜当日涨幅｜近5日涨幅｜左侧信号")
+    
+    for i, code in enumerate(result_stocks[:limit], 1):
+        details = stock_details.get(code, [])
+        # 计算当日涨幅和近5日涨幅的平均值
+        pct_change_avg = sum(float(d.get("pct_change", "0")) for d in details if d.get("pct_change") != "—") / max(len(details), 1)
+        pct_change_5d_avg = sum(float(d.get("pct_change_5d", "0")) for d in details if d.get("pct_change_5d") != "—") / max(len(details), 1)
+        
+        lines.append(f"{i}｜{code}｜{code}｜{pct_change_avg:.2f}%｜{pct_change_5d_avg:.2f}%｜{details[-1].get('left_right', '—') if details else '—'}")
+    
+    # 如果结果不足30只，显示不足信息
+    if len(result_stocks) < 30:
+        lines.append(f"注：不足30家，只找到{len(result_stocks)}家")
+    
+    return "\n".join(lines)
+
+
+def _blk_tomorrow_outlook(params: dict, day: str) -> str:
+    """明日展望（整合t10的内容）。"""
+    from duanxian import tomorrow_outlook
+    
+    # 获取明日展望的数据
+    res = tomorrow_outlook.view()
+    if not res or not res.get("available"):
+        return "明日展望：数据暂无（不是取数失败，是真的没有）"
+    
+    lines = [f"{res.get('title') or '明日展望'}"]
+    
+    # 根据参数决定显示哪些节
+    sections = params.get("sections") or []
+    
+    # 多指标靠前
+    if "multi_top" in sections or not sections:
+        top_rows = res.get("top_boards") or []
+        if top_rows:
+            lines.append("一、多指标靠前")
+            for i, row in enumerate(top_rows[:3], 1):
+                lines.append(f"{i}. {row.get('name') or row.get('code')}（{row.get('code')}）"
+                           f"｜指标数 {row.get('indicator_count')}｜排名 {row.get('rank')}")
+        else:
+            lines.append("一、多指标靠前：暂无候选")
+    
+    # 趋势最正
+    if "trend_best" in sections or not sections:
+        trend_rows = res.get("trend_shortlist") or []
+        if trend_rows:
+            lines.append("二、趋势最正")
+            for i, row in enumerate(trend_rows[:3], 1):
+                lines.append(f"{i}. {row.get('name') or row.get('code')}（{row.get('code')}）"
+                           f"｜趋势强度 {row.get('trend_score')}｜排名 {row.get('rank')}")
+        else:
+            lines.append("二、趋势最正：暂无候选")
+    
+    # 明日观察清单
+    if "watchlist" in sections or not sections:
+        watchlist_items = res.get("watchlist") or []
+        if watchlist_items:
+            lines.append("三、明日观察清单")
+            for item in watchlist_items[:5]:
+                lines.append(f"- {item}")
+        else:
+            lines.append("三、明日观察清单：暂无观察项目")
+    
+    return "\n".join(lines)
+
+
 #: 场景 → 取数函数。**这里是唯一的对应处**：`notifyconfig.SCENE_KEYS` 与它必须同集合，
 #: 由测试钉住（否则会长出"面板能勾、发出来是空的"那种假功能）。
 SCENE_BUILDERS = {"confluence": _blk_confluence, "screen": _blk_screen,
@@ -863,7 +992,132 @@ SCENE_BUILDERS = {"confluence": _blk_confluence, "screen": _blk_screen,
                   "quadrant": _blk_quadrant, "abnormal": _blk_abnormal, "spike": _blk_spike,
                   "trendstock": _blk_trendstock, "sector": _blk_sector,
                   "groupanalytics": _blk_groupanalytics, "news": _blk_news,
-                  "allocator": _blk_allocator}
+                  "allocator": _blk_allocator, "top30_dups": _blk_top30_dups,
+                  "tomorrow_outlook": _blk_tomorrow_outlook}
+
+
+def _blk_top30_dups(params: dict, day: str) -> str:
+    """各榜单重复出现个股排行。"""
+    limit = _lim(params, "top30_dups")
+    min_hits = _num(params, "min_hits")
+    
+    # 调用各榜单的接口，收集重复出现的股票
+    scenes = ["confluence", "voldbl", "ambush", "breakout", "quadrant", 
+              "abnormal", "trendstock", "sector"]
+    
+    # 统计各股票在榜单中的出现次数
+    stock_count = {}
+    stock_details = {}
+    
+    for scene_key in scenes:
+        try:
+            # 调用各场景的取数函数
+            from duanxian import notify
+            builder = notify.SCENE_BUILDERS.get(scene_key)
+            if builder:
+                res = builder({}, day)
+                if res and "筛选规则" not in res:  # 排除基础筛选结果
+                    # 假设返回的数据是表格格式，解析出股票信息
+                    lines = res.split('\n')
+                    for line in lines:
+                        if "（" in line and "）｜" in line:
+                            name = line.split("（")[0].strip()
+                            code = line.split("（")[1].split("）")[0].strip()
+                            if code not in stock_count:
+                                stock_count[code] = 0
+                                stock_details[code] = []
+                            stock_count[code] += 1
+                            # 记录该股票在各榜单中的详情
+                            try:
+                                parts = line.split("｜")
+                                pct_change = parts[-3].split("%")[0] if "%" in parts[-3] else "—"
+                                pct_change_5d = parts[-2].split("%")[0] if "%" in parts[-2] else "—"
+                                left_right_signals = parts[-1] if len(parts) > -1 else "—"
+                                stock_details[code].append({
+                                    "scene": scene_key,
+                                    "pct_change": pct_change,
+                                    "pct_change_5d": pct_change_5d,
+                                    "left_right": left_right_signals
+                                })
+                            except:
+                                pass
+        except Exception as e:
+            print(f"取{scene_key}数据失败: {e}")
+    
+    # 筛选重复出现次数>=min_hits的股票
+    qualified_stocks = [code for code, count in stock_count.items() 
+                      if count >= min_hits]
+    qualified_stocks.sort(key=lambda x: stock_count[x], reverse=True)
+    
+    # 取前limit只，如果不足30只，需要补位（这里先留空，后续完善补位逻辑）
+    result_stocks = qualified_stocks[:limit]
+    
+    # 构建表格
+    lines = [f"各榜单重复出现个股排行（重复{min_hits}次以上）"]
+    lines.append(f"排名｜股票代码｜股票名称｜当日涨幅｜近5日涨幅｜左侧信号")
+    
+    for i, code in enumerate(result_stocks[:limit], 1):
+        details = stock_details.get(code, [])
+        # 计算当日涨幅和近5日涨幅的平均值
+        pct_change_avg = sum(d.get("pct_change", "0") for d in details if d.get("pct_change") != "—") / max(len(details), 1)
+        pct_change_5d_avg = sum(d.get("pct_change_5d", "0") for d in details if d.get("pct_change_5d") != "—") / max(len(details), 1)
+        
+        lines.append(f"{i}｜{code}｜{code}｜{pct_change_avg:.2f}%｜{pct_change_5d_avg:.2f}%｜{details[-1].get('left_right', '—') if details else '—'}")
+    
+    # 如果结果不足30只，显示不足信息
+    if len(result_stocks) < 30:
+        lines.append(f"注：不足30家，只找到{len(result_stocks)}家")
+    
+    return "\n".join(lines)
+
+
+def _blk_tomorrow_outlook(params: dict, day: str) -> str:
+    """明日展望（整合t10的内容）。"""
+    from duanxian import tomorrow_outlook
+    
+    # 获取明日展望的数据
+    res = tomorrow_outlook.view()
+    if not res or not res.get("available"):
+        return "明日展望：数据暂无（不是取数失败，是真的没有）"
+    
+    lines = [f"{res.get('title') or '明日展望'}"]
+    
+    # 根据参数决定显示哪些节
+    sections = params.get("sections") or []
+    
+    # 多指标靠前
+    if "multi_top" in sections or not sections:
+        top_rows = res.get("top_boards") or []
+        if top_rows:
+            lines.append("一、多指标靠前")
+            for i, row in enumerate(top_rows[:3], 1):
+                lines.append(f"{i}. {row.get('name') or row.get('code')}（{row.get('code')}）"
+                           f"｜指标数 {row.get('indicator_count')}｜排名 {row.get('rank')}")
+        else:
+            lines.append("一、多指标靠前：暂无候选")
+    
+    # 趋势最正
+    if "trend_best" in sections or not sections:
+        trend_rows = res.get("trend_shortlist") or []
+        if trend_rows:
+            lines.append("二、趋势最正")
+            for i, row in enumerate(trend_rows[:3], 1):
+                lines.append(f"{i}. {row.get('name') or row.get('code')}（{row.get('code')}）"
+                           f"｜趋势强度 {row.get('trend_score')}｜排名 {row.get('rank')}")
+        else:
+            lines.append("二、趋势最正：暂无候选")
+    
+    # 明日观察清单
+    if "watchlist" in sections or not sections:
+        watchlist_items = res.get("watchlist") or []
+        if watchlist_items:
+            lines.append("三、明日观察清单")
+            for item in watchlist_items[:5]:
+                lines.append(f"- {item}")
+        else:
+            lines.append("三、明日观察清单：暂无观察项目")
+    
+    return "\n".join(lines)
 
 
 def _scene_part(key: str, params: dict, day: str) -> tuple[str, str]:

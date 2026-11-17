@@ -105,3 +105,60 @@ test('pid 清单与残影清单：空清单是读数，没交才是未知', () =
   assert.match(g.text, /45956/);
   assert.match(g.text, /不挡新实例启动/);
 });
+
+// ---- 收尾租约（用户 2026-11-12：程序自己拉起的那一个，到点就收）----
+
+import { leaseLine } from '../src/lib/tdxWatch.ts';
+
+test('租约：后端没交这一项 = 未知，不当成「没有租约」', () => {
+  assert.equal(leaseLine(undefined).tone, 'unknown');
+  assert.equal(leaseLine(null).tone, 'unknown');
+  assert.match(leaseLine(null).text, /未探测到/);
+});
+
+test('租约：没账本是一个读数（不是程序开的），不是未知', () => {
+  const r = leaseLine({ available: false, reason: '没有租约记录：这个客户端不是程序拉起的' });
+  assert.equal(r.tone, 'ok');
+  assert.match(r.text, /不是程序拉起的/);
+});
+
+test('租约：keep_alive 档与开关关着都要说清为什么不收', () => {
+  assert.match(leaseLine({ available: true, exempt_keep_alive: true }).text, /keep_alive/);
+  const off = leaseLine({ available: true, enabled: false });
+  assert.equal(off.tone, 'ok');
+  assert.match(off.text, /lease_close_enabled=false/);
+});
+
+test('租约：未到点交出还差几分钟与拉起时刻', () => {
+  const r = leaseLine({ available: true, pid: 71124, launched_at: '2026-11-12T09:32:00+08:00',
+    why: '收盘链 ③c', left_min: 20, after_min: 30, status: 'open', deferred_count: 0 });
+  assert.equal(r.tone, 'ok');
+  assert.match(r.text, /71124/);
+  assert.match(r.text, /09:32/);
+  assert.match(r.text, /还差 20 分钟/);
+  assert.match(r.text, /收盘链 ③c/);
+});
+
+test('租约：到点且在顺延要说清顺延几次、最近一次为什么', () => {
+  const r = leaseLine({ available: true, pid: 71124, launched_at: 'x', left_min: -5,
+    status: 'deferred', deferred_count: 2, last_defer: { why: '收盘链 daily_close 正在跑' },
+    due_at: '2026-11-12T10:02:00+08:00', max_defer_min: 120 });
+  assert.match(r.text, /已到点/);
+  assert.match(r.text, /已顺延 2 次/);
+  assert.match(r.text, /daily_close/);
+});
+
+test('租约：已收掉 / 已作废 / 顺延用满三档各自成形', () => {
+  const closed = leaseLine({ available: true, pid: 1, launched_at: 'x', status: 'closed',
+    closed_at: '2026-11-12T10:05:00+08:00' });
+  assert.equal(closed.tone, 'ok');
+  assert.match(closed.text, /已到点关闭/);
+  const cleared = leaseLine({ available: true, pid: 1, launched_at: 'x', status: 'cleared',
+    close_reason: '不是同一个实例（人重启过）' });
+  assert.match(cleared.text, /账本已作废/);
+  assert.match(cleared.text, /人重启过/);
+  const expired = leaseLine({ available: true, pid: 1, launched_at: 'x', status: 'expired',
+    max_defer_min: 120 });
+  assert.equal(expired.tone, 'bad');
+  assert.match(expired.text, /顺延已用满 120 分钟/);
+});

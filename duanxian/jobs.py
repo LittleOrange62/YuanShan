@@ -126,6 +126,17 @@ def _valid(key: str, value: Any, want: Any) -> str | None:
         return None
     if key == "restart_daily_at":
         return None if _hhmm(value) else f"restart_daily_at 需要 HH:MM，收到 {value!r}"
+    # 收尾租约两个数（用户 2026-11-12 点名「放个半小时后关闭」）。
+    # after_min 下限给 1 而不是 0：0 等于「刚拉起就收」，那不是收尾是自杀。
+    # max_defer_min 允许 0，含义是「到点那一刻不让路，收不掉就直接交人工」。
+    if key in ("lease_close_after_min", "lease_max_defer_min"):
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            return f"{key} 需要整数分钟，收到 {value!r}"
+        lo, hi = (1, 720) if key == "lease_close_after_min" else (0, 1440)
+        return None if lo <= number <= hi else \
+            f"{key} 需要在 {lo}~{hi} 分钟之间，收到 {number}"
     if key == "weekly_days":
         text = str(value).strip()
         if text == "":
@@ -590,6 +601,18 @@ TDX_WATCH_DEFAULTS = {"enabled": True, "sync_reap_after_min": 40,
                       # 定时自动重启通达信，默认时间是下午 15 点 38 分」）。走的是唯一出口 `_restart_tdx`
                       # （链忙让路 + 下载没停不关 + 每天去重一次），不是 `watchman` 里那条没接线的旧路。
                       "restart_daily_enabled": True, "restart_daily_at": "15:38",
+                      # **程序自己拉起的那一个实例，用完就收**（用户 2026-11-12 点名：
+                      # 「记录下开启后的通达信的进程id然后放个半小时后关闭的脚本」）。
+                      # 与上面那个「时间带」是两把尺：时间带按绝对时钟判该不该开着，
+                      # 这条按拉起后的相对时长判该不该收，所以带内也收。
+                      # 账本落盘在 `duanxian/tdx_lease.py`（pid + 拉起时刻 + 谁开的），
+                      # 只收账本里那个 pid；人自己开的/重启过换了实例的一律不动。
+                      # 真关走 `_close_tdx_client()` 同一个温和退出出口，绝不 /F 强杀。
+                      # `keep_alive` 那一档豁免（用户选了全天候不关，这条不许推翻它）。
+                      "lease_close_enabled": True, "lease_close_after_min": 30,
+                      # 到点了但链在跑/下载在跑/人在用键鼠 ⇒ 顺延而不是放弃；
+                      # 顺延累计超过这么多分钟就停手交人工（与阶梯「档期用完就放弃」同形）。
+                      "lease_max_defer_min": 120,
                       "note": ""}
 
 #: 两档的中文措辞**只住 `vr/jobsboard.py::CLIENT_MODE_MEANING`**（面板、CLI、文档都引那一份）。

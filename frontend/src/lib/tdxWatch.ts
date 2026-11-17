@@ -31,6 +31,8 @@ export interface WatchFacts {
   ghost?: number[] | null;
   note?: string | null;
   reason?: string | null;
+  /** 程序拉起的那个实例的收尾租约（与时间带是两把尺，见 `leaseLine`） */
+  lease?: LeaseFacts | null;
 }
 
 export type WatchTone = "ok" | "bad" | "unknown";
@@ -106,4 +108,64 @@ export function probeTimeLine(f: WatchFacts, ageText: (s: number | null | undefi
   if (!at) return "最近探测：没有记录";
   const age = typeof f.age_seconds === "number" ? `（${ageText(f.age_seconds)}前）` : "";
   return `最近探测：${at}${age}`;
+}
+
+/** 程序拉起的那个实例的收尾租约（后端 `duanxian/tdx_lease.py`，判据与措辞都在那边）。
+ *
+ *  它与「时间带」是两把尺：时间带按绝对时钟判该不该开着，这条按拉起后的相对时长判该不该收。
+ *  所以「在带内」不是这一格的理由 —— 这一格只回答「程序自己开的那一个，到点收了没有」。 */
+export interface LeaseFacts {
+  available?: boolean | null;
+  reason?: string | null;
+  pid?: number | null;
+  launched_at?: string | null;
+  why?: string | null;
+  status?: string | null;
+  after_min?: number | null;
+  due_at?: string | null;
+  left_min?: number | null;
+  age_min?: number | null;
+  deferred_count?: number | null;
+  last_defer?: { at?: string | null; why?: string | null } | null;
+  closed_at?: string | null;
+  close_reason?: string | null;
+  enabled?: boolean | null;
+  max_defer_min?: number | null;
+  exempt_keep_alive?: boolean | null;
+}
+
+export function leaseLine(v: LeaseFacts | null | undefined): WatchReading {
+  if (v === null || v === undefined) {
+    return { tone: "unknown", text: "未探测到（后端没交这一项，界面不猜）" };
+  }
+  if (v.available === false) {
+    return { tone: "ok", text: (v.reason ?? "").trim() || "没有租约记录" };
+  }
+  if (v.exempt_keep_alive === true) {
+    return { tone: "ok", text: "client_mode=keep_alive：你选了全天候保持运行，这一条不生效" };
+  }
+  if (v.enabled === false) {
+    return { tone: "ok", text: "开关关着（lease_close_enabled=false）：不自动收程序拉起的客户端" };
+  }
+  const pid = v.pid ?? "—";
+  const born = (v.launched_at ?? "").trim() || "时刻没读到";
+  const why = (v.why ?? "").trim();
+  const head = `pid ${pid} 由程序于 ${born} 拉起${why ? `（${why}）` : ""}`;
+  const st = (v.status ?? "").trim();
+  if (st === "closed") {
+    return { tone: "ok", text: `${head} → 已到点关闭（${v.closed_at ?? "时刻没读到"}）` };
+  }
+  if (st === "cleared") {
+    return { tone: "ok", text: `${head} → 账本已作废：${(v.close_reason ?? "").trim() || "没写原因"}` };
+  }
+  if (st === "expired") {
+    return { tone: "bad",
+      text: `${head} → 到点没收掉，顺延已用满 ${v.max_defer_min ?? "—"} 分钟，已交人工` };
+  }
+  const n = v.deferred_count ?? 0;
+  const defer = n > 0 ? `；已顺延 ${n} 次（最近一次：${(v.last_defer?.why ?? "").trim() || "没写原因"}）` : "";
+  if (typeof v.left_min === "number" && v.left_min > 0) {
+    return { tone: "ok", text: `${head} → 还差 ${v.left_min} 分钟到点收（拉起后 ${v.after_min ?? "—"} 分钟）` };
+  }
+  return { tone: "ok", text: `${head} → 已到点（${v.due_at ?? "时刻没读到"}），正在让路闸后面等${defer}` };
 }

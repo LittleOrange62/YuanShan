@@ -186,6 +186,13 @@ export interface LoopRow {
   client_band_help?: string | null;
   restart_daily_enabled?: boolean | null; restart_daily_at?: string | null;
   restart_daily_help?: string | null;
+  /** 收尾租约三格（`tdx_watch.lease_*`，用户 2026-11-12 点名）。与时间带是两把尺：
+   *  那把按绝对时钟判该不该开着，这把按程序拉起之后过了多久判该不该收，所以带内也收。
+   *  同样只在本键真在册时才交；`undefined/null` ⇒ 这一行没有这几格，不渲染。 */
+  lease_close_enabled?: boolean | null;
+  lease_close_after_min?: number | null;
+  lease_max_defer_min?: number | null;
+  lease_help?: string | null;
   last_run_at?: string | null; last_ok_at?: string | null;
   consecutive_failures?: number | null; last_error?: string | null;
   never_recorded?: boolean | null; changed_at?: string | null; changed_by?: string | null;
@@ -255,8 +262,9 @@ export async function loadLoops(): Promise<LoopsState> {
 export async function patchLoop(key: string,
   what: 'enabled' | 'run_at' | 'note' | 'sync_mode' | 'run_freq' | 'weekly_days' | 'times'
     | 'client_mode' | 'exit_confirm_click'
-    | 'client_band_lo' | 'client_band_hi' | 'restart_daily_enabled' | 'restart_daily_at',
-  value: boolean | string): Promise<{ data: LoopsState; reason: string }> {
+    | 'client_band_lo' | 'client_band_hi' | 'restart_daily_enabled' | 'restart_daily_at'
+    | 'lease_close_enabled' | 'lease_close_after_min' | 'lease_max_defer_min',
+  value: boolean | string | number): Promise<{ data: LoopsState; reason: string }> {
   const resp = await fetch(apiUrl('/api/jobs/loops'), {
     method: 'POST',
     headers: { ...authHeaders(), 'Content-Type': 'application/json' },

@@ -328,6 +328,24 @@ def test_c10起p0的超时值有出处():
 
 # ---------------------------------------------------------------- 桌面不可用不是"再试一次"
 
+def _desktop_down_env(monkeypatch, ra, win32, records):
+    monkeypatch.setattr(win32, 'session_ok', lambda: (True, '交互会话'))
+    monkeypatch.setattr(win32, 'input_desktop_ok',
+                        lambda: (False, 'GetCursorPos ACCESS_DENIED（测试注入）'))
+    monkeypatch.setattr(ra.creds, 'has_credentials', lambda *a, **kw: True)
+    monkeypatch.setattr(ra.readiness, 'expected_trade_date',
+                        lambda *a, **kw: dt.date(2026, 9, 30))
+    monkeypatch.setattr(ra, '_run_attempt',
+                        lambda *a, **kw: (ra.EXIT_FAIL, records, '汇总'))
+
+
+def _rec(key, title, message):
+    from app.tdx_client.machine import StepRecord
+    return StepRecord(key=key, title=title, state='failed',
+                      message=message, seconds=1.0,
+                      detail={'stuck_dir': 'var/stuck/测试现场'})
+
+
 def test_输入桌面不可用时的失败判成交人而不是可重试(monkeypatch, capsys):
     """09-30 实测：`var/stuck/20260930_16{05,56,58}_s5_dialog` 三次都是
     「四级都没打开下载对话框：D 输入桌面不可用，坐标点击发不出去」。
@@ -337,19 +355,37 @@ def test_输入桌面不可用时的失败判成交人而不是可重试(monkeyp
     """
     from app.tdx_client import run_agent as ra, win32
 
-    monkeypatch.setattr(win32, 'session_ok', lambda: (True, '交互会话'))
-    monkeypatch.setattr(win32, 'input_desktop_ok',
-                        lambda: (False, 'GetCursorPos ACCESS_DENIED（测试注入）'))
-    monkeypatch.setattr(ra.creds, 'has_credentials', lambda *a, **kw: True)
-    monkeypatch.setattr(ra.readiness, 'expected_trade_date',
-                        lambda *a, **kw: dt.date(2026, 9, 30))
-    monkeypatch.setattr(ra, '_run_attempt',
-                        lambda *a, **kw: (ra.EXIT_FAIL, [], '汇总'))
+    _desktop_down_env(monkeypatch, ra, win32, [
+        _rec('s5_dialog', '打开盘后下载对话框',
+             'D 级：输入桌面不可用，坐标点击发不出去（这一级只能放弃）'),
+    ])
     rc = ra.main(['--date', '2026-09-30', '--attempts', '1'])
     out = capsys.readouterr().out
     assert rc == ra.EXIT_HANDOFF, '桌面不可用必须交人，不能留给上层去重试'
-    assert '不是' in out or '交' in out or '重试' in out
-    assert '输入桌面不可用' in out
+    assert '失败原因是输入桌面不可用' in out
+    assert 'GetCursorPos ACCESS_DENIED（测试注入）' in out
+
+
+def test_桌面不可用但失败正文没指着它时不许假归因(monkeypatch, capsys):
+    """11-12 实测的形状：s5 靠 B 级走通了，s6 停在确认框正文是「取消下载」
+    （红线：等于放弃正在下的数据，一次都不点）。桌面那时也不可用，
+    但旧代码不看失败正文就念「失败原因是输入桌面不可用」—— 把人指错方向。
+
+    出口码仍必须是 handoff（改成 FAIL 会让 p0 起第 2 轮、在下载中途清场）。
+    """
+    from app.tdx_client import run_agent as ra, win32
+
+    _desktop_down_env(monkeypatch, ra, win32, [
+        _rec('s6_day', '日线下载那一遍',
+             '确认框正文是「取消下载」：按红线一次都不点，停在这里'),
+    ])
+    rc = ra.main(['--date', '2026-09-30', '--attempts', '1'])
+    out = capsys.readouterr().out
+    assert rc == ra.EXIT_HANDOFF, '仍要交人，否则上层会重来并清场'
+    assert '失败原因是输入桌面不可用' not in out, '这就是那次假归因的原句'
+    assert '取消下载' in out and 's6' in out.lower(), '要点名真正失败的那一步'
+    assert '别把它当成原因' in out
+    assert 'var/stuck/测试现场' in out, '现场包路径要跟着那一步一起给'
 
 
 def test_桌面可用时的失败还是失败不冒充交人(monkeypatch):

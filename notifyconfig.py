@@ -75,7 +75,8 @@ SECRET_KINDS = ("feishu", "dingtalk")
 #: 两边不同步就会长出"面板能勾、发出来是空的"那种假功能 —— 由测试钉住。
 SCENE_KEYS = ("confluence", "screen", "watchlist", "dossier", "positions", "market",
               "voldbl", "breakout", "ambush", "quadrant", "abnormal", "spike",
-              "trendstock", "sector", "groupanalytics", "news", "allocator")
+              "trendstock", "sector", "groupanalytics", "news", "allocator",
+              "top30_dups", "tomorrow_outlook")
 #: 每一档能配的那些格子见下面的 `SCENE_FIELDS`（原先这里是"勾选了就必须给参数"的三行写死名单，
 #: 加一档就得再抄一行，而且挡不住"面板能填、执行体读不到"的那种半截功能）。
 
@@ -194,6 +195,18 @@ SCENE_FIELDS: dict[str, tuple[dict, ...]] = {
                      {"value": "stages", "label": "阶段分布"}],
          "empty_means": "三块都带", "bit_suffix": "%s 块榜",
          "note": "两张榜各自的排法由后端定（收费分 / 拥挤温度），这里不另排一遍"},
+    ),
+    "top30_dups": (
+        {"key": "limit", "label": "列几只", "type": "int"},
+        {"key": "min_hits", "label": "最少重复出现几次", "type": "int", "min": 2, "max": 10,
+         "default": 2, "unit": "次", "bit_prefix": "≥"},
+    ),
+    "tomorrow_outlook": (
+        {"key": "sections", "label": "带哪几节", "type": "multi",
+         "choices": [{"value": "multi_top", "label": "多指标靠前"},
+                     {"value": "trend_best", "label": "趋势最正"},
+                     {"value": "watchlist", "label": "明日观察清单"}],
+         "empty_means": "三节都带", "bit_suffix": "%s 节"},
     ),
 }
 

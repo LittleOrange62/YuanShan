@@ -98,15 +98,22 @@ GUI_TIMEOUT_SEC = DOWNLOAD_WAIT_SEC + 600
 
 
 def _run(argv: list[str], *, what: str,
-         timeout: int = STEP_TIMEOUT_SEC) -> int:
+         timeout: int = STEP_TIMEOUT_SEC, launch_why: str = '') -> int:
     """起一个子作业并等它，**有上限**。超时按进程树收（`duanxian/proc.py::kill_tree`，
     只收自己起的这一支，绝不按映像名杀），退出码交回 124 —— 124 从来不属于段脚本自己的
-    语义，所以不会被 `close_verdict` 误读成"按设计跳过"。"""
+    语义，所以不会被 `close_verdict` 误读成"按设计跳过"。
+
+    `launch_why`：这一段若拉起了通达信，租约账本上「谁开的」就写这句
+    （`s1_launch` 从 `FT_TDX_LAUNCH_WHY` 读，见 `duanxian/tdx_lease.py`）。
+    """
+    import os
+
     from duanxian.proc import kill_tree
 
     print('\n--- %s ---' % what, flush=True)
     print('$ %s   （超时上限 %d 分钟）' % (' '.join(argv), timeout // 60), flush=True)
-    proc = subprocess.Popen([sys.executable, '-u', *argv], cwd=str(ROOT))
+    env = {**os.environ, 'FT_TDX_LAUNCH_WHY': launch_why} if launch_why else None
+    proc = subprocess.Popen([sys.executable, '-u', *argv], cwd=str(ROOT), env=env)
     try:
         rc = proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -372,7 +379,7 @@ def step_launch(target: dt.date, *, check_only: bool,
     rc = _run(_mod('app.tdx_client.run_agent', '--only', 's1_launch',
                    '--only', 's2_login', '--only', 's3_popup'),
               what='自动拉起并登录通达信（③b 前置，用户 10-06 点头）',
-              timeout=LAUNCH_TIMEOUT_SEC)
+              timeout=LAUNCH_TIMEOUT_SEC, launch_why='收盘链 ③b 前置（TQ 要客户端登录着）')
     after = _tdx_probe()
     ok = bool(after.get('usable'))
     # run_agent 的出口码 2 就是"要人接手"（定位失败、"已在别处登录"这类），
@@ -510,7 +517,9 @@ def step_download(target: dt.date, has: readiness.Readiness, *,
 
     if cut or usable:
         _run(prepare, what='(a) 重新启动 + 登录 + 等自动同步' if cut
-             else '(a) 复用当前客户端 + 等自动同步', timeout=GUI_TIMEOUT_SEC)
+             else '(a) 复用当前客户端 + 等自动同步', timeout=GUI_TIMEOUT_SEC,
+             launch_why='收盘链 ③c（切掉不可用的实例后重新拉起）' if cut
+             else '收盘链 ③c（复用当前客户端）')
         # 只有"同步进程确实在跑"才值得等满 10 分钟；没看到进程就短等，到点进 (b)。
         from app.tdx_client import locator as _loc
         running, who = _loc.sync_running()
@@ -520,11 +529,12 @@ def step_download(target: dt.date, has: readiness.Readiness, *,
         if ok:
             return True, why
     else:
-        _run(prepare, what='(a) 启动 + 登录（客户端本来没开）', timeout=GUI_TIMEOUT_SEC)
+        _run(prepare, what='(a) 启动 + 登录（客户端本来没开）', timeout=GUI_TIMEOUT_SEC,
+             launch_why='收盘链 ③c（客户端本来没开）')
 
     # ---- (b)(c) 盘后数据下载：日线 tab + 第二个 tab 的 1/5 分钟线 ----
     rc = _run(download, what='(b)(c) 盘后数据下载（日线 + 1/5 分钟线）',
-              timeout=GUI_TIMEOUT_SEC)
+              timeout=GUI_TIMEOUT_SEC, launch_why='收盘链 ③c 盘后数据下载')
     ok, why, _n = _wait_settled(has, target, '(b)(c) 下载后回验',
                                 budget=DOWNLOAD_WAIT_SEC)
     if ok:

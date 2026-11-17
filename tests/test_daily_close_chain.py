@@ -102,9 +102,10 @@ def env(monkeypatch, tmp_path):
     lands = {'c1': True, 'tq': False}
     counts: list[str] = []
 
-    def fake_run(argv, *, what, timeout=None):
-        # `_run` 现在带硬超时（加固）。假桩必须收得下这个关键字，
-        # 否则"没下全绝不进库"这类测试会因为签名不匹配而红 —— 那是测试自己的坏，不是判据的坏。
+    def fake_run(argv, *, what, timeout=None, launch_why=''):
+        # `_run` 现在带硬超时（加固）与 launch_why（收尾租约要知道「谁开的」）。
+        # 假桩必须收得下这两个关键字，否则"没下全绝不进库"这类测试会因为签名不匹配而红
+        # —— 那是测试自己的坏，不是判据的坏。
         calls.append(list(argv))
         assert timeout, '每个子作业都要有上限：%s' % what
         # 入库跑完，库里就该有那天的数 —— 让 ④ 回验能真的过门，

@@ -169,6 +169,18 @@ EXIT_CLICK_MEANING = (
     "「取消下载」这类等于放弃正在下的数据的文字时一次都不点），点完重探进程确认真的退了"
     "才算成。走的仍是温和退出，不是 /F 强杀；在同步、vipdoc 还在往前写、键鼠空闲不够长时"
     "根本不会走到这一步。关掉它 = 程序只发退出请求，那只框交给你自己点。")
+#: 收尾租约那三格（`tdx_watch.lease_*`，用户 2026-11-12 点名）。措辞只住这一处。
+#: 与时间带是两把尺，这件事必须在面板上说清 —— 不然用户会以为「拨了 09:00–19:00 就一定挂着」。
+LEASE_MEANING = (
+    "程序自己拉起的那一个通达信实例，**拉起之后过这么多分钟就主动请它退出**（默认 30）。"
+    "与上面那个时间带是两把不同的尺：时间带按绝对时钟判「现在该不该开着」，"
+    "这条按「程序拉起之后过了多久」判「该不该收」，所以**带内也收**。"
+    "只收账本里记着的那个 pid（账本落盘，重启 8910 也不会忘）；你自己开的、"
+    "或你重启过换了实例的，一律不动。到点那一刻若收盘链在跑／下载还在跑／你在动键鼠，"
+    "就顺延到下一轮再判，顺延累计超过上限才停手交人工。"
+    "真关走的是与带外主动关**同一个温和退出出口**（点 X、确认框只点全文「退出」），绝不 /F 强杀。"
+    "选「保持运行 keep_alive」那一档时这条不生效（那档的意思就是全天候不关）。"
+    "**生效时机：三个格都是每轮现读，改完 ≤2 分钟按新的判，不用重启 8910。**")
 #: 关掉之后会怎样（面板上必须说，不然"关一下试试看"的代价没人知道）。
 LOOP_OFF_EFFECT = {_key: off for _n, _key, _l, off in LOOP_JOBS}
 LOOP_LABELS = {_key: label for _n, _key, label, _off in LOOP_JOBS}
@@ -760,6 +772,22 @@ def chain_status(now: dt.datetime | None = None) -> dict:
     }
 
 
+def _lease_read(cfg: dict, now: dt.datetime) -> dict:
+    """程序拉起的那个实例的租约读数（`/api/tdx/watch` 与 `/api/tdx/status` 共用这一份）。
+
+    判据与措辞只住 `duanxian/tdx_lease.py`，这里不另算一次「还差几分钟」。
+    没有账本也照样交 `available:false` + 原因 —— 那不是「没有这一条」，是「这个客户端不是程序开的」。
+    """
+    from duanxian import tdx_lease
+
+    after = int(cfg.get("lease_close_after_min") or 30)
+    got = tdx_lease.facts(tdx_lease.read(), now=now, after_min=after)
+    got["enabled"] = bool(cfg.get("lease_close_enabled", True))
+    got["max_defer_min"] = int(cfg.get("lease_max_defer_min") or 120)
+    got["exempt_keep_alive"] = str(cfg.get("client_mode") or "on_demand") == "keep_alive"
+    return got
+
+
 def tdx_watch(now: dt.datetime | None = None) -> dict:
     """通达信看护那一屏的读数 —— `/api/tdx/watch`。
 
@@ -850,6 +878,7 @@ def tdx_watch(now: dt.datetime | None = None) -> dict:
         "auto_restart": bool(tw_cfg.get("auto_restart", True)),
         "auto_launch": bool(tw_cfg.get("auto_launch", True)),
         "sync_reap_after_min": tw_cfg.get("sync_reap_after_min"),
+        "lease": _lease_read(tw_cfg, now),
         "note": note,
         "consecutive_failures": _int_or_none(st.get("consecutive_failures")),
         "trail": {"count": trail["count"], "by_status": trail["by_status"],
@@ -891,7 +920,9 @@ def tdx_status(now: dt.datetime | None = None) -> dict:
         last_file = expected = None
     from app import config as app_config
     from duanxian import gui_trail
+    from duanxian import jobs as _jstore
 
+    _tw_cfg, _ = _jstore.settings("tdx_watch", _jstore.TDX_WATCH_DEFAULTS)
     return {
         "available": True, "reason": None,
         "trail": gui_trail.summary(),
@@ -912,6 +943,7 @@ def tdx_status(now: dt.datetime | None = None) -> dict:
         "last_probe_at": _iso(now), "vipdoc_dir": str(app_config.VIPDOC_DIR),
         "last_file_date": last_file, "expected_data_date": expected,
         "sync": _text(st.get("sync")), "window": _text(st.get("window")),
+        "lease": _lease_read(_tw_cfg, now),
     }
 
 
@@ -1100,6 +1132,15 @@ def loop_switches(now: dt.datetime | None = None) -> dict:
                                  if "restart_daily_at" in (defaults or {}) else None),
             "restart_daily_help": (DAILY_RESTART_MEANING
                                    if "restart_daily_at" in (defaults or {}) else None),
+            # 收尾租约三格（用户 2026-11-12）。同样只在本键真在册时才交。
+            "lease_close_enabled": (bool(merged.get("lease_close_enabled", True))
+                                    if "lease_close_enabled" in (defaults or {}) else None),
+            "lease_close_after_min": (int(merged.get("lease_close_after_min") or 30)
+                                      if "lease_close_after_min" in (defaults or {}) else None),
+            "lease_max_defer_min": (int(merged.get("lease_max_defer_min") or 0)
+                                    if "lease_max_defer_min" in (defaults or {}) else None),
+            "lease_help": (LEASE_MEANING
+                           if "lease_close_enabled" in (defaults or {}) else None),
             # 频率档与"每周哪几天"（用户 2026-10-08 要的第二档）。同样**只在本键真在册时才交**：
             # 给一条间隔型循环配"每日/每周"下拉，等于又造一个改了也不生效的框。
             "run_freq": (str(merged.get("run_freq") or "daily") if "run_freq" in (defaults or {}) else None),

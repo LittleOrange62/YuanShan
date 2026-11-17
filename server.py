@@ -3407,6 +3407,94 @@ def _tdx_close_when_idle(today) -> dict | None:
     return res
 
 
+def _tdx_close_lease_round(detail: dict) -> dict | None:
+    """程序自己拉起的那一个实例，拉起后 N 分钟到点就收（用户 2026-11-12 点名）。
+
+    与上面那把「带外主动关」是两把不同的尺：那把按绝对时钟带（本机拨的 09:00–19:00，
+    带内保持开着），这把按拉起后的相对时长，所以带内也收 —— 回答的是
+    「程序自己开的，用完就该收」，不是「现在几点该不该开」。
+
+    判据只住 `duanxian/tdx_lease.verdict`（纯函数），本函数只做三件事：
+    让路闸、走 `_close_tdx_client()` 那一个温和退出出口、三档记账。
+    绝不自己发窗口消息，也绝不 /F 强杀。
+    """
+    global _client_down_day
+    from duanxian import jobs as jstore
+    from duanxian import tdx_lease
+    from duanxian import util as _util
+
+    cfg, _w = jstore.settings("tdx_watch", jstore.TDX_WATCH_DEFAULTS)
+    after_min = int(cfg.get("lease_close_after_min") or 30)
+    lease = tdx_lease.read()
+    # 账本记了拉起时刻但还没确认到 pid（s1 的复验没跑到）⇒ 拿这一轮现探的 pid 补上。
+    # attach_pid 自己带岁数闸：太老的账本不许认领现在活着的实例（那可能是人自己开的）。
+    if lease and not lease.get("pid") and detail.get("pid"):
+        lease = tdx_lease.attach_pid(int(detail["pid"])) or lease
+    act, why = tdx_lease.verdict(
+        lease, now=_util.china_now(), live=list(detail.get("live") or []),
+        after_min=after_min, max_defer_min=int(cfg.get("lease_max_defer_min") or 120),
+        enabled=bool(cfg.get("lease_close_enabled", True)),
+        mode=str(cfg.get("client_mode") or "on_demand"))
+
+    if act in ("gone", "stale"):
+        tdx_lease.clear(why)
+        return {"action": act, "reason": why}
+    if act == "expired":
+        tdx_lease.expire(reason=why)
+        _gui("close_client", "程序拉起的通达信到点没收掉，顺延已用满", "need_human",
+             detail=why, target=_util.china_today())
+        jstore.record("tdx_lease_close", ok=False,
+                      detail={"trigger": "lease", "reason": why, "expired": True})
+        return {"action": act, "reason": why}
+    if act != "close":
+        # off / none / done / wait 都不动手，但要把读数交出去（屏幕上「还差几分钟」靠它）。
+        return {"action": act, "reason": why}
+
+    # ---- 到点了。让路闸：这三条任一成立就顺延，不是放弃（下一轮再判，用满上限才交人工）----
+    busy = jstore.stage_busy()
+    if busy:
+        tdx_lease.defer("收盘链 %s 正在跑，不抢它的客户端" % busy)
+        return {"action": "defer", "reason": why + "｜但收盘链 %s 正在跑 → 顺延" % busy}
+    from app.tdx_client import win32
+    try:
+        idle = win32.input_idle_sec()
+    except Exception as exc:  # noqa: BLE001  判不了空闲 = 保守不收
+        idle = None
+        idle_why = "读不到键鼠空闲时间（%s）" % type(exc).__name__
+    else:
+        idle_why = "键鼠空闲时间判不了"
+    if idle is None or idle < TDX_IDLE_GATE_SEC:
+        got = ("%d 秒前还在动键盘鼠标" % int(idle)) if idle is not None else idle_why
+        tdx_lease.defer(got)
+        return {"action": "defer", "reason": why + "｜但%s → 顺延（人在用就不关）" % got}
+
+    res = _close_tdx_client()
+    closed, acted = bool(res.get("closed")), bool(res.get("acted"))
+    if not closed:
+        # 同步中 / vipdoc 还在写 / 找不到主窗口 / 确认框点不动 —— 都按顺延处理，
+        # 出口自己会给出原因；顺延用满由下一轮的 verdict 判 expired。
+        tdx_lease.defer(str(res.get("reason") or "温和退出没关掉"))
+    jstore.record("tdx_lease_close", ok=closed,
+                  detail={"skipped": (not closed and not acted) or None,
+                          "trigger": "lease（程序拉起的实例到点收）",
+                          "pid": lease.get("pid") if lease else None,
+                          "launched_at": lease.get("launched_at") if lease else None,
+                          "reason": res.get("reason"), "closed": closed, "acted": acted,
+                          "exit_confirm": res.get("exit_confirm"),
+                          "clicked_exit": res.get("clicked_exit")})
+    if closed:
+        _client_down_day = _util.china_today()
+        tdx_lease.mark_closed(reason=str(res.get("reason") or ""))
+        _gui("close_client", "程序拉起的通达信已到点关闭", "done",
+             detail=str(res.get("reason") or ""), target=_util.china_today(), supersedes=True)
+        print("✅ %s" % (res.get("reason") or "租约到点，已关闭通达信"))
+    elif acted:
+        _gui("close_client", "租约到点该关通达信但没关掉，需要人工点一次退出", "need_human",
+             detail=str(res.get("reason") or ""), target=_util.china_today())
+    return {"action": "closed" if closed else "defer",
+            "reason": why + "｜" + str(res.get("reason") or "温和退出没给原因")}
+
+
 def _tdx_probe_round() -> tuple[bool, dict]:
     """探测一次，返回 `(是不是"能取数"的状态, 交出去的记录)`。
 
@@ -3700,7 +3788,9 @@ def _restart_tdx(reason: str, *, trigger: str = "ladder",
             (['-m', 'app.tdx_client.run_agent', '--only', 's1_launch',
               '--only', 's2_login', '--only', 's3_popup'], '重新起 + 登录 + 清弹窗', 600)):
         proc = subprocess.Popen([sys.executable, '-u', *argv], cwd=str(root),
-                                creationflags=NO_WINDOW)
+                                creationflags=NO_WINDOW,
+                                env={**os.environ,
+                                     'FT_TDX_LAUNCH_WHY': '全重启通达信（%s）' % trigger})
         try:
             rc = proc.wait(timeout=budget)
         except subprocess.TimeoutExpired:
@@ -3928,6 +4018,17 @@ def _tdx_watch_scheduler() -> None:
                         detail["client_down"] = act.get("reason")
             except Exception as exc:  # noqa: BLE001  动作这一手坏了不许带崩探测与记账
                 detail["mode_action_error"] = f"{type(exc).__name__}: {str(exc)[:120]}"
+            # 租约收尾（用户 2026-11-12：「记录下开启后的通达信的进程id…放个半小时后关闭」）。
+            # 与上面那把「带外主动关」并列而不是替代：那把按绝对时钟带，这把按拉起后的相对时长，
+            # 所以带内也收。排在两档动作之后 —— 同一轮里不许两只手同时操作那个窗口。
+            try:
+                lease_act = _tdx_close_lease_round(detail)
+                if lease_act:
+                    detail["lease"] = lease_act
+                    if lease_act.get("action") in ("closed", "defer", "expired", "stale"):
+                        detail["reason"] = f"{detail['reason']}（{lease_act['reason']}）"
+            except Exception as exc:  # noqa: BLE001  这一手坏了不许带崩探测与记账
+                detail["lease_error"] = f"{type(exc).__name__}: {str(exc)[:120]}"
             # **每日定时重启**（用户 10-19 点名，默认 15:38，面板可改可关）。排在两档动作之后 ——
             # 上一手可能刚把客户端收掉或拉起，同一轮里不许两只手同时操作那个窗口。
             try:

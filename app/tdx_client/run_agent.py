@@ -298,8 +298,28 @@ def main(argv: list[str] | None = None) -> int:
         # 正开着的通达信一起杀掉**，而锁屏/远程会话切走时正是最容易触发这条的形状；
         # ② 09-30 实测就是这个形状（`var/stuck/20260930_16*_s5_dialog`：
         # 「四级都没打开下载对话框：D 输入桌面不可用，坐标点击发不出去」）。
-        print('  **失败原因是输入桌面不可用**（%s）：这不是重试能修的，'
-              '交给人到电脑前跑一次（或把这条链挪回交互桌面）。' % in_why)
+        #
+        # **但"桌面不可用"只是背景条件，不等于这一次失败的原因。** 11-12 实测：
+        # s5 靠 B 级走通了、s6 停在确认框正文是「取消下载」（红线不许点），
+        # 而这里照样念「失败原因是输入桌面不可用」—— 把人的排查方向指错了。
+        # 所以只有失败正文真指着桌面时才归因给它，否则点名真正失败的那几步。
+        failed = [r_ for r_ in records if r_.state == 'failed']
+        desk_marks = ('输入桌面不可用', '没连到交互式输入桌面',
+                      'GetCursorPos 失败', 'GetForegroundWindow 返回 0')
+        blamed = [r_ for r_ in failed
+                  if any(m in (r_.message or '') for m in desk_marks)]
+        if blamed:
+            print('  **失败原因是输入桌面不可用**（%s）：这不是重试能修的，'
+                  '交给人到电脑前跑一次（或把这条链挪回交互桌面）。' % in_why)
+        else:
+            for r_ in failed:
+                print(f'  {r_.key} {r_.title}：{r_.message}')
+                if r_.detail.get('stuck_dir'):
+                    print(f'    现场包：{r_.detail["stuck_dir"]}')
+            print('  输入桌面同时不可用（%s），但上面这几条失败的正文没指着它 —— '
+                  '别把它当成原因，先按现场包查这几步。' % in_why)
+        print('  这一遍仍判为要人来接手：桌面不会自己亮起来，重来修不好，'
+              '而第 2 轮开头的清场会把你正开着的通达信一起收掉。')
         return EXIT_HANDOFF
     return EXIT_FAIL
 

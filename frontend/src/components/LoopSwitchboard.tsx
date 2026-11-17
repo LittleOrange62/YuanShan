@@ -53,6 +53,7 @@ export function LoopSwitchboard() {
   // 逐字符 PATCH 会把每个按键都变成一次写配置，而时点要的是"填完那一下"才写。
   const [bandDraft, setBandDraft] = useState<Record<string, string>>({});
   const [dailyAtDraft, setDailyAtDraft] = useState<Record<string, string>>({});
+  const [leaseDraft, setLeaseDraft] = useState<Record<string, string>>({});
   const [noteDraft, setNoteDraft] = useState<Record<string, string>>({});
   const [timesDraft, setTimesDraft] = useState<Record<string, string>>({});
 
@@ -165,6 +166,23 @@ export function LoopSwitchboard() {
               onDailyAtSave={() => run(`dailyat:${l.key}`,
                 () => patchLoop(l.key, "restart_daily_at",
                   (dailyAtDraft[l.key] ?? l.restart_daily_at ?? "").trim()))}
+              leaseAfter={leaseDraft[`${l.key}:after`] ?? String(l.lease_close_after_min ?? 30)}
+              leaseDefer={leaseDraft[`${l.key}:defer`] ?? String(l.lease_max_defer_min ?? 120)}
+              onLeaseDraft={(side, v) => setLeaseDraft(d => ({ ...d, [`${l.key}:${side}`]: v }))}
+              onLeaseToggle={() => run(`leaseon:${l.key}`,
+                () => patchLoop(l.key, "lease_close_enabled", l.lease_close_enabled !== true))}
+              onLeaseSave={() => run(`lease:${l.key}`, async () => {
+                // 与时间带同形：先判再发。后端一次只收一键，填坏的那一笔不发出去，
+                // 免得留下半配（一个数改了另一个没改）更难查。
+                const after = Number((leaseDraft[`${l.key}:after`] ?? String(l.lease_close_after_min ?? 30)).trim());
+                const defer = Number((leaseDraft[`${l.key}:defer`] ?? String(l.lease_max_defer_min ?? 120)).trim());
+                if (!Number.isInteger(after) || after < 1 || after > 720) return Promise.reject(
+                  new Error(`「拉起后多少分钟收」要 1~720 的整数（现在 ${after}），这一笔没发出去`));
+                if (!Number.isInteger(defer) || defer < 0 || defer > 1440) return Promise.reject(
+                  new Error(`「顺延上限」要 0~1440 的整数（现在 ${defer}），这一笔没发出去`));
+                await patchLoop(l.key, "lease_close_after_min", after);
+                return await patchLoop(l.key, "lease_max_defer_min", defer);
+              })}
               onFreq={f => run(`freq:${l.key}`, () => patchLoop(l.key, "run_freq", f))}
               onDays={d => run(`days:${l.key}`, () => patchLoop(l.key, "weekly_days", d.join(",")))}
             />
@@ -183,7 +201,8 @@ const dashCount = (v: unknown) => (typeof v === "number" ? String(v) : DASH);
 function LoopLine({ l, busy, slotDraft, noteDraft, timesDraft, onSlotDraft, onNoteDraft,
   onTimesDraft, onToggle, onSlot, onNote, onMode, onFreq, onDays, onTimes, onClientMode,
   onExitClick, bandLo, bandHi, onBandDraft, onBandSave,
-  onDailyRestart, dailyAt, onDailyAtDraft, onDailyAtSave }: {
+  onDailyRestart, dailyAt, onDailyAtDraft, onDailyAtSave,
+  leaseAfter, leaseDefer, onLeaseDraft, onLeaseToggle, onLeaseSave }: {
     l: LoopRow; busy: string; slotDraft: string; noteDraft: string; timesDraft: string;
     onSlotDraft: (v: string) => void; onNoteDraft: (v: string) => void;
     onTimesDraft: (v: string) => void;
@@ -196,6 +215,9 @@ function LoopLine({ l, busy, slotDraft, noteDraft, timesDraft, onSlotDraft, onNo
     onBandDraft: (side: "lo" | "hi", v: string) => void; onBandSave: () => void;
     onDailyRestart: () => void; dailyAt: string;
     onDailyAtDraft: (v: string) => void; onDailyAtSave: () => void;
+    leaseAfter: string; leaseDefer: string;
+    onLeaseDraft: (side: "after" | "defer", v: string) => void;
+    onLeaseToggle: () => void; onLeaseSave: () => void;
   }) {
   const rt = l.retry;
   return (
@@ -400,6 +422,33 @@ function LoopLine({ l, busy, slotDraft, noteDraft, timesDraft, onSlotDraft, onNo
               onClick={onDailyAtSave}
               className="rounded-lg border border-border px-2 py-1 text-[11px] hover:border-primary/40 hover:text-primary">
               保存时刻</button>
+          </span>
+        )}
+        {l.lease_help && (
+          <span className="flex flex-wrap items-center gap-1 text-[11px]"
+            title={plain(l.lease_help)}>
+            <label className="flex items-center gap-1">
+              <input type="checkbox" className="h-3.5 w-3.5 accent-primary" disabled={busy !== ""}
+                checked={l.lease_close_enabled === true} onChange={onLeaseToggle}
+                aria-label={`${l.key} 程序拉起的通达信到点自动收`} />
+              <span className="text-muted-foreground">程序拉起的到点自动收</span>
+            </label>
+            <span className="text-muted-foreground">拉起后</span>
+            <input value={leaseAfter} aria-label={`${l.key} 拉起后多少分钟收`} placeholder="30"
+              disabled={busy !== "" || l.lease_close_enabled !== true}
+              onChange={e => onLeaseDraft("after", e.target.value.trim())}
+              className="w-14 rounded-lg border border-border bg-background px-2 py-1 text-[11px]" />
+            <span className="text-muted-foreground">分钟收；收不掉最多顺延</span>
+            <input value={leaseDefer} aria-label={`${l.key} 顺延上限分钟`} placeholder="120"
+              disabled={busy !== "" || l.lease_close_enabled !== true}
+              onChange={e => onLeaseDraft("defer", e.target.value.trim())}
+              className="w-14 rounded-lg border border-border bg-background px-2 py-1 text-[11px]" />
+            <span className="text-muted-foreground">分钟</span>
+            <button type="button" disabled={busy !== "" || l.lease_close_enabled !== true}
+              onClick={onLeaseSave}
+              className="rounded-lg border border-border px-2 py-1 text-[11px] hover:border-primary/40 hover:text-primary">
+              保存这两个数</button>
+            <span className="text-muted-foreground">（与时间带是两把尺：带内也收；只收程序开的那个 pid）</span>
           </span>
         )}
         {l.has_freq && (

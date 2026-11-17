@@ -193,7 +193,8 @@ def run_phase(name: str, keys: tuple[str, ...], *, target: dt.date,
         p = subprocess.Popen(                                    # noqa: S603
             cmd, cwd=str(ROOT), stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT, text=True,
-            encoding='utf-8', errors='replace', bufsize=1)
+            encoding='utf-8', errors='replace', bufsize=1,
+            env={**os.environ, 'FT_TDX_LAUNCH_WHY': '盘后下载 p0（%s）' % name})
     except OSError as exc:
         return 1, '子进程起不来：%s' % exc
 

@@ -7,6 +7,7 @@ import { DocDrawer } from "@/components/ui/DocDrawer";
 import { useNonce, useProbe } from "@/lib/probe";
 import { TdxTrail } from "@/components/TdxTrail";
 import { dash } from "@/lib/datastate";
+import { leaseLine, type LeaseFacts } from "@/lib/tdxWatch";
 
 /**
  * 通达信控制（规划 §2 维度一）。
@@ -40,6 +41,7 @@ interface TdxStatus {
   tq_endpoint?: string | null; tq_busy?: boolean | null;
   last_probe_at?: string | null; vipdoc_dir?: string | null;
   last_file_date?: string | null; expected_data_date?: string | null;
+  lease?: LeaseFacts | null;
   trail?: { count?: number | null; pending?: TrailItem[] | null; path?: string | null } | null;
 }
 
@@ -69,6 +71,7 @@ export function Tdx() {
             ["server_connected / background_sync", "读不到（在客户端自绘界面里）→ 恒为空，不是「没连」也不是「关」"],
             ["vipdoc_dir / last_file_date / expected_data_date", "文件在哪、尾部日期到哪一天、该到哪一天"],
             ["last_probe_at", "这次探测是什么时候做的"],
+            ["lease", "程序拉起的那个实例的收尾租约：pid／拉起时刻／谁开的／还差几分钟到点／顺延几次。与时间带是两把尺（那把按绝对时钟，这把按拉起后多久），判据只住后端 duanxian/tdx_lease.py"],
             ["trail", "系统自己动界面的记录 + 待人工清单（`duanxian/gui_trail.py`）"],
           ]} />}>
           {d => <>
@@ -78,6 +81,8 @@ export function Tdx() {
               : d.client_ghost.length ? `${d.client_ghost.join("、")}（进程已死、条目未回收；杀不掉，也不挡新实例启动）`
               : "没有"} tone={d.client_ghost?.length ? "warn" : undefined} />
             <Row label="已登录" value={d.logged_in === true ? "是" : d.login_dialog === true ? "否（停在登录框）" : d.logged_in === false ? "否" : "—"} tone={d.logged_in === false ? "warn" : undefined} />
+            <Row label="程序拉起的收尾租约" value={leaseLine(d.lease).text}
+              tone={leaseLine(d.lease).tone === "bad" ? "bad" : undefined} />
             <Row label="同步子进程" value={dash(d.sync)} />
             <Row label="主站连接" value={d.server_connected === true ? "已连上" : d.server_connected === false ? "未连上" : "读不到（不是「没连」）"} />
             <Row label="后台同步开关" value={d.background_sync === true ? "开" : d.background_sync === false ? "关" : "读不到（不是「关」）"} />

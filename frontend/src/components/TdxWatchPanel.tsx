@@ -5,7 +5,7 @@ import { plain } from "@/lib/agent";
 import { ageText, describeState, hasData } from "@/lib/datastate";
 import { useProbe } from "@/lib/probe";
 import { jobCardClass, jobLabelClass } from "@/lib/colors";
-import { ghostList, pidList, probeTimeLine, readTri, watchVerdict, type WatchFacts } from "@/lib/tdxWatch";
+import { ghostList, leaseLine, pidList, probeTimeLine, readTri, watchVerdict, type WatchFacts } from "@/lib/tdxWatch";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,6 +24,7 @@ export function TdxWatchPanel({ nonce }: { nonce: number }) {
   const text = describeState(state);
   const f = hasData(state) ? state.data : null;
   const v = f ? watchVerdict(f) : null;
+  const lease = f ? leaseLine(f.lease) : null;
   // "只读"这件事要说在前面：这一格不会去点客户端、不会启动它，读到的只是探测结果。
   const items: { label: string; r: ReturnType<typeof readTri> }[] = f ? [
     { label: "进程（活着的）", r: readTri(f.process_running, "在跑", "没有活着的实例") },
@@ -42,6 +43,7 @@ export function TdxWatchPanel({ nonce }: { nonce: number }) {
     "判活只认线程数：任务管理器里还列着、但已经 0 线程的那一行叫残影条目 —— 进程其实死了，杀不掉，也不挡新实例启动。它单独摆一格，不算「在跑」。",
     "能不能取数由后端一处判（活着＋没停在登录框＋窗口不是假死；缩到托盘照样算可用）。收盘链也读同一份：只有判为不可用才先收掉再重新拉起，可用就复用，不无脑重启。",
     "最近探测时间来自后端的探测记录，不是本机时钟；没有记录就直说没有记录，不拿现在这一刻充数。",
+    "收尾租约是另一把尺：上面那个时间带按绝对时钟判「现在该不该开着」，租约按「程序拉起之后过了多久」判「该不该收」，所以带内也收。只收账本里记着的那个 pid —— 你自己开的、或你重启过换了实例的，一律不动。到点那一刻若链在跑／下载在跑／你在动键鼠，就顺延而不是硬关；顺延用满上限才交人工。真关走的是同一个温和退出出口（点 X、确认框只点全文「退出」），绝不强杀。选 keep_alive 那一档时这条不生效。",
   ];
 
   return (
@@ -76,6 +78,13 @@ export function TdxWatchPanel({ nonce }: { nonce: number }) {
               </div>
             ))}
           </dl>
+          {lease && (
+            <p className="mt-2 text-[12px] leading-relaxed">
+              <span className="text-muted-foreground">程序拉起的收尾租约：</span>
+              <span className={lease.tone === "unknown" ? "text-muted-foreground"
+                : lease.tone === "bad" ? "text-destructive" : "text-foreground"}>{lease.text}</span>
+            </p>
+          )}
           <p className="mt-2 text-[11px] text-muted-foreground">{probeTimeLine(f, ageText)}
             {(f.note ?? f.reason)?.trim() ? `　后端说明：${(f.note ?? f.reason)!.trim()}` : ""}</p>
         </>
@@ -93,6 +102,7 @@ export function TdxWatchPanel({ nonce }: { nonce: number }) {
         ["login_dialog", "登录框是否弹出（弹出＝自动链路停下等人）"],
         ["syncing", "是否正在同步"],
         ["age_seconds", "探测结果距今多久，用来分「刚探的」与「几小时前的」"],
+        ["lease", "程序拉起的那个实例的收尾租约：pid／拉起时刻／谁开的／还差几分钟到点／顺延几次；判据与措辞只住后端 duanxian/tdx_lease.py"],
       ]} />
     </GlassCard>
   );
