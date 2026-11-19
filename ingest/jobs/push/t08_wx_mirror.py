@@ -57,6 +57,12 @@ def _log(now, what, **kw):
         pass
 
 
+def _strip_md(body: str) -> str:
+    """飞书卡片在正文里用 **… 加粗**；微信这条是纯文本粘贴，** 会原样显示成星号 → 剥掉。
+    卡片渲染不受影响（卡片走 notify，不经过本函数）。"""
+    return (body or '').replace('**', '')
+
+
 def today_body(day: dt.date) -> str | None:
     """今天真发给飞书的那段竞价正文。没有 ⇒ None（还没跑到 / 那天没发）。
 
@@ -66,7 +72,7 @@ def today_body(day: dt.date) -> str | None:
         "SELECT body FROM analytics.intraday_broadcast"
         " WHERE trade_date = %s AND task = %s AND what = 'sent' AND ok IS TRUE AND body IS NOT NULL"
         " ORDER BY at_ts DESC LIMIT 1", (day, SOURCE_TASK), role='reader')
-    return (row or {}).get('body') or None
+    return _strip_md((row or {}).get('body') or '') or None
 
 
 def chunk(body: str, cap: int) -> list[str]:

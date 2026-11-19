@@ -197,20 +197,20 @@ def report_text(now: dt.datetime, cur: dict, cur_dt: dict, prev: dict, prev_dt: 
     首轮（9:25 那一针）只报家数与概念前三——那时无比对照，不硬编"变化"。
     缺的那一格不念（`pool_events.fmt_rows`）；概念计数与竞价/热度**同一份 SQL**。
     """
-    lines = [f'{now:%H:%M:%S} · 涨停{len(cur)}/跌停{len(cur_dt)}']
+    lines = [f'**{now:%H:%M:%S} · 涨停{len(cur)}/跌停{len(cur_dt)}**']
     if not baseline:
         for label, now_pool, was in (('涨停', cur, prev), ('跌停', cur_dt, prev_dt)):
             added = {k: v for k, v in now_pool.items() if k not in was}
             gone = {k: v for k, v in was.items() if k not in now_pool}
             if added:
-                lines.append(f'新增{label}：{fmt_rows(list(added.values()), 12)}')
+                lines.append(f'**新增{label}：**{fmt_rows(list(added.values()), 12)}')
             if gone:
-                lines.append(f'{label}减少：{fmt_rows(list(gone.values()), 12)}')
+                lines.append(f'**{label}减少：**{fmt_rows(list(gone.values()), 12)}')
     from app.intraday import sources
     for label, pool in (('涨停', cur), ('跌停', cur_dt)):
         hits, _un = sources.sector_counts(sorted(pool), max_members=CFG_MAX_MEMBERS,
                                           sector_top=CONCEPT_TOP, min_hits=1)
-        lines.append(f'{label}概念前三：' +
+        lines.append(f'**{label}概念前三：**' +
                      ('、'.join(f"{h['name']}×{h['n']}" for h in hits) or '无命中'))
     return '\n'.join(lines)
 

@@ -314,7 +314,7 @@ def one_round(*, dry_run: bool, send: bool, channel: str | None, force: bool = F
         L.append(f"昨日涨停{prem['n']}只：今日行情未取到，溢价缺数")
     else:
         L.append("昨日涨停名单缺数（PG未更新）")
-    L.append(f"判读：{mood_txt}")
+    L.append(f"**判读：**{mood_txt}")
     mood_body = L[L.index(TPL['noon_s1']) + 1:]
 
     L.append(TPL['noon_s2'])
